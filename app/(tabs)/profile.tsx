@@ -11,11 +11,11 @@ import {
   Linking,
   Platform,
   Animated,
-
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-
+  Crown,
   Camera,
   Bell,
   Shield,
@@ -29,13 +29,13 @@ import {
   Moon,
   Heart,
   Flower2,
-
+  Gift,
 } from "lucide-react-native";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAnalysis } from "@/contexts/AnalysisContext";
-
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import PhotoPickerModal from "@/components/PhotoPickerModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
@@ -65,14 +65,14 @@ export default function ProfileScreen() {
   const { user: authUser, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { analysisHistory } = useAnalysis();
-
+  const { state: subscriptionState, inTrial, daysLeft, scansLeft, setSubscriptionData } = useSubscription();
   const [showPhotoPicker, setShowPhotoPicker] = useState<boolean>(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
   const [glowAnim] = useState(new Animated.Value(0));
-
+  const [isRestoringPurchases, setIsRestoringPurchases] = useState<boolean>(false);
   
   const palette = getPalette(theme);
-
+  const gradient = getGradient(theme);
 
   useEffect(() => {
     const load = async () => {
@@ -160,7 +160,62 @@ export default function ProfileScreen() {
     }
   }, []);
 
+  const handleRestorePurchases = useCallback(async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert(
+        'Not Available on Web',
+        'Restore purchases is only available in the mobile app.',
+        [{ text: 'OK', style: 'default' }]
+      );
+      return;
+    }
 
+    setIsRestoringPurchases(true);
+    console.log('Restoring purchases from profile...');
+
+    try {
+      const { paymentService } = await import('@/lib/payments');
+      const restored = await paymentService.restorePurchases();
+      
+      console.log('Restore result:', restored);
+
+      if (restored && restored.length > 0) {
+        const activeSubscription = restored[0];
+        console.log('Active subscription found:', activeSubscription);
+        
+        await setSubscriptionData({
+          isPremium: true,
+          subscriptionType: activeSubscription.productId?.includes('annual') ? 'yearly' : 'monthly',
+          subscriptionPrice: activeSubscription.productId?.includes('annual') ? 99 : 8.99,
+          nextBillingDate: activeSubscription.expiryDate,
+          purchaseToken: activeSubscription.purchaseToken,
+          originalTransactionId: activeSubscription.originalTransactionId,
+        });
+        
+        Alert.alert(
+          '✨ Purchases Restored!',
+          'Your premium subscription has been successfully restored.',
+          [{ text: 'Great!', style: 'default' }]
+        );
+      } else {
+        console.log('No purchases found to restore');
+        Alert.alert(
+          'No Purchases Found',
+          'We couldn\'t find any purchases associated with this account. If you believe this is an error, please contact support.',
+          [{ text: 'OK', style: 'default' }]
+        );
+      }
+    } catch (error) {
+      console.error('Restore purchases error:', error);
+      Alert.alert(
+        'Restore Failed',
+        'Unable to restore purchases. Please try again or contact support if the problem persists.',
+        [{ text: 'OK', style: 'default' }]
+      );
+    } finally {
+      setIsRestoringPurchases(false);
+    }
+  }, [setSubscriptionData]);
 
   const displayName = useMemo(() => {
     const nameFromAuth = authUser?.user_metadata && typeof authUser.user_metadata === 'object' ? (authUser.user_metadata as { full_name?: string; name?: string }).full_name ?? (authUser.user_metadata as { full_name?: string; name?: string }).name : undefined;
@@ -373,6 +428,50 @@ export default function ProfileScreen() {
 
             <TouchableOpacity
               style={styles.settingItem}
+              onPress={() => router.push('/subscribe')}
+              activeOpacity={0.7}
+              testID="subscriptionBtn"
+            >
+              <View style={styles.settingIconContainer}>
+                <Heart color={palette.champagne} size={22} strokeWidth={2} fill={palette.champagne} />
+              </View>
+              <View style={styles.subscriptionInfo}>
+                <Text style={styles.settingText}>Beauty Subscription</Text>
+                {subscriptionState.isPremium ? (
+                  <Text style={styles.subscriptionStatus}>
+                    Premium {subscriptionState.subscriptionType} • ${subscriptionState.subscriptionPrice}
+                  </Text>
+                ) : inTrial ? (
+                  <Text style={styles.subscriptionStatus}>
+                    Trial • {daysLeft} days, {scansLeft} scans left
+                  </Text>
+                ) : (
+                  <Text style={styles.subscriptionStatus}>Free • Upgrade to Premium</Text>
+                )}
+              </View>
+              <ChevronRight color={palette.gold} size={22} strokeWidth={2.5} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={handleRestorePurchases}
+              activeOpacity={0.7}
+              disabled={isRestoringPurchases}
+              testID="restorePurchasesBtn"
+            >
+              <View style={styles.settingIconContainer}>
+                <Shield color={palette.lavender} size={22} strokeWidth={2} />
+              </View>
+              <Text style={styles.settingText}>Restore Purchases</Text>
+              {isRestoringPurchases ? (
+                <ActivityIndicator size="small" color={palette.lavender} style={{ marginLeft: 8 }} />
+              ) : (
+                <ChevronRight color={palette.gold} size={22} strokeWidth={2.5} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.settingItem}
               onPress={toggleTheme}
               activeOpacity={0.7}
               testID="themeToggleBtn"
@@ -385,6 +484,19 @@ export default function ProfileScreen() {
                 )}
               </View>
               <Text style={styles.settingText}>{theme === 'dark' ? 'Light Glow' : 'Soft Glow'}</Text>
+              <ChevronRight color={palette.gold} size={22} strokeWidth={2.5} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => router.push('/promo-code')}
+              activeOpacity={0.7}
+              testID="promoCodeBtn"
+            >
+              <View style={styles.settingIconContainer}>
+                <Gift color={palette.blush} size={22} strokeWidth={2} />
+              </View>
+              <Text style={styles.settingText}>Redeem Promo Code</Text>
               <ChevronRight color={palette.gold} size={22} strokeWidth={2.5} />
             </TouchableOpacity>
 
