@@ -14,6 +14,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { CommunityProvider } from "@/contexts/CommunityContext";
 import { ProductProvider } from "@/contexts/ProductContext";
+import { ProgressProvider } from "@/contexts/ProgressContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 import { initializeNotifications } from "@/lib/notifications";
@@ -94,12 +95,14 @@ export default function RootLayout() {
                       <StyleProvider>
                         <SubscriptionProvider>
                           <ProductProvider>
-                            <GestureHandlerRootView style={styles.container}>
-                              <CommunityProvider>
-                                <TrialStarter />
-                                <RootLayoutNav />
-                              </CommunityProvider>
-                            </GestureHandlerRootView>
+                            <ProgressProvider>
+                              <GestureHandlerRootView style={styles.container}>
+                                <CommunityProvider>
+                                  <TrialStarter />
+                                  <RootLayoutNav />
+                                </CommunityProvider>
+                              </GestureHandlerRootView>
+                            </ProgressProvider>
                           </ProductProvider>
                         </SubscriptionProvider>
                       </StyleProvider>
