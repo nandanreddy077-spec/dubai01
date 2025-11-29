@@ -79,7 +79,24 @@ export async function getUserLocation(): Promise<LocationInfo | null> {
 async function getLocationFromIP(): Promise<LocationInfo | null> {
   try {
     const response = await fetch('https://ipapi.co/json/');
+    
+    if (!response.ok) {
+      console.warn(`IP API returned status ${response.status}, using default location`);
+      return getDefaultLocation();
+    }
+    
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.warn(`IP API returned non-JSON response (${contentType}), using default location`);
+      return getDefaultLocation();
+    }
+    
     const data = await response.json();
+    
+    if (data.error) {
+      console.warn(`IP API error: ${data.reason || 'Unknown error'}, using default location`);
+      return getDefaultLocation();
+    }
     
     const countryCode = data.country_code || 'US';
     const mapping = COUNTRY_AMAZON_MAPPING[countryCode] || { domain: 'amazon.com', currency: 'USD' };
@@ -94,13 +111,17 @@ async function getLocationFromIP(): Promise<LocationInfo | null> {
     };
   } catch (error) {
     console.error('Error getting location from IP:', error);
-    return {
-      country: 'United States',
-      countryCode: 'US',
-      currency: 'USD',
-      amazonDomain: 'amazon.com',
-    };
+    return getDefaultLocation();
   }
+}
+
+function getDefaultLocation(): LocationInfo {
+  return {
+    country: 'United States',
+    countryCode: 'US',
+    currency: 'USD',
+    amazonDomain: 'amazon.com',
+  };
 }
 
 export function formatAmazonAffiliateLink(

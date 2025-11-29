@@ -1,22 +1,22 @@
 import React, { useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Dimensions, Animated, Image, TouchableOpacity, StatusBar, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Animated, Image, TouchableOpacity, StatusBar, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { useUser } from '@/contexts/UserContext';
-import { ChevronRight, Heart, Sparkles, Star, Camera, TrendingUp, Award, Users, Gift, Zap, Eye, EyeOff, Mail, Lock, User as UserIcon } from 'lucide-react-native';
+import { ChevronRight, Heart, Sparkles, Star, Camera, TrendingUp, Award, Users, Gift, Zap, Eye, EyeOff, Mail, Lock, User as UserIcon, Crown, Check } from 'lucide-react-native';
 import { getPalette, getGradient, shadow, spacing, radii } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { startDailyNotifications } from '@/lib/notifications';
 import { useAuth } from '@/contexts/AuthContext';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface FeatureIcon {
   icon: any;
   text: string;
-  bgColor: string;
+  description: string;
 }
 
 export default function OnboardingScreen() {
@@ -29,6 +29,7 @@ export default function OnboardingScreen() {
   const [sparkleAnim] = useState(new Animated.Value(0));
   const [floatingAnim] = useState(new Animated.Value(0));
   const [pulseAnim] = useState(new Animated.Value(0));
+  const [shimmerAnim] = useState(new Animated.Value(0));
   const scrollX = useRef(new Animated.Value(0)).current;
   
   const [fullName, setFullName] = useState('');
@@ -48,12 +49,14 @@ export default function OnboardingScreen() {
       Animated.sequence([
         Animated.timing(sparkleAnim, {
           toValue: 1,
-          duration: 3000,
+          duration: 3500,
+          easing: Easing.bezier(0.4, 0.0, 0.2, 1),
           useNativeDriver: true,
         }),
         Animated.timing(sparkleAnim, {
           toValue: 0,
-          duration: 3000,
+          duration: 3500,
+          easing: Easing.bezier(0.4, 0.0, 0.2, 1),
           useNativeDriver: true,
         }),
       ])
@@ -63,12 +66,14 @@ export default function OnboardingScreen() {
       Animated.sequence([
         Animated.timing(floatingAnim, {
           toValue: 1,
-          duration: 4000,
+          duration: 5000,
+          easing: Easing.bezier(0.4, 0.0, 0.2, 1),
           useNativeDriver: true,
         }),
         Animated.timing(floatingAnim, {
           toValue: 0,
-          duration: 4000,
+          duration: 5000,
+          easing: Easing.bezier(0.4, 0.0, 0.2, 1),
           useNativeDriver: true,
         }),
       ])
@@ -78,27 +83,40 @@ export default function OnboardingScreen() {
       Animated.sequence([
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 2000,
+          duration: 2500,
+          easing: Easing.bezier(0.4, 0.0, 0.2, 1),
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 0,
-          duration: 2000,
+          duration: 2500,
+          easing: Easing.bezier(0.4, 0.0, 0.2, 1),
           useNativeDriver: true,
         }),
       ])
+    );
+
+    const shimmerAnimation = Animated.loop(
+      Animated.timing(shimmerAnim, {
+        toValue: 1,
+        duration: 2500,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
     );
     
     sparkleAnimation.start();
     floatingAnimation.start();
     pulseAnimation.start();
+    shimmerAnimation.start();
     
     return () => {
       sparkleAnimation.stop();
       floatingAnimation.stop();
       pulseAnimation.stop();
+      shimmerAnimation.stop();
     };
-  }, [sparkleAnim, floatingAnim, pulseAnim]);
+  }, [sparkleAnim, floatingAnim, pulseAnim, shimmerAnim]);
 
   const handleNext = useCallback(async () => {
     if (currentIndex === 3) {
@@ -180,101 +198,152 @@ export default function OnboardingScreen() {
     scrollRef.current?.scrollTo({ x: 3 * SCREEN_WIDTH, animated: true });
   }, []);
 
-  const getIconComponent = (iconName: string) => {
-    const iconProps = { size: 24, color: palette.primary };
-    switch (iconName) {
-      case 'camera': return <Camera {...iconProps} />;
-      case 'sparkles': return <Sparkles {...iconProps} />;
-      case 'trending': return <TrendingUp {...iconProps} />;
-      case 'heart': return <Heart {...iconProps} />;
-      case 'gift': return <Gift {...iconProps} />;
-      case 'zap': return <Zap {...iconProps} />;
-      case 'users': return <Users {...iconProps} />;
-      case 'award': return <Award {...iconProps} />;
-      default: return <Star {...iconProps} />;
-    }
-  };
-
   const styles = createStyles(palette);
 
-  const renderConcentricCircles = () => (
-    <View style={styles.concentricContainer}>
-      {[1, 2, 3, 4].map((i) => (
-        <Animated.View
-          key={i}
-          style={[
-            styles.concentricCircle,
-            {
-              width: 200 + i * 100,
-              height: 200 + i * 100,
-              borderRadius: (200 + i * 100) / 2,
-              opacity: pulseAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.05 + i * 0.02, 0.02 + i * 0.015],
-              }),
-              transform: [{
-                scale: pulseAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 1.02],
-                }),
-              }],
-            },
-          ]}
+  const renderMeshGradient = () => {
+    const shimmerTranslate = shimmerAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [-SCREEN_WIDTH * 2, SCREEN_WIDTH * 2],
+    });
+
+    return (
+      <View style={styles.meshGradientContainer}>
+        <LinearGradient 
+          colors={['rgba(255, 223, 234, 0.3)', 'rgba(255, 245, 248, 0.2)']} 
+          style={[styles.meshOrb, { top: '10%', left: '10%', width: 250, height: 250 }]}
         />
-      ))}
-    </View>
-  );
+        <LinearGradient 
+          colors={['rgba(239, 216, 255, 0.25)', 'rgba(252, 243, 255, 0.15)']} 
+          style={[styles.meshOrb, { top: '30%', right: '5%', width: 280, height: 280 }]}
+        />
+        <LinearGradient 
+          colors={['rgba(255, 236, 217, 0.2)', 'rgba(255, 249, 245, 0.15)']} 
+          style={[styles.meshOrb, { bottom: '15%', left: '15%', width: 220, height: 220 }]}
+        />
+        
+        <Animated.View 
+          style={[
+            styles.shimmerOverlay,
+            {
+              transform: [{ translateX: shimmerTranslate }]
+            }
+          ]}
+        >
+          <LinearGradient
+            colors={['transparent', 'rgba(255,255,255,0.1)', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.shimmerGradient}
+          />
+        </Animated.View>
+      </View>
+    );
+  };
 
   const renderScreen1 = () => {
     const features: FeatureIcon[] = [
-      { icon: 'camera', text: 'AI Analysis', bgColor: palette.blush },
-      { icon: 'sparkles', text: 'Personalized Plans', bgColor: palette.peach },
-      { icon: 'trending', text: 'Track Progress', bgColor: palette.mint },
+      { icon: <Camera size={24} strokeWidth={2.5} />, text: 'AI Analysis', description: 'Professional skin insights' },
+      { icon: <TrendingUp size={24} strokeWidth={2.5} />, text: 'Track Progress', description: 'See your transformation' },
+      { icon: <Award size={24} strokeWidth={2.5} />, text: 'Personalized', description: 'Plans made for you' },
     ];
 
     return (
       <View style={[styles.slide, { width: SCREEN_WIDTH }]}>
-        {renderConcentricCircles()}
-        
-        <Animated.View style={[styles.iconCircle, {
-          transform: [{
-            scale: pulseAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [1, 1.05],
-            }),
-          }],
-        }]}>
-          <LinearGradient colors={gradient.primary} style={styles.iconCircleGradient}>
-            <View style={styles.silhouetteContainer}>
-              <Heart size={80} color={palette.textLight} fill={palette.textLight} />
+        <View style={styles.slideContent}>
+          <Animated.View style={[
+            styles.heroImageContainer,
+            {
+              transform: [{
+                scale: pulseAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.03],
+                })
+              }]
+            }
+          ]}>
+            <View style={styles.heroImageBorderContainer}>
+              <LinearGradient 
+                colors={gradient.primary} 
+                style={styles.heroImageBorder}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.heroImageInner}>
+                  <LinearGradient 
+                    colors={['#FFF5F7', '#FFFFFF']} 
+                    style={styles.heroGlowBg}
+                  >
+                    <Heart size={100} color={palette.primary} fill={palette.blush} strokeWidth={1.5} />
+                  </LinearGradient>
+                </View>
+              </LinearGradient>
+              
+              <Animated.View 
+                style={[
+                  styles.heroGlowRing,
+                  {
+                    opacity: pulseAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.2, 0.4],
+                    }),
+                    transform: [{
+                      scale: pulseAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 1.08],
+                      })
+                    }]
+                  }
+                ]}
+              />
             </View>
-          </LinearGradient>
-        </Animated.View>
+          </Animated.View>
 
-        <View style={styles.content}>
-          <Text style={styles.title}>Your Glow Journey{'\n'}Starts Here</Text>
-          <Text style={styles.subtitle}>Unlock your radiant potential with personalized beauty insights powered by AI</Text>
-          
-          <View style={styles.featuresRow}>
+          <View style={styles.textContent}>
+            <Animated.View style={{
+              transform: [{
+                translateY: floatingAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -6],
+                })
+              }]
+            }}>
+              <Text style={styles.title}>Your Glow Journey{'\n'}Begins Here</Text>
+              <Text style={styles.subtitle}>Unlock your radiant potential with AI-powered beauty intelligence</Text>
+            </Animated.View>
+          </View>
+
+          <View style={styles.featuresContainer}>
             {features.map((feature, idx) => (
               <Animated.View 
                 key={idx} 
                 style={[
-                  styles.featureCard,
+                  styles.premiumFeatureCard,
                   {
+                    opacity: sparkleAnim.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: idx === 1 ? [0.95, 1, 0.95] : [1, 0.95, 1],
+                    }),
                     transform: [{
                       translateY: floatingAnim.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [0, -5 + idx * 2],
-                      }),
-                    }],
-                  },
+                        outputRange: [0, idx === 1 ? -6 : 3],
+                      })
+                    }]
+                  }
                 ]}
               >
-                <View style={[styles.featureIconContainer, { backgroundColor: feature.bgColor }]}>
-                  {getIconComponent(feature.icon)}
+                <View style={styles.featureCardGlow}>
+                  <View style={styles.featureIconWrapper}>
+                    <LinearGradient 
+                      colors={gradient.primary} 
+                      style={styles.featureIconBg}
+                    >
+                      {React.cloneElement(feature.icon, { color: palette.textLight })}
+                    </LinearGradient>
+                  </View>
+                  <Text style={styles.featureTitle}>{feature.text}</Text>
+                  <Text style={styles.featureDescription}>{feature.description}</Text>
                 </View>
-                <Text style={styles.featureText}>{feature.text}</Text>
               </Animated.View>
             ))}
           </View>
@@ -285,56 +354,107 @@ export default function OnboardingScreen() {
 
   const renderScreen2 = () => {
     const features: FeatureIcon[] = [
-      { icon: 'heart', text: 'Daily Care', bgColor: palette.rose },
-      { icon: 'gift', text: 'Rewards', bgColor: palette.lavender },
-      { icon: 'zap', text: 'Pro Tips', bgColor: palette.champagne },
+      { icon: <Heart size={24} strokeWidth={2.5} />, text: 'Daily Care', description: 'Morning & evening rituals' },
+      { icon: <Gift size={24} strokeWidth={2.5} />, text: 'Rewards', description: 'Exclusive achievements' },
+      { icon: <Zap size={24} strokeWidth={2.5} />, text: 'Pro Tips', description: 'Expert beauty secrets' },
     ];
 
     return (
       <View style={[styles.slide, { width: SCREEN_WIDTH }]}>
-        {renderConcentricCircles()}
-        
-        <Animated.View style={[styles.imageCircle, {
-          transform: [{
-            scale: pulseAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [1, 1.03],
-            }),
-          }],
-        }]}>
-          <LinearGradient colors={gradient.rose} style={styles.imageCircleBorder}>
-            <Image 
-              source={{ uri: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?q=80&w=800&auto=format&fit=crop' }}
-              style={styles.circleImage}
-              resizeMode="cover"
-            />
-          </LinearGradient>
-        </Animated.View>
+        <View style={styles.slideContent}>
+          <Animated.View style={[
+            styles.heroImageContainer,
+            {
+              transform: [{
+                scale: pulseAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.03],
+                })
+              }]
+            }
+          ]}>
+            <View style={styles.heroImageBorderContainer}>
+              <LinearGradient 
+                colors={gradient.rose} 
+                style={styles.heroImageBorder}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.heroImageInner}>
+                  <Image 
+                    source={{ uri: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?q=80&w=800&auto=format&fit=crop' }}
+                    style={styles.slideImage}
+                    resizeMode="cover"
+                  />
+                </View>
+              </LinearGradient>
+              
+              <Animated.View 
+                style={[
+                  styles.heroGlowRing,
+                  {
+                    opacity: pulseAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.2, 0.4],
+                    }),
+                    transform: [{
+                      scale: pulseAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 1.08],
+                      })
+                    }]
+                  }
+                ]}
+              />
+            </View>
+          </Animated.View>
 
-        <View style={styles.content}>
-          <Text style={styles.title}>Beauty That{'\n'}Evolves With You</Text>
-          <Text style={styles.subtitle}>Your personalized beauty companion that grows with your journey</Text>
-          
-          <View style={styles.featuresRow}>
+          <View style={styles.textContent}>
+            <Animated.View style={{
+              transform: [{
+                translateY: floatingAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -6],
+                })
+              }]
+            }}>
+              <Text style={styles.title}>Beauty That{'\n'}Evolves With You</Text>
+              <Text style={styles.subtitle}>Personalized coaching and intelligent routines that adapt to your lifestyle</Text>
+            </Animated.View>
+          </View>
+
+          <View style={styles.featuresContainer}>
             {features.map((feature, idx) => (
               <Animated.View 
                 key={idx} 
                 style={[
-                  styles.featureCard,
+                  styles.premiumFeatureCard,
                   {
+                    opacity: sparkleAnim.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: idx === 1 ? [0.95, 1, 0.95] : [1, 0.95, 1],
+                    }),
                     transform: [{
                       translateY: floatingAnim.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [0, -5 + idx * 2],
-                      }),
-                    }],
-                  },
+                        outputRange: [0, idx === 1 ? -6 : 3],
+                      })
+                    }]
+                  }
                 ]}
               >
-                <View style={[styles.featureIconContainer, { backgroundColor: feature.bgColor }]}>
-                  {getIconComponent(feature.icon)}
+                <View style={styles.featureCardGlow}>
+                  <View style={styles.featureIconWrapper}>
+                    <LinearGradient 
+                      colors={gradient.rose} 
+                      style={styles.featureIconBg}
+                    >
+                      {React.cloneElement(feature.icon, { color: palette.textLight })}
+                    </LinearGradient>
+                  </View>
+                  <Text style={styles.featureTitle}>{feature.text}</Text>
+                  <Text style={styles.featureDescription}>{feature.description}</Text>
                 </View>
-                <Text style={styles.featureText}>{feature.text}</Text>
               </Animated.View>
             ))}
           </View>
@@ -345,56 +465,107 @@ export default function OnboardingScreen() {
 
   const renderScreen3 = () => {
     const features: FeatureIcon[] = [
-      { icon: 'users', text: 'Community', bgColor: palette.mint },
-      { icon: 'gift', text: 'Free Trial', bgColor: palette.peach },
-      { icon: 'award', text: 'Transform', bgColor: palette.blush },
+      { icon: <Users size={24} strokeWidth={2.5} />, text: 'Community', description: 'Connect with beauty lovers' },
+      { icon: <Crown size={24} strokeWidth={2.5} />, text: '7-Day Trial', description: 'Full premium access' },
+      { icon: <Sparkles size={24} strokeWidth={2.5} />, text: 'Transform', description: 'Visible results fast' },
     ];
 
     return (
       <View style={[styles.slide, { width: SCREEN_WIDTH }]}>
-        {renderConcentricCircles()}
-        
-        <Animated.View style={[styles.imageCircle, {
-          transform: [{
-            scale: pulseAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [1, 1.03],
-            }),
-          }],
-        }]}>
-          <LinearGradient colors={gradient.gold} style={styles.imageCircleBorder}>
-            <Image 
-              source={{ uri: 'https://images.unsplash.com/photo-1524502397800-2eeaad7c3fe5?q=80&w=800&auto=format&fit=crop' }}
-              style={styles.circleImage}
-              resizeMode="cover"
-            />
-          </LinearGradient>
-        </Animated.View>
+        <View style={styles.slideContent}>
+          <Animated.View style={[
+            styles.heroImageContainer,
+            {
+              transform: [{
+                scale: pulseAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.03],
+                })
+              }]
+            }
+          ]}>
+            <View style={styles.heroImageBorderContainer}>
+              <LinearGradient 
+                colors={gradient.lavender} 
+                style={styles.heroImageBorder}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.heroImageInner}>
+                  <Image 
+                    source={{ uri: 'https://images.unsplash.com/photo-1524502397800-2eeaad7c3fe5?q=80&w=800&auto=format&fit=crop' }}
+                    style={styles.slideImage}
+                    resizeMode="cover"
+                  />
+                </View>
+              </LinearGradient>
+              
+              <Animated.View 
+                style={[
+                  styles.heroGlowRing,
+                  {
+                    opacity: pulseAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.2, 0.4],
+                    }),
+                    transform: [{
+                      scale: pulseAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 1.08],
+                      })
+                    }]
+                  }
+                ]}
+              />
+            </View>
+          </Animated.View>
 
-        <View style={styles.content}>
-          <Text style={styles.title}>Join 100K+{'\n'}Glowing Together</Text>
-          <Text style={styles.subtitle}>Be part of a supportive community on the same beautiful journey</Text>
-          
-          <View style={styles.featuresRow}>
+          <View style={styles.textContent}>
+            <Animated.View style={{
+              transform: [{
+                translateY: floatingAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -6],
+                })
+              }]
+            }}>
+              <Text style={styles.title}>Join 100K+{'\n'}Glowing Together</Text>
+              <Text style={styles.subtitle}>Be part of an exclusive community celebrating authentic beauty</Text>
+            </Animated.View>
+          </View>
+
+          <View style={styles.featuresContainer}>
             {features.map((feature, idx) => (
               <Animated.View 
                 key={idx} 
                 style={[
-                  styles.featureCard,
+                  styles.premiumFeatureCard,
                   {
+                    opacity: sparkleAnim.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: idx === 1 ? [0.95, 1, 0.95] : [1, 0.95, 1],
+                    }),
                     transform: [{
                       translateY: floatingAnim.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [0, -5 + idx * 2],
-                      }),
-                    }],
-                  },
+                        outputRange: [0, idx === 1 ? -6 : 3],
+                      })
+                    }]
+                  }
                 ]}
               >
-                <View style={[styles.featureIconContainer, { backgroundColor: feature.bgColor }]}>
-                  {getIconComponent(feature.icon)}
+                <View style={styles.featureCardGlow}>
+                  <View style={styles.featureIconWrapper}>
+                    <LinearGradient 
+                      colors={gradient.lavender} 
+                      style={styles.featureIconBg}
+                    >
+                      {React.cloneElement(feature.icon, { color: palette.textLight })}
+                    </LinearGradient>
+                  </View>
+                  <Text style={styles.featureTitle}>{feature.text}</Text>
+                  <Text style={styles.featureDescription}>{feature.description}</Text>
                 </View>
-                <Text style={styles.featureText}>{feature.text}</Text>
               </Animated.View>
             ))}
           </View>
@@ -414,33 +585,35 @@ export default function OnboardingScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {renderConcentricCircles()}
-          
-          <View style={styles.formContent}>
-            <View style={styles.formHeader}>
-              <Animated.View style={[styles.formIconContainer, {
+          <View style={styles.formContainer}>
+            <Animated.View style={[
+              styles.formIconContainer,
+              {
                 transform: [{
                   scale: pulseAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [1, 1.08],
-                  }),
-                }],
-              }]}>
-                <LinearGradient colors={gradient.primary} style={styles.formIconGradient}>
-                  <Sparkles size={40} color={palette.textLight} fill={palette.textLight} />
-                </LinearGradient>
-              </Animated.View>
-              
-              <Text style={styles.formTitle}>Join GlowCheck</Text>
-              <Text style={styles.formSubtitle}>Create your account and start your transformation</Text>
-            </View>
+                    outputRange: [1, 1.05],
+                  })
+                }]
+              }
+            ]}>
+              <LinearGradient 
+                colors={gradient.primary} 
+                style={styles.formIcon}
+              >
+                <Crown size={48} color={palette.textLight} strokeWidth={2} />
+              </LinearGradient>
+            </Animated.View>
+            
+            <Text style={styles.formTitle}>Begin Your{'\n'}Glow Journey</Text>
+            <Text style={styles.formSubtitle}>Join our exclusive community</Text>
 
-            <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <UserIcon size={20} color={palette.primary} style={styles.inputIcon} />
+            <View style={styles.formCard}>
+              <View style={styles.luxuryInputContainer}>
+                <UserIcon size={20} color={palette.primary} strokeWidth={2.5} />
                 <TextInput
-                  style={styles.input}
-                  placeholder="Your beautiful name"
+                  style={styles.luxuryInput}
+                  placeholder="Full name"
                   placeholderTextColor={palette.textMuted}
                   value={fullName}
                   onChangeText={setFullName}
@@ -448,10 +621,10 @@ export default function OnboardingScreen() {
                 />
               </View>
 
-              <View style={styles.inputContainer}>
-                <Mail size={20} color={palette.primary} style={styles.inputIcon} />
+              <View style={styles.luxuryInputContainer}>
+                <Mail size={20} color={palette.primary} strokeWidth={2.5} />
                 <TextInput
-                  style={styles.input}
+                  style={styles.luxuryInput}
                   placeholder="Email address"
                   placeholderTextColor={palette.textMuted}
                   value={email}
@@ -461,10 +634,10 @@ export default function OnboardingScreen() {
                 />
               </View>
 
-              <View style={styles.inputContainer}>
-                <Lock size={20} color={palette.primary} style={styles.inputIcon} />
+              <View style={styles.luxuryInputContainer}>
+                <Lock size={20} color={palette.primary} strokeWidth={2.5} />
                 <TextInput
-                  style={[styles.input, styles.inputWithIcon]}
+                  style={[styles.luxuryInput, styles.inputWithIcon]}
                   placeholder="Password"
                   placeholderTextColor={palette.textMuted}
                   value={password}
@@ -477,10 +650,10 @@ export default function OnboardingScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.inputContainer}>
-                <Lock size={20} color={palette.primary} style={styles.inputIcon} />
+              <View style={styles.luxuryInputContainer}>
+                <Lock size={20} color={palette.primary} strokeWidth={2.5} />
                 <TextInput
-                  style={[styles.input, styles.inputWithIcon]}
+                  style={[styles.luxuryInput, styles.inputWithIcon]}
                   placeholder="Confirm password"
                   placeholderTextColor={palette.textMuted}
                   value={confirmPassword}
@@ -494,26 +667,24 @@ export default function OnboardingScreen() {
               </View>
 
               <TouchableOpacity 
-                style={styles.termsContainer}
+                style={styles.premiumTermsContainer}
                 onPress={() => setAcceptTerms(!acceptTerms)}
                 activeOpacity={0.7}
               >
-                <View style={[styles.checkbox, acceptTerms && styles.checkboxChecked]}>
-                  {acceptTerms && <Text style={styles.checkmark}>✓</Text>}
+                <View style={[styles.premiumCheckbox, acceptTerms && styles.premiumCheckboxChecked]}>
+                  {acceptTerms && <Check size={14} color={palette.textLight} strokeWidth={3} />}
                 </View>
-                <Text style={styles.termsText}>
+                <Text style={styles.premiumTermsText}>
                   I accept the <Text style={styles.termsLink}>Terms</Text> and <Text style={styles.termsLink}>Privacy Policy</Text>
                 </Text>
               </TouchableOpacity>
             </View>
 
-            <View style={styles.formFooter}>
-              <TouchableOpacity onPress={switchToLogin}>
-                <Text style={styles.switchText}>
-                  Already have an account? <Text style={styles.switchLink}>Sign In</Text>
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={switchToLogin} style={styles.switchTextContainer}>
+              <Text style={styles.switchText}>
+                Already have an account? <Text style={styles.switchLink}>Sign In</Text>
+              </Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -531,32 +702,34 @@ export default function OnboardingScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {renderConcentricCircles()}
-          
-          <View style={styles.formContent}>
-            <View style={styles.formHeader}>
-              <Animated.View style={[styles.formIconContainer, {
+          <View style={styles.formContainer}>
+            <Animated.View style={[
+              styles.formIconContainer,
+              {
                 transform: [{
                   scale: pulseAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [1, 1.08],
-                  }),
-                }],
-              }]}>
-                <LinearGradient colors={gradient.primary} style={styles.formIconGradient}>
-                  <Heart size={40} color={palette.textLight} fill={palette.textLight} />
-                </LinearGradient>
-              </Animated.View>
-              
-              <Text style={styles.formTitle}>Welcome to GlowCheck</Text>
-              <Text style={styles.formSubtitle}>Sign in to continue your glow journey</Text>
-            </View>
+                    outputRange: [1, 1.05],
+                  })
+                }]
+              }
+            ]}>
+              <LinearGradient 
+                colors={gradient.primary} 
+                style={styles.formIcon}
+              >
+                <Heart size={48} color={palette.textLight} fill={palette.textLight} strokeWidth={1.5} />
+              </LinearGradient>
+            </Animated.View>
+            
+            <Text style={styles.formTitle}>Welcome{'\n'}Back, Beautiful</Text>
+            <Text style={styles.formSubtitle}>Continue your glow journey</Text>
 
-            <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <Mail size={20} color={palette.primary} style={styles.inputIcon} />
+            <View style={styles.formCard}>
+              <View style={styles.luxuryInputContainer}>
+                <Mail size={20} color={palette.primary} strokeWidth={2.5} />
                 <TextInput
-                  style={styles.input}
+                  style={styles.luxuryInput}
                   placeholder="Email address"
                   placeholderTextColor={palette.textMuted}
                   value={email}
@@ -566,10 +739,10 @@ export default function OnboardingScreen() {
                 />
               </View>
 
-              <View style={styles.inputContainer}>
-                <Lock size={20} color={palette.primary} style={styles.inputIcon} />
+              <View style={styles.luxuryInputContainer}>
+                <Lock size={20} color={palette.primary} strokeWidth={2.5} />
                 <TextInput
-                  style={[styles.input, styles.inputWithIcon]}
+                  style={[styles.luxuryInput, styles.inputWithIcon]}
                   placeholder="Password"
                   placeholderTextColor={palette.textMuted}
                   value={password}
@@ -587,13 +760,11 @@ export default function OnboardingScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.formFooter}>
-              <TouchableOpacity onPress={switchToSignup}>
-                <Text style={styles.switchText}>
-                  New to our beautiful community? <Text style={styles.switchLink}>Join Us</Text>
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={switchToSignup} style={styles.switchTextContainer}>
+              <Text style={styles.switchText}>
+                New to GlowCheck? <Text style={styles.switchLink}>Join Us</Text>
+              </Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -605,8 +776,8 @@ export default function OnboardingScreen() {
       case 0: return 'Discover Your Glow';
       case 1: return 'Continue';
       case 2: return 'Begin Free Trial';
-      case 3: return isLoading ? 'Creating Your Journey...' : 'Begin My Glow Journey';
-      case 4: return isLoading ? 'Signing In...' : 'Continue My Journey';
+      case 3: return isLoading ? 'Creating Account...' : 'Begin My Journey';
+      case 4: return isLoading ? 'Signing In...' : 'Welcome Back';
       default: return 'Continue';
     }
   };
@@ -615,7 +786,7 @@ export default function OnboardingScreen() {
     <ErrorBoundary>
       <SafeAreaView style={styles.container} edges={['top']}>
         <StatusBar barStyle={theme === 'light' ? 'dark-content' : 'light-content'} />
-        <LinearGradient colors={gradient.hero} style={styles.backgroundGradient} />
+        {renderMeshGradient()}
         
         <Animated.View 
           style={[
@@ -623,7 +794,7 @@ export default function OnboardingScreen() {
             {
               opacity: sparkleAnim.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0.3, 0.7],
+                outputRange: [0.4, 0.8],
               }),
               transform: [{
                 rotate: sparkleAnim.interpolate({
@@ -634,26 +805,12 @@ export default function OnboardingScreen() {
             }
           ]}
         >
-          <Sparkles color={palette.primary} size={18} fill={palette.primary} />
+          <Sparkles color={palette.primary} size={20} fill={palette.primary} strokeWidth={2} />
         </Animated.View>
         
         <Animated.View 
           style={[
             styles.floatingDecor2,
-            {
-              opacity: sparkleAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.4, 0.8],
-              }),
-            }
-          ]}
-        >
-          <Heart color={palette.blush} size={16} fill={palette.blush} />
-        </Animated.View>
-        
-        <Animated.View 
-          style={[
-            styles.floatingDecor3,
             {
               opacity: floatingAnim.interpolate({
                 inputRange: [0, 1],
@@ -662,7 +819,7 @@ export default function OnboardingScreen() {
             }
           ]}
         >
-          <Star color={palette.champagne} size={14} fill={palette.champagne} />
+          <Star color={palette.blush} size={16} fill={palette.blush} />
         </Animated.View>
 
         <ScrollView
@@ -686,21 +843,27 @@ export default function OnboardingScreen() {
 
         <View style={styles.bottomContainer}>
           <View style={styles.pagination}>
-            {[0, 1, 2, 3, 4].map((i) => (
-              <Animated.View
-                key={i}
-                style={[
-                  styles.dot,
-                  currentIndex === i && styles.dotActive,
-                ]}
-              />
-            ))}
+            {[0, 1, 2, 3, 4].map((i) => {
+              const isActive = currentIndex === i;
+              return (
+                <Animated.View
+                  key={i}
+                  style={[
+                    styles.dot,
+                    isActive && styles.dotActive,
+                    {
+                      opacity: isActive ? 1 : 0.3,
+                    }
+                  ]}
+                />
+              );
+            })}
           </View>
 
           <View style={styles.ctaContainer}>
             {currentIndex < 3 && (
               <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-                <Text style={styles.skipText}>Skip for now</Text>
+                <Text style={styles.skipText}>Skip</Text>
               </TouchableOpacity>
             )}
             
@@ -708,9 +871,10 @@ export default function OnboardingScreen() {
               onPress={handleNext} 
               style={[styles.mainButton, currentIndex >= 3 && styles.mainButtonFull]}
               disabled={isLoading}
+              activeOpacity={0.9}
             >
               <LinearGradient colors={gradient.primary} style={styles.buttonGradient}>
-                <Sparkles size={18} color={palette.textLight} fill={palette.textLight} />
+                <Sparkles size={18} color={palette.textLight} fill={palette.textLight} strokeWidth={2.5} />
                 <Text style={styles.buttonText}>{getButtonText()}</Text>
                 <ChevronRight size={20} color={palette.textLight} strokeWidth={3} />
               </LinearGradient>
@@ -725,182 +889,210 @@ export default function OnboardingScreen() {
 const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: palette.backgroundStart,
+    backgroundColor: '#FFFFFF',
   },
-  backgroundGradient: {
+  meshGradientContainer: {
     ...StyleSheet.absoluteFillObject,
+  },
+  meshOrb: {
+    position: 'absolute',
+    borderRadius: 9999,
+    opacity: 1,
+  },
+  shimmerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    width: SCREEN_WIDTH * 2,
+  },
+  shimmerGradient: {
+    flex: 1,
   },
   slide: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: spacing.xxxxl,
-    paddingBottom: 180,
+    justifyContent: 'center',
   },
-  concentricContainer: {
-    ...StyleSheet.absoluteFillObject,
+  slideContent: {
+    flex: 1,
+    paddingTop: SCREEN_HEIGHT * 0.08,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: 200,
+    justifyContent: 'space-between',
+  },
+  
+  heroImageContainer: {
+    alignSelf: 'center',
+    marginBottom: spacing.xl,
+  },
+  heroImageBorderContainer: {
+    position: 'relative',
+  },
+  heroImageBorder: {
+    padding: 4,
+    borderRadius: 140,
+    ...shadow.elevated,
+  },
+  heroImageInner: {
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+  },
+  heroGlowBg: {
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    top: -100,
   },
-  concentricCircle: {
+  slideImage: {
+    width: '100%',
+    height: '100%',
+  },
+  heroGlowRing: {
     position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
     borderWidth: 2,
     borderColor: palette.primary,
+    top: -20,
+    left: -20,
   },
-  iconCircle: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    marginBottom: spacing.xxxl,
-  },
-  iconCircleGradient: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 100,
+  
+  textContent: {
     alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.elevated,
-  },
-  silhouetteContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageCircle: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    marginBottom: spacing.xxxl,
-  },
-  imageCircleBorder: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 110,
-    padding: 6,
-    ...shadow.elevated,
-  },
-  circleImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 104,
-  },
-  content: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.xxl,
   },
   title: {
-    fontSize: 34,
+    fontSize: 38,
     fontWeight: '900',
     color: palette.textPrimary,
     textAlign: 'center',
-    marginBottom: spacing.md,
-    lineHeight: 40,
-    letterSpacing: -1,
+    marginBottom: spacing.lg,
+    letterSpacing: -1.5,
+    lineHeight: 44,
   },
   subtitle: {
-    fontSize: 17,
+    fontSize: 16,
     color: palette.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: spacing.xxxl,
-    paddingHorizontal: spacing.md,
     fontWeight: '500',
+    paddingHorizontal: spacing.sm,
+    opacity: 0.85,
   },
-  featuresRow: {
+  
+  featuresContainer: {
     flexDirection: 'row',
     gap: spacing.md,
-    paddingHorizontal: spacing.md,
   },
-  featureCard: {
+  premiumFeatureCard: {
     flex: 1,
-    backgroundColor: palette.surface,
     borderRadius: radii.xl,
-    padding: spacing.lg,
+    overflow: 'hidden',
+  },
+  featureCardGlow: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: radii.xl,
+    paddingVertical: spacing.lg + 4,
+    paddingHorizontal: spacing.sm,
     alignItems: 'center',
     gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: palette.borderLight,
-    ...shadow.card,
+    ...shadow.elevated,
   },
-  featureIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
+  featureIconWrapper: {
     marginBottom: spacing.xs,
   },
-  featureText: {
+  featureIconBg: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadow.glow,
+  },
+  featureTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     color: palette.textPrimary,
     textAlign: 'center',
+    letterSpacing: 0.3,
+    marginBottom: 2,
   },
+  featureDescription: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: palette.textSecondary,
+    textAlign: 'center',
+    opacity: 0.8,
+    lineHeight: 15,
+  },
+  
   formScrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
+    paddingBottom: 200,
   },
-  formContent: {
-    width: '100%',
-    maxWidth: 400,
-    alignSelf: 'center',
-  },
-  formHeader: {
+  formContainer: {
     alignItems: 'center',
-    marginBottom: spacing.xxxl,
   },
   formIconContainer: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
   },
-  formIconGradient: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 45,
+  formIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow.glow,
   },
   formTitle: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: '900',
     color: palette.textPrimary,
     textAlign: 'center',
-    marginBottom: spacing.sm,
-    letterSpacing: -0.5,
+    marginBottom: spacing.md,
+    letterSpacing: -1.2,
+    lineHeight: 42,
   },
   formSubtitle: {
     fontSize: 16,
     color: palette.textSecondary,
     textAlign: 'center',
-    fontWeight: '500',
+    fontWeight: '600',
+    marginBottom: spacing.xxxl,
+    opacity: 0.8,
   },
-  form: {
-    gap: spacing.lg,
+  formCard: {
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderRadius: radii.xxl,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    ...shadow.elevated,
     marginBottom: spacing.xl,
   },
-  inputContainer: {
+  luxuryInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.surface,
+    backgroundColor: palette.surfaceElevated,
     borderRadius: radii.lg,
     paddingHorizontal: spacing.lg,
     height: 58,
+    marginBottom: spacing.lg,
     borderWidth: 1.5,
-    borderColor: palette.borderLight,
-    ...shadow.card,
+    borderColor: 'rgba(0, 0, 0, 0.06)',
   },
-  inputIcon: {
-    marginRight: spacing.md,
-  },
-  input: {
+  luxuryInput: {
     flex: 1,
     fontSize: 16,
     color: palette.textPrimary,
-    fontWeight: '500',
+    fontWeight: '600',
+    marginLeft: spacing.md,
   },
   inputWithIcon: {
     paddingRight: spacing.xxxxl,
@@ -908,87 +1100,84 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   eyeButton: {
     position: 'absolute',
     right: spacing.lg,
-    padding: spacing.xs,
+    padding: spacing.sm,
   },
-  termsContainer: {
+  premiumTermsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
   },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
+  premiumCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
     borderWidth: 2,
     borderColor: palette.borderLight,
     backgroundColor: palette.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxChecked: {
+  premiumCheckboxChecked: {
     backgroundColor: palette.primary,
     borderColor: palette.primary,
   },
-  checkmark: {
-    color: palette.textLight,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  termsText: {
+  premiumTermsText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: palette.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   termsLink: {
     color: palette.primary,
-    fontWeight: '700',
+    fontWeight: '800',
+    textDecorationLine: 'underline',
   },
   forgotButton: {
     alignSelf: 'flex-end',
+    paddingVertical: spacing.xs,
   },
   forgotText: {
     fontSize: 14,
     color: palette.primary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  formFooter: {
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
+  switchTextContainer: {
+    paddingVertical: spacing.md,
   },
   switchText: {
     fontSize: 15,
     color: palette.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   switchLink: {
     color: palette.primary,
-    fontWeight: '700',
+    fontWeight: '800',
   },
+  
   bottomContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.xxl,
     paddingHorizontal: spacing.xl,
   },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
+    gap: spacing.md,
+    marginBottom: spacing.xl,
   },
   dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: palette.borderLight,
+    backgroundColor: palette.primary,
   },
   dotActive: {
-    width: 24,
-    backgroundColor: palette.primary,
+    width: 28,
   },
   ctaContainer: {
     flexDirection: 'row',
@@ -1002,14 +1191,15 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   skipText: {
     fontSize: 16,
     color: palette.textMuted,
-    fontWeight: '600',
+    fontWeight: '700',
+    opacity: 0.6,
   },
   mainButton: {
     flex: 1,
-    borderRadius: radii.lg,
+    borderRadius: radii.xxl,
     overflow: 'hidden',
-    height: 60,
-    ...shadow.glow,
+    height: 62,
+    ...shadow.elevated,
   },
   mainButtonFull: {
     flex: 1,
@@ -1026,24 +1216,18 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontSize: 16,
     fontWeight: '800',
     color: palette.textLight,
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
   },
   floatingDecor1: {
     position: 'absolute',
-    top: 100,
+    top: 80,
     right: 30,
     zIndex: 10,
   },
   floatingDecor2: {
     position: 'absolute',
-    top: 160,
+    top: 140,
     left: 30,
-    zIndex: 10,
-  },
-  floatingDecor3: {
-    position: 'absolute',
-    top: 220,
-    right: 70,
     zIndex: 10,
   },
 });
