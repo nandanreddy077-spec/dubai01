@@ -44,8 +44,7 @@ import { palette, gradient, shadow, spacing, typography } from '@/constants/them
 import { useUser } from '@/contexts/UserContext';
 import { useGamification } from '@/contexts/GamificationContext';
 import AnimatedProgressBar from '@/components/AnimatedProgressBar';
-import PremiumPaywall from '@/components/PremiumPaywall';
-import { useSubscription } from '@/contexts/SubscriptionContext';
+
 
 const { width } = Dimensions.get('window');
 
@@ -102,7 +101,7 @@ const STORAGE_KEYS = {
 export default function ProgressTrackerScreen() {
   const { user } = useUser();
   const { dailyCompletions } = useGamification();
-  const { subscription } = useSubscription();
+
   const params = useLocalSearchParams<{ tab?: string }>();
   
   const [activeTab, setActiveTab] = useState<Tab>((params.tab as Tab) || 'photos');
@@ -112,7 +111,7 @@ export default function ProgressTrackerScreen() {
   
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showJournalModal, setShowJournalModal] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false);
+
   const [photoNotes, setPhotoNotes] = useState('');
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -129,7 +128,6 @@ export default function ProgressTrackerScreen() {
   const [journalNotes, setJournalNotes] = useState('');
   const [journalSkinFeeling, setJournalSkinFeeling] = useState('');
 
-  const isLocked = !subscription?.active;
 
   useEffect(() => {
     loadData();
@@ -228,11 +226,6 @@ export default function ProgressTrackerScreen() {
   };
 
   const pickImage = async () => {
-    if (isLocked) {
-      setShowPaywall(true);
-      return;
-    }
-
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Please allow access to your photos');
@@ -276,11 +269,6 @@ export default function ProgressTrackerScreen() {
   };
 
   const addJournalEntry = async () => {
-    if (isLocked) {
-      setShowPaywall(true);
-      return;
-    }
-
     const today = new Date().toISOString().split('T')[0];
     const existingEntry = journalEntries.find(e => e.date === today);
 
@@ -789,15 +777,7 @@ export default function ProgressTrackerScreen() {
           <Text style={styles.headerTitle}>Progress Tracker</Text>
           <Text style={styles.headerSubtitle}>Track your glow transformation</Text>
         </View>
-        {isLocked && (
-          <TouchableOpacity
-            style={styles.unlockButton}
-            onPress={() => setShowPaywall(true)}
-            activeOpacity={0.8}
-          >
-            <Lock color={palette.primary} size={20} />
-          </TouchableOpacity>
-        )}
+
       </Animated.View>
 
       {/* Tab Navigation */}
@@ -963,14 +943,7 @@ export default function ProgressTrackerScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Premium Paywall */}
-      {showPaywall && (
-        <PremiumPaywall
-          visible={showPaywall}
-          onClose={() => setShowPaywall(false)}
-          feature="Progress Tracker"
-        />
-      )}
+
     </SafeAreaView>
   );
 }
