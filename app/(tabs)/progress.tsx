@@ -102,7 +102,7 @@ const STORAGE_KEYS = {
 export default function ProgressTrackerScreen() {
   const { user } = useUser();
   const { dailyCompletions } = useGamification();
-  const { subscription } = useSubscription();
+  const { state: subscription } = useSubscription();
   const params = useLocalSearchParams<{ tab?: string }>();
   
   const [activeTab, setActiveTab] = useState<Tab>((params.tab as Tab) || 'photos');
@@ -129,7 +129,7 @@ export default function ProgressTrackerScreen() {
   const [journalNotes, setJournalNotes] = useState('');
   const [journalSkinFeeling, setJournalSkinFeeling] = useState('');
 
-  const isLocked = !subscription?.active;
+  const isLocked = !subscription?.isPremium;
 
   useEffect(() => {
     loadData();
@@ -239,7 +239,7 @@ export default function ProgressTrackerScreen() {
       return;
     }
 
-    const result = await ImagePicker.launchImagePickerAsync({
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [3, 4],
@@ -964,13 +964,32 @@ export default function ProgressTrackerScreen() {
       </Modal>
 
       {/* Premium Paywall */}
-      {showPaywall && (
-        <PremiumPaywall
-          visible={showPaywall}
-          onClose={() => setShowPaywall(false)}
-          feature="Progress Tracker"
-        />
-      )}
+      <Modal
+        visible={showPaywall}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: palette.backgroundStart }}>
+          <View style={{ padding: 20 }}>
+            <TouchableOpacity 
+              onPress={() => setShowPaywall(false)}
+              style={{ alignSelf: 'flex-end', marginBottom: 20 }}
+            >
+              <X color={palette.textMuted} size={24} />
+            </TouchableOpacity>
+            <PremiumPaywall
+              onStartTrial={async () => {
+                console.log('Trial start requested');
+                setShowPaywall(false);
+              }}
+              onSubscribe={async (type) => {
+                console.log('Subscribe requested:', type);
+                setShowPaywall(false);
+              }}
+            />
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }

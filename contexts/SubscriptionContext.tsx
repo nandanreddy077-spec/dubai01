@@ -22,6 +22,8 @@ export interface SubscriptionState {
 
 export interface SubscriptionContextType {
   state: SubscriptionState;
+  subscription: SubscriptionState;
+  active: boolean;
   inTrial: boolean;
   daysLeft: number;
   hoursLeft: number;
@@ -167,7 +169,8 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
       console.log('Syncing subscription status with backend...');
       
       // Check if backend is properly configured
-      const { data: functions } = await supabase.rpc('get_user_subscription_status', { user_id: user.id }).catch(() => ({ data: null, error: null }));
+      const result = await supabase.rpc('get_user_subscription_status', { user_id: user.id });
+      const functions = result.data;
       
       // If the function doesn't exist or there's an error, just log and continue
       // The app works fine with local state
@@ -297,6 +300,8 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
 
   return useMemo(() => ({
     state,
+    subscription: state,
+    active: state.isPremium,
     inTrial,
     daysLeft,
     hoursLeft,
