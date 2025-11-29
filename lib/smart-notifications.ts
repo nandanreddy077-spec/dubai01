@@ -33,6 +33,11 @@ interface EngagementData {
   totalOpens: number;
   notificationClicks: number;
   streakBreaks: number;
+  optimalTimes?: {
+    morning?: number;
+    afternoon?: number;
+    evening?: number;
+  };
 }
 
 const DEFAULT_PREFERENCES: NotificationPreferences = {
@@ -208,9 +213,10 @@ export async function scheduleDailyNotifications(streak: number = 0) {
   console.log('[SmartNotif] Scheduling daily notifications, streak:', streak, 'best hour:', engagement.bestEngagementHour);
   
   if (preferences.morningCheckIn) {
+    const optimalMorning = engagement.optimalTimes?.morning || preferences.optimalTimes?.morning;
     await scheduleNotification(
       'MORNING_CHECK_IN',
-      engagement.optimalTimes?.morning || engagement.bestEngagementHour || NOTIFICATION_TIMES.MORNING_CHECK_IN,
+      optimalMorning || engagement.bestEngagementHour || NOTIFICATION_TIMES.MORNING_CHECK_IN,
       { streak }
     );
   }

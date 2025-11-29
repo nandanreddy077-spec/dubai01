@@ -221,7 +221,10 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
     console.log('🎯 Generating personalized recommendations...');
     
     try {
-      const location = userLocation || await getUserLocation();
+      let location = userLocation;
+      if (!location) {
+        location = await getUserLocation();
+      }
       
       const recommendations: ProductRecommendation[] = [];
       
@@ -282,30 +285,30 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
             matchScore: rec.matchScore,
             source: 'analysis',
             tiers: {
-              luxury: createProductTier(
+              luxury: location ? createProductTier(
                 'Premium Choice',
                 'Professional-grade formulation with advanced ingredients',
                 `Top-tier products with clinically-proven results. Perfect for achieving maximum effectiveness.`,
                 '$60-150+',
                 `luxury ${baseSearchQuery} premium`,
                 location
-              ),
-              medium: createProductTier(
+              ) : { title: '', description: '', guidance: '', priceRange: '', affiliateUrl: '', keywords: [] },
+              medium: location ? createProductTier(
                 'Best Value',
                 'High-quality products at accessible prices',
                 `Excellent quality without the premium price tag. Scientifically-backed formulations that deliver results.`,
                 '$20-60',
                 `${baseSearchQuery} quality effective`,
                 location
-              ),
-              budget: createProductTier(
+              ) : { title: '', description: '', guidance: '', priceRange: '', affiliateUrl: '', keywords: [] },
+              budget: location ? createProductTier(
                 'Budget-Friendly',
                 'Affordable options that work',
                 `Effective products at wallet-friendly prices. Great for starting your skincare journey.`,
                 '$5-20',
                 `${baseSearchQuery} budget affordable`,
                 location
-              ),
+              ) : { title: '', description: '', guidance: '', priceRange: '', affiliateUrl: '', keywords: [] },
             },
           };
           
@@ -348,30 +351,30 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
             source: 'glow-coach',
             matchScore: 90,
             tiers: {
-              luxury: createProductTier(
+              luxury: location ? createProductTier(
                 'Luxury Option',
                 'Premium, high-end brands with advanced formulations',
                 `Professional-grade products with proven efficacy and superior textures.`,
                 '$60-150+',
                 `luxury ${baseSearchQuery} premium high-end`,
                 location
-              ),
-              medium: createProductTier(
+              ) : { title: '', description: '', guidance: '', priceRange: '', affiliateUrl: '', keywords: [] },
+              medium: location ? createProductTier(
                 'Mid-Range Option',
                 'Quality products that balance effectiveness and affordability',
                 `Excellent results with scientifically-backed formulations at accessible prices.`,
                 '$20-60',
                 `${baseSearchQuery} quality affordable effective`,
                 location
-              ),
-              budget: createProductTier(
+              ) : { title: '', description: '', guidance: '', priceRange: '', affiliateUrl: '', keywords: [] },
+              budget: location ? createProductTier(
                 'Budget-Friendly Option',
                 'Affordable yet effective products',
                 `Real results at wallet-friendly prices with proven active ingredients.`,
                 '$5-20',
                 `${baseSearchQuery} budget affordable drugstore`,
                 location
-              ),
+              ) : { title: '', description: '', guidance: '', priceRange: '', affiliateUrl: '', keywords: [] },
             },
           };
           
