@@ -9,7 +9,7 @@ import { AnalysisProvider } from "@/contexts/AnalysisContext";
 import { SkincareProvider } from "@/contexts/SkincareContext";
 import { StyleProvider } from "@/contexts/StyleContext";
 import { GamificationProvider } from "@/contexts/GamificationContext";
-import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
+
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { CommunityProvider } from "@/contexts/CommunityContext";
@@ -21,7 +21,7 @@ import { initializeSmartNotifications } from "@/lib/smart-notifications";
 import { StyleSheet } from 'react-native';
 
 // Notifications are handled in the simplified notification system
-import TrialStarter from "@/components/TrialStarter";
+
 
 
 SplashScreen.preventAutoHideAsync();
@@ -92,16 +92,13 @@ export default function RootLayout() {
                   <AnalysisProvider>
                     <SkincareProvider>
                       <StyleProvider>
-                        <SubscriptionProvider>
-                          <ProductProvider>
-                            <GestureHandlerRootView style={styles.container}>
-                              <CommunityProvider>
-                                <TrialStarter />
-                                <RootLayoutNav />
-                              </CommunityProvider>
-                            </GestureHandlerRootView>
-                          </ProductProvider>
-                        </SubscriptionProvider>
+                        <ProductProvider>
+                          <GestureHandlerRootView style={styles.container}>
+                            <CommunityProvider>
+                              <RootLayoutNav />
+                            </CommunityProvider>
+                          </GestureHandlerRootView>
+                        </ProductProvider>
                       </StyleProvider>
                     </SkincareProvider>
                   </AnalysisProvider>
