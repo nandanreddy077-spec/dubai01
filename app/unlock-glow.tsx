@@ -7,7 +7,8 @@ import { ArrowLeft, Heart, Camera, Sparkles, Palette, Users, Star } from 'lucide
 import { useSubscription } from '@/contexts/SubscriptionContext';
 
 export default function UnlockGlowScreen() {
-  const { state } = useSubscription();
+  const subscription = useSubscription();
+  const state = subscription?.state || { isPremium: false, scanCount: 0, maxScansInTrial: 3, hasStartedTrial: false };
   const insets = useSafeAreaInsets();
 
 
@@ -21,8 +22,8 @@ export default function UnlockGlowScreen() {
   }, []);
 
   const trialDaysLeft = state.trialStartedAt 
-    ? Math.max(0, 3 - Math.floor((Date.now() - Number(new Date(state.trialStartedAt))) / (1000 * 60 * 60 * 24)))
-    : 3;
+    ? Math.max(0, 7 - Math.floor((Date.now() - Number(new Date(state.trialStartedAt))) / (1000 * 60 * 60 * 24)))
+    : 7;
 
   return (
     <View style={styles.container}>
@@ -61,7 +62,7 @@ export default function UnlockGlowScreen() {
               Start Your Beauty Journey
             </Text>
             <Text style={styles.heroSubtitle}>
-              3-day free trial, then choose your perfect plan
+              7-day free trial, then choose your perfect plan
             </Text>
           </View>
 
@@ -106,9 +107,9 @@ export default function UnlockGlowScreen() {
               <Star color="#FFFFFF" size={16} strokeWidth={2.5} />
             </LinearGradient>
             <View style={styles.trialContent}>
-              <Text style={styles.trialTitle}>Trial Active</Text>
+              <Text style={styles.trialTitle}>7-Day Trial Active</Text>
               <Text style={styles.trialText}>
-                {state.scanCount}/3 scans used • {trialDaysLeft > 0 ? `${trialDaysLeft} days left` : 'NaN days left'}
+                {trialDaysLeft > 0 ? `${trialDaysLeft} days remaining` : 'Trial expired'}
               </Text>
             </View>
           </View>

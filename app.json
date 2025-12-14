@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "Glow Check  ",
-    "slug": "glowcheck-app-development-9yhnj3q7-z0c6x351-k17jcry2-qj0yhdmu-s2mtilai-6gzkcsz3-rhhhbp65-kh89ecf8",
+    "slug": "glowcheck01-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "glowcheck",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.rork.glowcheck-app-development-9yhnj3q7-z0c6x351-k17jcry2-qj0yhdmu-s2mtilai-6gzkcsz3-rhhhbp65-kh89ecf8",
+      "bundleIdentifier": "com.glowcheck01.app",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos",
         "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera",
@@ -37,7 +37,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.glowcheck-app-development-9yhnj3q7-z0c6x351-k17jcry2-qj0yhdmu-s2mtilai-6gzkcsz3-rhhhbp65-kh89ecf8",
+      "package": "com.glowcheck01.app",
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -56,12 +56,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      [
-        "expo-router",
-        {
-          "origin": "https://rork.com/"
-        }
-      ],
+      "expo-router",
       [
         "expo-image-picker",
         {

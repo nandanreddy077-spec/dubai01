@@ -28,8 +28,7 @@ import {
   Gem
 } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { useRorkAgent, createRorkTool } from '@rork-ai/toolkit-sdk';
-import { z } from 'zod';
+import { makeOpenAIRequestWithTools, type ChatMessage as OpenAIChatMessage, type ToolDefinition } from '@/lib/openai-service';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useUser } from '@/contexts/UserContext';
 import { getPalette, getGradient, shadow, spacing, typography } from '@/constants/theme';
@@ -69,73 +68,247 @@ const QUICK_QUESTIONS = [
 export default function AIAdvisorScreen() {
   const { theme } = useTheme();
   const { user } = useUser();
-  const { state } = useSubscription();
-  const hasActiveSubscription = state.isPremium;
+  // All features free - no subscription checks needed
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
-  const [dailyQuestionsUsed, setDailyQuestionsUsed] = useState(0);
-  const MAX_FREE_QUESTIONS = 3;
   
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
 
-  const { messages, sendMessage, addToolResult } = useRorkAgent({
-    tools: {
-      recommendProducts: createRorkTool({
-        description: "Recommend beauty products based on user's needs",
-        zodSchema: z.object({
-          products: z.array(z.object({
-            name: z.string(),
-            brand: z.string(),
-            price: z.string(),
-            reason: z.string(),
-            category: z.string()
-          })),
-          skinType: z.string().optional(),
-          concerns: z.array(z.string()).optional()
-        }),
-        execute: (input) => {
-          console.log('Product recommendations:', input.products);
-          return `Recommended ${input.products.length} products for your needs`;
-        }
-      }),
-      
-      createCustomRoutine: createRorkTool({
-        description: "Create a personalized beauty routine",
-        zodSchema: z.object({
-          routineType: z.enum(['morning', 'evening', 'weekly']),
-          steps: z.array(z.object({
-            step: z.string(),
-            product: z.string().optional(),
-            duration: z.string().optional(),
-            frequency: z.string().optional()
-          })),
-          skinType: z.string(),
-          goals: z.array(z.string())
-        }),
-        execute: (input) => {
-          console.log('Custom routine created:', input);
-          return `Created ${input.routineType} routine with ${input.steps.length} steps`;
-        }
-      }),
-
-      analyzeBeautyConcern: createRorkTool({
-        description: "Analyze specific beauty concerns and provide solutions",
-        zodSchema: z.object({
-          concern: z.string(),
-          severity: z.enum(['mild', 'moderate', 'severe']),
-          solutions: z.array(z.string()),
-          timeframe: z.string(),
-          professionalAdvice: z.boolean()
-        }),
-        execute: (input) => {
-          console.log('Beauty concern analyzed:', input);
-          return `Analyzed ${input.concern} with ${input.solutions.length} solutions`;
-        }
-      })
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: '1',
+      role: 'assistant',
+      content: "Hi! I'm your Glow AI beauty advisor. I can help you with skincare routines, product recommendations, beauty concerns, and more. What would you like to know?",
+      timestamp: new Date(),
     }
-  });
+  ]);
+
+  // Define tools for OpenAI function calling
+  const tools: ToolDefinition[] = [
+    {
+      type: 'function',
+      function: {
+        name: 'recommendProducts',
+        description: "Recommend beauty products based on user's needs",
+        parameters: {
+          type: 'object',
+          properties: {
+            products: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  brand: { type: 'string' },
+                  price: { type: 'string' },
+                  reason: { type: 'string' },
+                  category: { type: 'string' }
+                },
+                required: ['name', 'brand', 'price', 'reason', 'category']
+              }
+            },
+            skinType: { type: 'string' },
+            concerns: {
+              type: 'array',
+              items: { type: 'string' }
+            }
+          },
+          required: ['products']
+        }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'createCustomRoutine',
+        description: "Create a personalized beauty routine",
+        parameters: {
+          type: 'object',
+          properties: {
+            routineType: {
+              type: 'string',
+              enum: ['morning', 'evening', 'weekly']
+            },
+            steps: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  step: { type: 'string' },
+                  product: { type: 'string' },
+                  duration: { type: 'string' },
+                  frequency: { type: 'string' }
+                },
+                required: ['step']
+              }
+            },
+            skinType: { type: 'string' },
+            goals: {
+              type: 'array',
+              items: { type: 'string' }
+            }
+          },
+          required: ['routineType', 'steps', 'skinType', 'goals']
+        }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'analyzeBeautyConcern',
+        description: "Analyze specific beauty concerns and provide solutions",
+        parameters: {
+          type: 'object',
+          properties: {
+            concern: { type: 'string' },
+            severity: {
+              type: 'string',
+              enum: ['mild', 'moderate', 'severe']
+            },
+            solutions: {
+              type: 'array',
+              items: { type: 'string' }
+            },
+            timeframe: { type: 'string' },
+            professionalAdvice: { type: 'boolean' }
+          },
+          required: ['concern', 'severity', 'solutions', 'timeframe', 'professionalAdvice']
+        }
+      }
+    }
+  ];
+
+  const sendMessage = async (userMessage: string) => {
+    // Add user message
+    const userMsg: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: userMessage,
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, userMsg]);
+
+    setIsTyping(true);
+
+    try {
+      // Convert messages to OpenAI format
+      const openAIMessages: OpenAIChatMessage[] = [
+        {
+          role: 'system',
+          content: 'You are a helpful beauty advisor AI assistant. You help users with skincare, makeup, haircare, and beauty wellness questions. Use the available tools when appropriate to provide structured recommendations.',
+        },
+        ...messages.map(msg => ({
+          role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
+          content: msg.content,
+        })),
+        {
+          role: 'user',
+          content: userMessage,
+        }
+      ];
+
+      // Call OpenAI with tools
+      const response = await makeOpenAIRequestWithTools(openAIMessages, tools, {
+        model: 'gpt-4o-mini',
+        temperature: 0.7,
+        maxTokens: 2000,
+      });
+
+      if (response.toolCalls && response.toolCalls.length > 0) {
+        // Handle tool calls
+        const toolMessages: OpenAIChatMessage[] = [
+          ...openAIMessages,
+          {
+            role: 'assistant',
+            content: response.content || '',
+          }
+        ];
+
+        // Add tool results
+        for (const toolCall of response.toolCalls) {
+          try {
+            const args = JSON.parse(toolCall.function.arguments);
+            let toolResult = '';
+
+            switch (toolCall.function.name) {
+              case 'recommendProducts':
+                console.log('Product recommendations:', args.products);
+                toolResult = JSON.stringify({
+                  success: true,
+                  products: args.products,
+                  count: args.products.length
+                });
+                break;
+              case 'createCustomRoutine':
+                console.log('Custom routine created:', args);
+                toolResult = JSON.stringify({
+                  success: true,
+                  routineType: args.routineType,
+                  steps: args.steps,
+                  count: args.steps.length
+                });
+                break;
+              case 'analyzeBeautyConcern':
+                console.log('Beauty concern analyzed:', args);
+                toolResult = JSON.stringify({
+                  success: true,
+                  concern: args.concern,
+                  solutions: args.solutions,
+                  count: args.solutions.length
+                });
+                break;
+            }
+
+            toolMessages.push({
+              role: 'tool',
+              content: toolResult,
+              tool_call_id: toolCall.id,
+              name: toolCall.function.name,
+            });
+          } catch (error) {
+            console.error('Error processing tool call:', error);
+          }
+        }
+
+        // Get final response with tool results
+        const finalResponse = await makeOpenAIRequestWithTools(toolMessages, tools, {
+          model: 'gpt-4o-mini',
+          temperature: 0.7,
+          maxTokens: 2000,
+        });
+
+        const assistantMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: finalResponse.content || 'I processed your request and provided recommendations.',
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, assistantMsg]);
+      } else {
+        // Regular text response
+        const assistantMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: response.content || 'I apologize, but I encountered an error. Please try again.',
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, assistantMsg]);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      const errorMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'I apologize, but I encountered an error. Please try again.',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
 
   useEffect(() => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -144,34 +317,15 @@ export default function AIAdvisorScreen() {
   const handleSendMessage = async () => {
     if (!input.trim()) return;
     
-    // Check subscription limits
-    if (!hasActiveSubscription && dailyQuestionsUsed >= MAX_FREE_QUESTIONS) {
-      Alert.alert(
-        'Daily Limit Reached',
-        `You've used your ${MAX_FREE_QUESTIONS} free questions today. Upgrade to Premium for unlimited AI beauty consultations!`,
-        [
-          { text: 'Maybe Later', style: 'cancel' },
-          { text: 'Upgrade Now', onPress: () => router.push('/subscribe') }
-        ]
-      );
-      return;
-    }
-
+    // All features free - no limits
     const userMessage = input;
     setInput('');
-    setIsTyping(true);
     
     try {
       await sendMessage(userMessage);
-      
-      if (!hasActiveSubscription) {
-        setDailyQuestionsUsed(prev => prev + 1);
-      }
     } catch (error) {
       console.error('Error sending message:', error);
       Alert.alert('Error', 'Failed to send message. Please try again.');
-    } finally {
-      setIsTyping(false);
     }
   };
 
@@ -192,7 +346,7 @@ export default function AIAdvisorScreen() {
     setInput(topicQuestions[topic.id as keyof typeof topicQuestions] || `Tell me about ${topic.title}`);
   };
 
-  const renderMessage = (message: any, index: number) => {
+  const renderMessage = (message: ChatMessage, index: number) => {
     const isUser = message.role === 'user';
     
     return (
@@ -211,32 +365,17 @@ export default function AIAdvisorScreen() {
         </View>
         
         <View style={[styles.messageBubble, isUser ? styles.userBubble : styles.assistantBubble]}>
-          {message.parts?.map((part: any, partIndex: number) => {
-            if (part.type === 'text') {
-              return (
-                <Text key={partIndex} style={[styles.messageText, isUser ? styles.userText : styles.assistantText]}>
-                  {part.text}
+          <Text style={[styles.messageText, isUser ? styles.userText : styles.assistantText]}>
+            {message.content}
                 </Text>
-              );
-            }
-            
-            if (part.type === 'tool' && part.state === 'output-available') {
-              return (
-                <View key={partIndex} style={styles.toolOutput}>
+          {message.metadata?.products && message.metadata.products.length > 0 && (
+            <View style={styles.toolOutput}>
                   <View style={styles.toolHeader}>
                     <Wand2 color={palette.primary} size={16} />
                     <Text style={styles.toolTitle}>Beauty Recommendation</Text>
                   </View>
-                  <Text style={styles.toolText}>{JSON.stringify(part.output, null, 2)}</Text>
+              <Text style={styles.toolText}>{message.metadata.products.join(', ')}</Text>
                 </View>
-              );
-            }
-            
-            return null;
-          }) || (
-            <Text style={[styles.messageText, isUser ? styles.userText : styles.assistantText]}>
-              {message.content}
-            </Text>
           )}
         </View>
         
@@ -268,11 +407,7 @@ export default function AIAdvisorScreen() {
         </View>
         
         <View style={styles.headerRight}>
-          {!hasActiveSubscription && (
-            <View style={styles.limitBadge}>
-              <Text style={styles.limitText}>{dailyQuestionsUsed}/{MAX_FREE_QUESTIONS}</Text>
-            </View>
-          )}
+          {/* All features free - limit badge removed */}
         </View>
       </View>
 
@@ -375,19 +510,7 @@ export default function AIAdvisorScreen() {
             </TouchableOpacity>
           </View>
           
-          {!hasActiveSubscription && (
-            <View style={styles.limitInfo}>
-              <Gem color={palette.primary} size={14} />
-              <Text style={styles.limitInfoText}>
-                {dailyQuestionsUsed}/{MAX_FREE_QUESTIONS} free questions used today
-              </Text>
-              {dailyQuestionsUsed >= MAX_FREE_QUESTIONS && (
-                <TouchableOpacity onPress={() => router.push('/subscribe')}>
-                  <Text style={styles.upgradeText}>Upgrade</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+          {/* All features free - limit info removed */}
         </LinearGradient>
       </KeyboardAvoidingView>
     </SafeAreaView>

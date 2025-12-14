@@ -27,12 +27,12 @@ import {
   Target,
   Trophy,
   Sparkles,
-  Lock,
   Star,
   Clock,
   X,
   Plus,
   ArrowRight,
+  ArrowLeft,
   CheckCircle,
   Image as ImageIcon,
   AlertCircle,
@@ -43,9 +43,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { palette, gradient, shadow, spacing, typography } from '@/constants/theme';
 import { useUser } from '@/contexts/UserContext';
 import { useGamification } from '@/contexts/GamificationContext';
-import AnimatedProgressBar from '@/components/AnimatedProgressBar';
-import PremiumPaywall from '@/components/PremiumPaywall';
+import { useProducts } from '@/contexts/ProductContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import AnimatedProgressBar from '@/components/AnimatedProgressBar';
+// All features free - UpgradePrompt removed
+import { generateInsights, AIInsightResult, checkMinimumRequirements } from '@/lib/insights-engine';
+import { analyzeProgressPhoto, compareProgressPhotos, ProgressPhotoAnalysis } from '@/lib/ai-helpers';
 
 const { width } = Dimensions.get('window');
 
@@ -84,7 +87,6 @@ interface WeeklyInsight {
   week: number;
   startDate: string;
   endDate: string;
-  progressScore: number; // 0-100
   wins: string[];
   correlations: string[];
   recommendations: string[];
@@ -102,18 +104,21 @@ const STORAGE_KEYS = {
 export default function ProgressTrackerScreen() {
   const { user } = useUser();
   const { dailyCompletions } = useGamification();
-  const { subscription } = useSubscription();
+  const { products, usageHistory, routines } = useProducts();
+  // All features free - no subscription checks needed
   const params = useLocalSearchParams<{ tab?: string }>();
   
   const [activeTab, setActiveTab] = useState<Tab>((params.tab as Tab) || 'photos');
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [insights, setInsights] = useState<WeeklyInsight[]>([]);
+  const [aiInsights, setAiInsights] = useState<AIInsightResult | null>(null);
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
   
-  const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showJournalModal, setShowJournalModal] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false);
   const [photoNotes, setPhotoNotes] = useState('');
+  const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d'>('30d');
+  // All features free - UpgradePrompt removed
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -129,7 +134,13 @@ export default function ProgressTrackerScreen() {
   const [journalNotes, setJournalNotes] = useState('');
   const [journalSkinFeeling, setJournalSkinFeeling] = useState('');
 
-  const isLocked = !subscription?.active;
+  // Generate insights when tab opens or data changes
+  useEffect(() => {
+    if (activeTab === 'insights' && !aiInsights && !isGeneratingInsights) {
+      generateInsightsForUser();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   useEffect(() => {
     loadData();
@@ -227,36 +238,35 @@ export default function ProgressTrackerScreen() {
     }
   };
 
-  const pickImage = async () => {
-    if (isLocked) {
-      setShowPaywall(true);
-      return;
-    }
-
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photos');
-      return;
-    }
-
-    const result = await ImagePicker.launchImagePickerAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [3, 4],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      setShowPhotoModal(true);
-      const uri = result.assets[0].uri;
+  const processImageResult = async (uri: string) => {
+    try {
+      // Show analyzing indicator
+      Alert.alert('🔍 Analyzing...', 'AI is analyzing your skin. This may take a few seconds.');
       
-      // Simulate AI analysis (you can connect to real AI API)
+      // Use real AI analysis with Google Vision + GPT-4o-mini
+      console.log('🔍 Starting AI analysis for progress photo...');
+      const aiAnalysis = await analyzeProgressPhoto(uri);
+      console.log('✅ AI analysis completed:', aiAnalysis);
+      
+      // Compare with previous photo to generate improvements
+      let improvements: string[] = aiAnalysis.improvements || [];
+      if (photos.length > 0 && photos[0].analysis) {
+        const previousAnalysis: ProgressPhotoAnalysis = {
+          hydration: photos[0].analysis.hydration,
+          texture: photos[0].analysis.texture,
+          brightness: photos[0].analysis.brightness,
+          acne: photos[0].analysis.acne,
+          confidence: 0.8,
+        };
+        improvements = compareProgressPhotos(previousAnalysis, aiAnalysis);
+      }
+
       const analysis = {
-        hydration: Math.floor(Math.random() * 30) + 70,
-        texture: Math.floor(Math.random() * 30) + 65,
-        brightness: Math.floor(Math.random() * 30) + 70,
-        acne: Math.floor(Math.random() * 20) + 10,
-        improvements: ['Hydration improved by 8%', 'Texture smoother'],
+        hydration: aiAnalysis.hydration,
+        texture: aiAnalysis.texture,
+        brightness: aiAnalysis.brightness,
+        acne: aiAnalysis.acne,
+        improvements: improvements.length > 0 ? improvements : ['Photo analyzed successfully'],
       };
 
       const newPhoto: ProgressPhoto = {
@@ -270,41 +280,144 @@ export default function ProgressTrackerScreen() {
 
       const updatedPhotos = [newPhoto, ...photos].slice(0, 30); // Keep last 30
       await savePhotos(updatedPhotos);
-      setShowPhotoModal(false);
       setPhotoNotes('');
+      
+      // Track photo taken for notifications
+      const { trackUserActivity } = await import('@/lib/engagement-notifications');
+      await trackUserActivity('photo_taken');
+      
+      // Refresh insights if on insights tab
+      if (activeTab === 'insights' && aiInsights) {
+        generateInsightsForUser();
+      }
+      
+      // Show success message with AI results
+      const confidenceText = aiAnalysis.confidence >= 0.8 ? 'High confidence' : 'Analysis complete';
+      Alert.alert(
+        '✨ Photo Analyzed!', 
+        `${confidenceText}\n\n💧 Hydration: ${analysis.hydration}%\n✨ Brightness: ${analysis.brightness}%\n⭐ Texture: ${analysis.texture}%\n❤️ Clear Skin: ${100 - analysis.acne}%`
+      );
+    } catch (error) {
+      console.error('Error processing image:', error);
+      Alert.alert('Error', 'Failed to analyze photo. Please try again.');
+    }
+  };
+
+  const pickImage = async () => {
+    // All features free - no checks needed
+
+    if (Platform.OS === 'web') {
+      // For web, just use library
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please allow access to your photos');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [3, 4],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await processImageResult(result.assets[0].uri);
+      }
+    } else {
+      // For mobile, give option to choose
+      Alert.alert(
+        'Select Photo',
+        'Choose an option',
+        [
+          {
+            text: 'Camera',
+            onPress: async () => {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Permission needed', 'Please allow access to your camera');
+                return;
+              }
+
+              const result = await ImagePicker.launchCameraAsync({
+                allowsEditing: true,
+                aspect: [3, 4],
+                quality: 0.8,
+              });
+
+              if (!result.canceled && result.assets[0]) {
+                await processImageResult(result.assets[0].uri);
+              }
+            },
+          },
+          {
+            text: 'Photo Library',
+            onPress: async () => {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Permission needed', 'Please allow access to your photos');
+                return;
+              }
+
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [3, 4],
+                quality: 0.8,
+              });
+
+              if (!result.canceled && result.assets[0]) {
+                await processImageResult(result.assets[0].uri);
+              }
+            },
+          },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
     }
   };
 
   const addJournalEntry = async () => {
-    if (isLocked) {
-      setShowPaywall(true);
-      return;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const existingEntry = journalEntries.find(e => e.date === today);
+
+      if (existingEntry) {
+        Alert.alert('Already logged', 'You already logged today. Update it instead?');
+        return;
+      }
+
+      const newEntry: JournalEntry = {
+        id: Date.now().toString(),
+        date: today,
+        timestamp: Date.now(),
+        mood: journalMood,
+        sleepHours: parseFloat(journalSleep) || 7,
+        waterIntake: parseInt(journalWater) || 8,
+        stressLevel: journalStress,
+        notes: journalNotes.trim(),
+        skinFeeling: journalSkinFeeling.trim(),
+      };
+
+      const updatedEntries = [newEntry, ...journalEntries];
+      await saveJournal(updatedEntries);
+      setShowJournalModal(false);
+      resetJournalForm();
+      
+      // Track journal entry for notifications
+      const { trackUserActivity } = await import('@/lib/engagement-notifications');
+      await trackUserActivity('journal_entry');
+      
+      // Refresh insights if on insights tab
+      if (activeTab === 'insights' && aiInsights) {
+        generateInsightsForUser();
+      }
+      
+      Alert.alert('✨ Entry Saved!', 'Your daily log has been saved successfully.');
+    } catch (error) {
+      console.error('Error adding journal entry:', error);
+      Alert.alert('Error', 'Failed to save journal entry. Please try again.');
     }
-
-    const today = new Date().toISOString().split('T')[0];
-    const existingEntry = journalEntries.find(e => e.date === today);
-
-    if (existingEntry) {
-      Alert.alert('Already logged', 'You already logged today. Update it instead?');
-      return;
-    }
-
-    const newEntry: JournalEntry = {
-      id: Date.now().toString(),
-      date: today,
-      timestamp: Date.now(),
-      mood: journalMood,
-      sleepHours: parseFloat(journalSleep) || 7,
-      waterIntake: parseInt(journalWater) || 8,
-      stressLevel: journalStress,
-      notes: journalNotes.trim(),
-      skinFeeling: journalSkinFeeling.trim(),
-    };
-
-    const updatedEntries = [newEntry, ...journalEntries];
-    await saveJournal(updatedEntries);
-    setShowJournalModal(false);
-    resetJournalForm();
   };
 
   const resetJournalForm = () => {
@@ -314,6 +427,49 @@ export default function ProgressTrackerScreen() {
     setJournalStress(3);
     setJournalNotes('');
     setJournalSkinFeeling('');
+  };
+
+  const generateInsightsForUser = async () => {
+    // Check minimum requirements first
+    const requirements = checkMinimumRequirements(photos, journalEntries);
+    if (!requirements.met) {
+      return; // Don't generate if requirements not met
+    }
+
+    setIsGeneratingInsights(true);
+    try {
+      const insights = await generateInsights(
+        photos,
+        journalEntries,
+        products,
+        usageHistory,
+        routines
+      );
+      setAiInsights(insights);
+    } catch (error) {
+      console.error('Failed to generate insights:', error);
+      // Still set some basic insights even if generation fails
+      const fallbackConsistency = {
+        photoStreak: 0,
+        journalStreak: 0,
+        currentPhotoStreak: 0,
+        currentJournalStreak: 0,
+        consistencyPercentage: 0,
+        last7Days: [],
+        totalDaysTracked: 0,
+        totalPossibleDays: 7,
+      };
+      setAiInsights({
+        consistency: fallbackConsistency,
+        wins: ['Keep tracking to unlock insights'],
+        insights: ['More data needed for personalized analysis'],
+        recommendations: ['Continue logging daily habits and taking progress photos'],
+        summary: 'Building your personalized insights...',
+        generatedAt: new Date().toISOString(),
+      });
+    } finally {
+      setIsGeneratingInsights(false);
+    }
   };
 
   // Calculate stats from journal
@@ -331,13 +487,87 @@ export default function ProgressTrackerScreen() {
   // Check if insights are unlocked
   const canUnlockInsights = journalEntries.length >= 5 || photos.length >= 3;
 
+  // Organize photos by day (last 30 days max)
+  const organizedPhotos = useMemo(() => {
+    const now = Date.now();
+    const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
+    
+    // Get last 30 days of photos
+    const recentPhotos = photos
+      .filter(p => p.timestamp >= thirtyDaysAgo)
+      .sort((a, b) => b.timestamp - a.timestamp); // Newest first
+    
+    // Group by day
+    const grouped: Record<string, ProgressPhoto[]> = {};
+    recentPhotos.forEach(photo => {
+      const dateKey = new Date(photo.timestamp).toISOString().split('T')[0];
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = [];
+      }
+      grouped[dateKey].push(photo);
+    });
+    
+    // Convert to array and sort by date (newest first)
+    return Object.entries(grouped)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([date, photos]) => ({ date, photos }));
+  }, [photos]);
+
+  // Get comparison photos based on selected period
+  const getComparisonPhotos = () => {
+    if (photos.length < 2) return { before: null, after: null, daysDiff: 0 };
+    
+    const sortedPhotos = [...photos].sort((a, b) => a.timestamp - b.timestamp);
+    const oldestPhoto = sortedPhotos[0];
+    const latestPhoto = sortedPhotos[sortedPhotos.length - 1];
+    
+    const daysDiff = Math.floor((latestPhoto.timestamp - oldestPhoto.timestamp) / (1000 * 60 * 60 * 24));
+    
+    // For selected period, find photos within that range
+    const now = Date.now();
+    const periodDays = selectedPeriod === '7d' ? 7 : 30;
+    const periodStart = now - (periodDays * 24 * 60 * 60 * 1000);
+    
+    const periodPhotos = photos.filter(p => p.timestamp >= periodStart);
+    
+    if (periodPhotos.length < 2) {
+      return { before: oldestPhoto, after: latestPhoto, daysDiff };
+    }
+    
+    const periodSorted = periodPhotos.sort((a, b) => a.timestamp - b.timestamp);
+    return {
+      before: periodSorted[0],
+      after: periodSorted[periodSorted.length - 1],
+      daysDiff: Math.floor((periodSorted[periodSorted.length - 1].timestamp - periodSorted[0].timestamp) / (1000 * 60 * 60 * 24)),
+    };
+  };
+
+  // Calculate progress status
+  const getProgressStatus = () => {
+    const comparison = getComparisonPhotos();
+    if (!comparison.before?.analysis || !comparison.after?.analysis) {
+      return { status: 'stable', text: '— Stable' };
+    }
+    
+    const hydrationChange = comparison.after.analysis.hydration - comparison.before.analysis.hydration;
+    const textureChange = comparison.after.analysis.texture - comparison.before.analysis.texture;
+    const brightnessChange = comparison.after.analysis.brightness - comparison.before.analysis.brightness;
+    const avgChange = (hydrationChange + textureChange + brightnessChange) / 3;
+    
+    if (avgChange > 5) {
+      return { status: 'improving', text: '↑ Improving' };
+    } else if (avgChange < -5) {
+      return { status: 'declining', text: '↓ Declining' };
+    } else {
+      return { status: 'stable', text: '— Stable' };
+    }
+  };
+
   const renderPhotosTab = () => {
     const hasPhotos = photos.length > 0;
     const latestPhoto = photos[0];
-    const comparePhoto = photos.find(p => {
-      const daysDiff = (Date.now() - p.timestamp) / (1000 * 60 * 60 * 24);
-      return daysDiff >= 7 && daysDiff <= 10;
-    });
+    const comparison = getComparisonPhotos();
+    const progressStatus = getProgressStatus();
 
     return (
       <View style={styles.tabContent}>
@@ -363,11 +593,140 @@ export default function ProgressTrackerScreen() {
           </View>
         )}
 
+        {/* Progress Comparison Section */}
+        {hasPhotos && comparison.before && comparison.after && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <TrendingUp color={palette.primary} size={22} strokeWidth={2.5} />
+              <Text style={styles.sectionTitle}>Progress Comparison</Text>
+            </View>
+            <View style={styles.progressComparisonCard}>
+            <View style={styles.progressComparisonHeader}>
+              <View style={styles.periodSelector}>
+                <TouchableOpacity
+                  style={[styles.periodButton, selectedPeriod === '7d' && styles.periodButtonActive]}
+                  onPress={() => setSelectedPeriod('7d')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.periodButtonText, selectedPeriod === '7d' && styles.periodButtonTextActive]}>
+                    7d
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.periodButton, selectedPeriod === '30d' && styles.periodButtonActive]}
+                  onPress={() => setSelectedPeriod('30d')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.periodButtonText, selectedPeriod === '30d' && styles.periodButtonTextActive]}>
+                    30d
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.comparisonImagesContainer}>
+              <View style={styles.comparisonImageWrapper}>
+                {comparison.before ? (
+                  <Image source={{ uri: comparison.before.uri }} style={styles.comparisonImageNew} />
+                ) : (
+                  <View style={[styles.comparisonImageNew, styles.comparisonImagePlaceholder]}>
+                    <ImageIcon color={palette.textMuted} size={32} />
+                  </View>
+                )}
+                <View style={styles.comparisonImageLabel}>
+                  <Text style={styles.comparisonLabelText}>Before</Text>
+                </View>
+              </View>
+
+              <ArrowRight color={palette.primary} size={28} strokeWidth={2.5} />
+
+              <View style={styles.comparisonImageWrapper}>
+                {comparison.after ? (
+                  <Image source={{ uri: comparison.after.uri }} style={styles.comparisonImageNew} />
+                ) : (
+                  <View style={[styles.comparisonImageNew, styles.comparisonImagePlaceholder]}>
+                    <ImageIcon color={palette.textMuted} size={32} />
+                  </View>
+                )}
+                <View style={styles.comparisonImageLabel}>
+                  <Text style={styles.comparisonLabelText}>After</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.progressSummary}>
+              <Text style={styles.progressDaysText}>
+                {comparison.daysDiff} Day{comparison.daysDiff !== 1 ? 's' : ''} Progress
+              </Text>
+              <Text style={[
+                styles.progressStatusText,
+                progressStatus.status === 'improving' && styles.progressStatusImproving,
+                progressStatus.status === 'declining' && styles.progressStatusDeclining,
+              ]}>
+                {progressStatus.text}
+              </Text>
+            </View>
+          </View>
+          </View>
+        )}
+
+        {/* Daily Photos Scrollable View */}
+        {hasPhotos && organizedPhotos.length > 0 && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Camera color={palette.primary} size={22} strokeWidth={2.5} />
+              <Text style={styles.sectionTitle}>Daily Photos</Text>
+              <Text style={styles.sectionSubtitle}>(Last 30 Days)</Text>
+            </View>
+            <View style={styles.dailyPhotosSection}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dailyPhotosScrollContainer}
+            >
+              {organizedPhotos.map(({ date, photos: dayPhotos }) => (
+                <View key={date} style={styles.dailyPhotoGroup}>
+                  <Text style={styles.dailyPhotoDate}>
+                    {new Date(date).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric',
+                      weekday: 'short'
+                    })}
+                  </Text>
+                  <View style={styles.dailyPhotoRow}>
+                    {dayPhotos.map((photo) => (
+                      <TouchableOpacity
+                        key={photo.id}
+                        style={styles.dailyPhotoCard}
+                        activeOpacity={0.9}
+                      >
+                        <Image source={{ uri: photo.uri }} style={styles.dailyPhotoThumbnail} />
+                        {photo.analysis && (
+                          <View style={styles.dailyPhotoBadge}>
+                            <Text style={styles.dailyPhotoBadgeText}>
+                              {Math.round((photo.analysis.hydration + photo.analysis.texture + photo.analysis.brightness) / 3)}%
+                            </Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+            </View>
+          </View>
+        )}
+
+        {/* Latest Analysis - Moved to bottom after daily photos */}
         {hasPhotos && latestPhoto?.analysis && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Sparkles color={palette.primary} size={22} strokeWidth={2.5} />
+              <Text style={styles.sectionTitle}>Latest Analysis</Text>
+            </View>
           <View style={styles.analysisCard}>
             <LinearGradient colors={gradient.card} style={styles.analysisCardInner}>
-              <Text style={styles.analysisTitle}>Latest Analysis</Text>
-              
               <View style={styles.metricsGrid}>
                 <View style={styles.metricItem}>
                   <Droplets color={palette.primary} size={20} />
@@ -403,39 +762,6 @@ export default function ProgressTrackerScreen() {
                 </View>
               )}
             </LinearGradient>
-          </View>
-        )}
-
-        {comparePhoto && latestPhoto && (
-          <View style={styles.comparisonCard}>
-            <Text style={styles.comparisonTitle}>7-Day Progress</Text>
-            <View style={styles.comparisonImages}>
-              <View style={styles.comparisonImageContainer}>
-                <Image source={{ uri: comparePhoto.uri }} style={styles.comparisonImage} />
-                <Text style={styles.comparisonLabel}>Before</Text>
-              </View>
-              <ArrowRight color={palette.primary} size={24} />
-              <View style={styles.comparisonImageContainer}>
-                <Image source={{ uri: latestPhoto.uri }} style={styles.comparisonImage} />
-                <Text style={styles.comparisonLabel}>Now</Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Photos Grid */}
-        {hasPhotos && (
-          <View style={styles.photosGrid}>
-            <Text style={styles.sectionTitle}>Your Journey</Text>
-            <View style={styles.gridContainer}>
-              {photos.map((photo) => (
-                <TouchableOpacity key={photo.id} style={styles.photoCard} activeOpacity={0.8}>
-                  <Image source={{ uri: photo.uri }} style={styles.photoThumbnail} />
-                  <Text style={styles.photoDate}>
-                    {new Date(photo.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </Text>
-                </TouchableOpacity>
-              ))}
             </View>
           </View>
         )}
@@ -553,87 +879,256 @@ export default function ProgressTrackerScreen() {
   };
 
   const renderInsightsTab = () => {
-    if (!canUnlockInsights) {
+    // Check minimum requirements
+    const requirements = checkMinimumRequirements(photos, journalEntries);
+
+    // Loading state
+    if (isGeneratingInsights) {
       return (
-        <View style={styles.lockedState}>
-          <Lock color={palette.primary} size={64} strokeWidth={1.5} />
-          <Text style={styles.lockedTitle}>Unlock AI Insights</Text>
-          <Text style={styles.lockedText}>
-            Track consistently for 5+ days to unlock personalized AI insights about your transformation
-          </Text>
-          <View style={styles.progressRequirements}>
-            <View style={styles.requirementItem}>
-              <CheckCircle 
-                color={journalEntries.length >= 5 ? palette.success : palette.textMuted} 
-                size={20} 
-              />
-              <Text style={styles.requirementText}>
-                Journal entries: {journalEntries.length}/5
-              </Text>
-            </View>
-            <View style={styles.requirementItem}>
-              <CheckCircle 
-                color={photos.length >= 3 ? palette.success : palette.textMuted} 
-                size={20} 
-              />
-              <Text style={styles.requirementText}>
-                Progress photos: {photos.length}/3
-              </Text>
-            </View>
+        <View style={styles.tabContent}>
+          <View style={styles.emptyState}>
+            <Sparkles color={palette.primary} size={64} strokeWidth={1.5} />
+            <Text style={styles.emptyTitle}>Analyzing Your Data...</Text>
+            <Text style={styles.emptyText}>
+              Our AI is analyzing your photos, journal entries, and products to generate personalized insights
+            </Text>
           </View>
         </View>
       );
     }
 
-    // Mock insight data
-    const currentInsight = {
-      week: Math.ceil(dailyCompletions.length / 7),
-      progressScore: 85,
-      wins: [
-        'Hydration levels improved by 12%',
-        'Skin texture significantly smoother',
-        'Consistent 7+ hours sleep this week',
-      ],
-      correlations: [
-        'Higher water intake correlates with 15% better hydration scores',
-        'Better sleep (7+ hours) shows 20% improvement in skin brightness',
-      ],
-      recommendations: [
-        'Continue drinking 8+ glasses of water daily',
-        'Add vitamin C serum to morning routine',
-        'Consider weekly exfoliation for texture',
-      ],
-      photosCount: photos.length,
-      routineCompletionRate: dailyCompletions.length > 0 
+    // Show educational onboarding if requirements not met
+    if (!requirements.met) {
+      const photosProgress = Math.min((requirements.photosCount / 5) * 100, 100);
+      const journalsProgress = Math.min((requirements.journalsCount / 5) * 100, 100);
+
+      return (
+        <View style={styles.tabContent}>
+          <View style={styles.onboardingCard}>
+            <LinearGradient colors={gradient.glow} style={styles.onboardingCardInner}>
+              <Sparkles color={palette.primary} size={48} fill={palette.primary} strokeWidth={2} />
+              <Text style={styles.onboardingTitle}>Unlock AI-Powered Insights</Text>
+              <Text style={styles.onboardingSubtitle}>
+                Track your progress for 5 days to get personalized skincare analysis
+              </Text>
+            </LinearGradient>
+          </View>
+
+          {/* Progress Trackers */}
+          <View style={styles.progressTrackerCard}>
+            <Text style={styles.progressTrackerTitle}>Your Progress</Text>
+            
+            {/* Photos Progress */}
+            <View style={styles.progressItem}>
+              <View style={styles.progressHeader}>
+                <Camera color={palette.primary} size={20} />
+                <Text style={styles.progressLabel}>Photos</Text>
+                <Text style={styles.progressCount}>
+                  {requirements.photosCount}/5
+                </Text>
+              </View>
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBar, { width: `${photosProgress}%` }]} />
+              </View>
+              <Text style={styles.progressPercentage}>{Math.round(photosProgress)}%</Text>
+            </View>
+
+            {/* Journals Progress */}
+            <View style={styles.progressItem}>
+              <View style={styles.progressHeader}>
+                <Calendar color={palette.primary} size={20} />
+                <Text style={styles.progressLabel}>Journal Entries</Text>
+                <Text style={styles.progressCount}>
+                  {requirements.journalsCount}/5
+                </Text>
+              </View>
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBar, { width: `${journalsProgress}%` }]} />
+              </View>
+              <Text style={styles.progressPercentage}>{Math.round(journalsProgress)}%</Text>
+            </View>
+          </View>
+
+          {/* What You'll Get */}
+          <View style={styles.featuresCard}>
+            <Text style={styles.featuresTitle}>What You'll Get</Text>
+            <View style={styles.featureItem}>
+              <CheckCircle color={palette.success} size={18} />
+              <Text style={styles.featureText}>Daily consistency tracking with visual calendar</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <CheckCircle color={palette.success} size={18} />
+              <Text style={styles.featureText}>Product performance analysis (what's working, what's not)</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <CheckCircle color={palette.success} size={18} />
+              <Text style={styles.featureText}>30-day transformation report (day 1 vs day 30)</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <CheckCircle color={palette.success} size={18} />
+              <Text style={styles.featureText}>Personalized recommendations based on YOUR data</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <CheckCircle color={palette.success} size={18} />
+              <Text style={styles.featureText}>Pattern discovery (habits → skin improvements)</Text>
+            </View>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={pickImage}
+              activeOpacity={0.9}
+            >
+              <LinearGradient colors={gradient.primary} style={styles.actionButtonGradient}>
+                <Camera color={palette.textLight} size={20} />
+                <Text style={styles.actionButtonText}>Take Photo</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => {
+                setActiveTab('journal');
+                setShowJournalModal(true);
+              }}
+              activeOpacity={0.9}
+            >
+              <LinearGradient colors={gradient.success} style={styles.actionButtonGradient}>
+                <Calendar color={palette.textLight} size={20} />
+                <Text style={styles.actionButtonText}>Log Journal</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.requirementMessage}>
+            <Text style={styles.requirementText}>
+              {requirements.message} to unlock insights
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    // No insights yet (but requirements met)
+    if (!aiInsights) {
+      return (
+        <View style={styles.tabContent}>
+          <View style={styles.emptyState}>
+            <Sparkles color={palette.textMuted} size={64} strokeWidth={1.5} />
+            <Text style={styles.emptyTitle}>Ready to Generate Insights</Text>
+            <Text style={styles.emptyText}>
+              You've met the minimum requirements! Click below to analyze your progress
+            </Text>
+            <TouchableOpacity
+              style={styles.generateButton}
+              onPress={generateInsightsForUser}
+              activeOpacity={0.9}
+            >
+              <LinearGradient colors={gradient.primary} style={styles.generateButtonGradient}>
+                <Sparkles color={palette.textLight} size={20} />
+                <Text style={styles.generateButtonText}>Generate Insights</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    const week = Math.ceil(dailyCompletions.length / 7) || 1;
+    const routineCompletionRate = dailyCompletions.length > 0 
         ? Math.round((dailyCompletions.length / (dailyCompletions.length + 3)) * 100)
-        : 0,
-    };
+      : 0;
 
     return (
       <View style={styles.tabContent}>
-        {/* Progress Score */}
-        <View style={styles.scoreCard}>
-          <LinearGradient colors={gradient.glow} style={styles.scoreCardInner}>
-            <Text style={styles.scoreTitle}>Your Progress Score</Text>
-            <Text style={styles.scoreValue}>{currentInsight.progressScore}</Text>
-            <Text style={styles.scoreSubtitle}>Out of 100</Text>
+        {/* Consistency Tracker */}
+        <View style={styles.consistencyCard}>
+          <LinearGradient colors={gradient.glow} style={styles.consistencyCardInner}>
+            <Text style={styles.consistencyTitle}>Your Consistency This Week</Text>
+            <Text style={styles.consistencyPercentage}>{aiInsights.consistency.consistencyPercentage}%</Text>
+            <Text style={styles.consistencySubtitle}>
+              {aiInsights.consistency.totalDaysTracked} of {aiInsights.consistency.totalPossibleDays} days tracked
+            </Text>
             <AnimatedProgressBar
-              progress={currentInsight.progressScore}
-              height={8}
-              borderRadius={4}
+              progress={aiInsights.consistency.consistencyPercentage}
+              height={10}
+              borderRadius={5}
               gradientColors={gradient.success}
               duration={1000}
             />
+            
+            {/* Streak Indicators */}
+            <View style={styles.streakRow}>
+              <View style={styles.streakItem}>
+                <Camera color={palette.primary} size={18} />
+                <Text style={styles.streakLabel}>Photo</Text>
+                <Text style={styles.streakValue}>{aiInsights.consistency.currentPhotoStreak} day{aiInsights.consistency.currentPhotoStreak !== 1 ? 's' : ''}</Text>
+              </View>
+              <View style={styles.streakItem}>
+                <Calendar color={palette.primary} size={18} />
+                <Text style={styles.streakLabel}>Journal</Text>
+                <Text style={styles.streakValue}>{aiInsights.consistency.currentJournalStreak} day{aiInsights.consistency.currentJournalStreak !== 1 ? 's' : ''}</Text>
+              </View>
+            </View>
           </LinearGradient>
+        </View>
+
+        {/* Daily Tracking Calendar */}
+        <View style={styles.trackingCalendar}>
+          <Text style={styles.calendarTitle}>Last 7 Days</Text>
+          
+          {/* Photo Tracking */}
+          <View style={styles.trackingRow}>
+            <View style={styles.trackingLabel}>
+              <Camera color={palette.primary} size={16} />
+              <Text style={styles.trackingLabelText}>Photos</Text>
+            </View>
+            <View style={styles.calendarDays}>
+              {aiInsights.consistency.last7Days.map((day, idx) => (
+                <View key={idx} style={styles.calendarDay}>
+                  <View style={[
+                    styles.calendarCheckbox,
+                    day.hasPhoto ? styles.calendarCheckboxActive : styles.calendarCheckboxInactive
+                  ]}>
+                    {day.hasPhoto && <CheckCircle color={palette.textLight} size={14} />}
+                  </View>
+                  <Text style={styles.calendarDayName}>{day.dayName}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Journal Tracking */}
+          <View style={styles.trackingRow}>
+            <View style={styles.trackingLabel}>
+              <Calendar color={palette.primary} size={16} />
+              <Text style={styles.trackingLabelText}>Journal</Text>
+            </View>
+            <View style={styles.calendarDays}>
+              {aiInsights.consistency.last7Days.map((day, idx) => (
+                <View key={idx} style={styles.calendarDay}>
+                  <View style={[
+                    styles.calendarCheckbox,
+                    day.hasJournal ? styles.calendarCheckboxActive : styles.calendarCheckboxInactive
+                  ]}>
+                    {day.hasJournal && <CheckCircle color={palette.textLight} size={14} />}
+                  </View>
+                  <Text style={styles.calendarDayName}>{day.dayName}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
         </View>
 
         {/* Wins Section */}
         <View style={styles.insightSection}>
           <View style={styles.insightHeader}>
             <Trophy color={palette.primary} size={24} />
-            <Text style={styles.insightTitle}>This Week's Wins</Text>
+            <Text style={styles.insightTitle}>Your Wins (Last 5 Days)</Text>
           </View>
-          {currentInsight.wins.map((win, idx) => (
+          {aiInsights.wins.map((win, idx) => (
             <View key={idx} style={styles.insightItem}>
               <Sparkles color={palette.success} size={16} />
               <Text style={styles.insightText}>{win}</Text>
@@ -641,27 +1136,82 @@ export default function ProgressTrackerScreen() {
           ))}
         </View>
 
-        {/* Correlations */}
+        {/* Key Insights */}
         <View style={styles.insightSection}>
           <View style={styles.insightHeader}>
             <TrendingUp color={palette.primary} size={24} />
-            <Text style={styles.insightTitle}>Pattern Recognition</Text>
+            <Text style={styles.insightTitle}>Key Patterns Discovered</Text>
           </View>
-          {currentInsight.correlations.map((correlation, idx) => (
+          {aiInsights.insights.map((insight, idx) => (
             <View key={idx} style={styles.insightItem}>
               <Target color={palette.primary} size={16} />
-              <Text style={styles.insightText}>{correlation}</Text>
+              <Text style={styles.insightText}>{insight}</Text>
             </View>
           ))}
         </View>
+
+        {/* Product Report */}
+        {aiInsights.productReport && (
+          <>
+            {aiInsights.productReport.working.length > 0 && (
+              <View style={styles.insightSection}>
+                <View style={styles.insightHeader}>
+                  <CheckCircle color={palette.success} size={24} />
+                  <Text style={styles.insightTitle}>Products Working Well</Text>
+                </View>
+                {aiInsights.productReport.working.map((item, idx) => (
+                  <View key={idx} style={styles.insightItem}>
+                    <Text style={styles.productName}>{item.product}</Text>
+                    <Text style={styles.productImpact}>{item.impact}</Text>
+                    <Text style={styles.insightText}>{item.recommendation}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {aiInsights.productReport.monitoring.length > 0 && (
+              <View style={styles.insightSection}>
+                <View style={styles.insightHeader}>
+                  <Clock color={palette.gold} size={24} />
+                  <Text style={styles.insightTitle}>Products to Monitor</Text>
+                </View>
+                {aiInsights.productReport.monitoring.map((item, idx) => (
+                  <View key={idx} style={styles.insightItem}>
+                    <Text style={styles.productName}>{item.product}</Text>
+                    <Text style={styles.productImpact}>{item.impact}</Text>
+                    <Text style={styles.insightText}>{item.recommendation}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {aiInsights.productReport.replace.length > 0 && (
+              <View style={styles.insightSection}>
+                <View style={styles.insightHeader}>
+                  <AlertCircle color={palette.rose} size={24} />
+                  <Text style={styles.insightTitle}>Products to Replace</Text>
+                </View>
+                {aiInsights.productReport.replace.map((item, idx) => (
+                  <View key={idx} style={styles.insightItem}>
+                    <Text style={styles.productName}>{item.product}</Text>
+                    <Text style={styles.insightText}>{item.reason}</Text>
+                    {item.alternative && (
+                      <Text style={styles.alternativeText}>💡 Alternative: {item.alternative}</Text>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        )}
 
         {/* Recommendations */}
         <View style={styles.insightSection}>
           <View style={styles.insightHeader}>
             <Heart color={palette.rose} size={24} />
-            <Text style={styles.insightTitle}>Recommendations</Text>
+            <Text style={styles.insightTitle}>Personalized Recommendations</Text>
           </View>
-          {currentInsight.recommendations.map((rec, idx) => (
+          {aiInsights.recommendations.map((rec, idx) => (
             <View key={idx} style={styles.insightItem}>
               <CheckCircle color={palette.rose} size={16} />
               <Text style={styles.insightText}>{rec}</Text>
@@ -671,22 +1221,34 @@ export default function ProgressTrackerScreen() {
 
         {/* Stats Summary */}
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Week {currentInsight.week} Summary</Text>
+          <Text style={styles.summaryTitle}>Week {week} Summary</Text>
           <View style={styles.summaryStats}>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{currentInsight.photosCount}</Text>
+              <Text style={styles.summaryValue}>{photos.length}</Text>
               <Text style={styles.summaryLabel}>Photos Taken</Text>
             </View>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{currentInsight.routineCompletionRate}%</Text>
+              <Text style={styles.summaryValue}>{routineCompletionRate}%</Text>
               <Text style={styles.summaryLabel}>Routine Complete</Text>
             </View>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{currentInsight.week}</Text>
-              <Text style={styles.summaryLabel}>Week Number</Text>
+              <Text style={styles.summaryValue}>{journalEntries.length}</Text>
+              <Text style={styles.summaryLabel}>Days Logged</Text>
             </View>
           </View>
         </View>
+
+        {/* Refresh Button */}
+        <TouchableOpacity
+          style={styles.refreshButton}
+          onPress={generateInsightsForUser}
+          activeOpacity={0.9}
+        >
+          <LinearGradient colors={gradient.card} style={styles.refreshButtonGradient}>
+            <Sparkles color={palette.primary} size={18} />
+            <Text style={styles.refreshButtonText}>🔄 Refresh Insights</Text>
+          </LinearGradient>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -785,19 +1347,20 @@ export default function ProgressTrackerScreen() {
           },
         ]}
       >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          activeOpacity={0.8}
+        >
+          <View style={styles.backCircle}>
+            <ArrowLeft color={palette.textPrimary} size={22} strokeWidth={2.5} />
+          </View>
+        </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Progress Tracker</Text>
           <Text style={styles.headerSubtitle}>Track your glow transformation</Text>
         </View>
-        {isLocked && (
-          <TouchableOpacity
-            style={styles.unlockButton}
-            onPress={() => setShowPaywall(true)}
-            activeOpacity={0.8}
-          >
-            <Lock color={palette.primary} size={20} />
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerSpacer} />
       </Animated.View>
 
       {/* Tab Navigation */}
@@ -841,11 +1404,6 @@ export default function ProgressTrackerScreen() {
           <Text style={[styles.tabText, activeTab === 'insights' && styles.activeTabText]}>
             Insights
           </Text>
-          {!canUnlockInsights && (
-            <View style={styles.lockedBadge}>
-              <Lock color={palette.textLight} size={10} />
-            </View>
-          )}
         </TouchableOpacity>
       </Animated.View>
 
@@ -963,14 +1521,8 @@ export default function ProgressTrackerScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Premium Paywall */}
-      {showPaywall && (
-        <PremiumPaywall
-          visible={showPaywall}
-          onClose={() => setShowPaywall(false)}
-          feature="Progress Tracker"
-        />
-      )}
+      {/* Upgrade Prompt for Progress Photos */}
+      {/* All features free - UpgradePrompt removed */}
     </SafeAreaView>
   );
 }
@@ -988,8 +1540,29 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.lg,
   },
+  backButton: {
+    padding: 4,
+    marginRight: spacing.sm,
+  },
+  backCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: palette.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    ...shadow.elevated,
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
   headerContent: {
     flex: 1,
+  },
+  headerSpacer: {
+    width: 40,
   },
   headerTitle: {
     fontSize: 34,
@@ -1007,14 +1580,6 @@ const styles = StyleSheet.create({
   floatingSparkle: {
     position: 'absolute',
     zIndex: 1,
-  },
-  unlockButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: palette.overlayGold,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   tabBar: {
     flexDirection: 'row',
@@ -1053,17 +1618,6 @@ const styles = StyleSheet.create({
     color: palette.textLight,
     fontWeight: '700' as const,
   },
-  lockedBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: palette.rose,
-    borderRadius: 8,
-    width: 16,
-    height: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   content: {
     flex: 1,
   },
@@ -1072,6 +1626,24 @@ const styles = StyleSheet.create({
   },
   tabContent: {
     paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xxxxl,
+  },
+  sectionContainer: {
+    marginTop: spacing.xl,
+    marginBottom: spacing.lg,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.xs,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: palette.textMuted,
+    fontWeight: '500' as const,
+    marginLeft: spacing.xs,
   },
   addPhotoButton: {
     marginBottom: spacing.lg,
@@ -1125,19 +1697,17 @@ const styles = StyleSheet.create({
     maxWidth: '80%',
   },
   analysisCard: {
-    marginBottom: spacing.lg,
-    borderRadius: 32,
+    borderRadius: 28,
     overflow: 'hidden',
     ...shadow.elevated,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
-    shadowColor: palette.shadow,
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
   },
   analysisCardInner: {
-    padding: 28,
+    padding: spacing.xl,
     position: 'relative',
   },
   analysisTitle: {
@@ -1150,8 +1720,8 @@ const styles = StyleSheet.create({
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.lg,
-    marginBottom: spacing.xl,
+    gap: spacing.md,
+    marginTop: spacing.sm,
   },
   metricItem: {
     flex: 1,
@@ -1247,11 +1817,185 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700' as const,
+    fontSize: 22,
+    fontWeight: '800' as const,
     color: palette.textPrimary,
-    marginBottom: spacing.xl,
-    letterSpacing: -0.6,
+    letterSpacing: -0.5,
+    flex: 1,
+  },
+  progressComparisonCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 28,
+    padding: spacing.xl,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    ...shadow.elevated,
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  progressComparisonHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  progressComparisonTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  progressComparisonTitle: {
+    fontSize: typography.h5,
+    fontWeight: typography.extrabold,
+    color: palette.textPrimary,
+    letterSpacing: -0.3,
+  },
+  periodSelector: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    backgroundColor: palette.backgroundStart,
+    borderRadius: 20,
+    padding: spacing.xs,
+  },
+  periodButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: 16,
+    minWidth: 50,
+    alignItems: 'center',
+  },
+  periodButtonActive: {
+    backgroundColor: palette.primary,
+  },
+  periodButtonText: {
+    fontSize: typography.bodySmall,
+    fontWeight: typography.semibold,
+    color: palette.textSecondary,
+  },
+  periodButtonTextActive: {
+    color: palette.textLight,
+  },
+  comparisonImagesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.lg,
+    gap: spacing.md,
+  },
+  comparisonImageWrapper: {
+    flex: 1,
+    position: 'relative',
+  },
+  comparisonImageNew: {
+    width: '100%',
+    aspectRatio: 0.75,
+    borderRadius: 16,
+    backgroundColor: palette.backgroundStart,
+  },
+  comparisonImagePlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: palette.border,
+    borderStyle: 'dashed',
+  },
+  comparisonImageLabel: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 8,
+  },
+  comparisonLabelText: {
+    color: palette.textLight,
+    fontSize: typography.caption,
+    fontWeight: typography.semibold,
+  },
+  progressSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+  },
+  progressDaysText: {
+    fontSize: typography.body,
+    fontWeight: typography.extrabold,
+    color: palette.textPrimary,
+  },
+  progressStatusText: {
+    fontSize: typography.body,
+    fontWeight: typography.semibold,
+    color: palette.textSecondary,
+  },
+  progressStatusImproving: {
+    color: palette.success,
+  },
+  progressStatusDeclining: {
+    color: palette.rose,
+  },
+  dailyPhotosSection: {
+    backgroundColor: palette.surface,
+    borderRadius: 28,
+    padding: spacing.lg,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    ...shadow.elevated,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  dailyPhotosScrollContainer: {
+    paddingRight: spacing.lg,
+    gap: spacing.lg,
+  },
+  dailyPhotoGroup: {
+    marginRight: spacing.lg,
+  },
+  dailyPhotoDate: {
+    fontSize: typography.bodySmall,
+    fontWeight: typography.semibold,
+    color: palette.textSecondary,
+    marginBottom: spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  dailyPhotoRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  dailyPhotoCard: {
+    width: 100,
+    aspectRatio: 0.75,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: palette.surface,
+    borderWidth: 2,
+    borderColor: palette.border,
+    ...shadow.card,
+    position: 'relative',
+  },
+  dailyPhotoThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  dailyPhotoBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  dailyPhotoBadgeText: {
+    color: palette.textLight,
+    fontSize: typography.caption,
+    fontWeight: typography.extrabold,
   },
   gridContainer: {
     flexDirection: 'row',
@@ -1392,44 +2136,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: spacing.xs,
   },
-  lockedState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xxxxl,
-    paddingHorizontal: spacing.xxl,
-  },
-  lockedTitle: {
-    fontSize: typography.h4,
-    fontWeight: typography.extrabold,
-    color: palette.textPrimary,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  lockedText: {
-    fontSize: typography.body,
-    color: palette.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: spacing.xxl,
-  },
-  progressRequirements: {
-    width: '100%',
-    gap: spacing.md,
-  },
-  requirementItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: palette.surface,
-    padding: spacing.lg,
-    borderRadius: 12,
-  },
-  requirementText: {
-    fontSize: typography.body,
-    color: palette.textPrimary,
-    fontWeight: typography.medium,
-  },
-  scoreCard: {
+  consistencyCard: {
     marginBottom: spacing.lg,
     borderRadius: 28,
     overflow: 'hidden',
@@ -1437,30 +2144,111 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: palette.gold,
   },
-  scoreCardInner: {
-    padding: spacing.xxxl,
+  consistencyCardInner: {
+    padding: spacing.xxl,
     alignItems: 'center',
   },
-  scoreTitle: {
-    fontSize: typography.h4,
+  consistencyTitle: {
+    fontSize: typography.h5,
     fontWeight: typography.extrabold,
     color: palette.textPrimary,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     letterSpacing: -0.3,
   },
-  scoreValue: {
-    fontSize: 88,
+  consistencyPercentage: {
+    fontSize: 64,
     fontWeight: typography.black,
     color: palette.primary,
-    letterSpacing: -3,
+    letterSpacing: -2,
     textShadowColor: palette.shadow,
     textShadowOffset: { width: 0, height: 4 },
     textShadowRadius: 12,
+    marginBottom: spacing.xs,
   },
-  scoreSubtitle: {
-    fontSize: typography.body,
+  consistencySubtitle: {
+    fontSize: typography.bodySmall,
     color: palette.textSecondary,
+    marginBottom: spacing.md,
+  },
+  streakRow: {
+    flexDirection: 'row',
+    gap: spacing.xl,
+    marginTop: spacing.lg,
+  },
+  streakItem: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  streakLabel: {
+    fontSize: typography.caption,
+    color: palette.textSecondary,
+    fontWeight: typography.medium,
+  },
+  streakValue: {
+    fontSize: typography.h6,
+    fontWeight: typography.extrabold,
+    color: palette.primary,
+  },
+  trackingCalendar: {
+    backgroundColor: palette.surface,
+    borderRadius: 24,
+    padding: spacing.xl,
     marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: palette.border,
+    ...shadow.card,
+  },
+  calendarTitle: {
+    fontSize: typography.h5,
+    fontWeight: typography.extrabold,
+    color: palette.textPrimary,
+    marginBottom: spacing.lg,
+    letterSpacing: -0.3,
+  },
+  trackingRow: {
+    marginBottom: spacing.lg,
+  },
+  trackingLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  trackingLabelText: {
+    fontSize: typography.body,
+    fontWeight: typography.semibold,
+    color: palette.textPrimary,
+  },
+  calendarDays: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+  },
+  calendarDay: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    flex: 1,
+  },
+  calendarCheckbox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+  },
+  calendarCheckboxActive: {
+    backgroundColor: palette.success,
+    borderColor: palette.success,
+  },
+  calendarCheckboxInactive: {
+    backgroundColor: palette.backgroundStart,
+    borderColor: palette.border,
+  },
+  calendarDayName: {
+    fontSize: typography.caption,
+    color: palette.textSecondary,
+    fontWeight: typography.medium,
   },
   insightSection: {
     backgroundColor: palette.surface,
@@ -1639,5 +2427,211 @@ const styles = StyleSheet.create({
     fontSize: typography.h6,
     fontWeight: typography.extrabold,
     letterSpacing: 0.5,
+  },
+  generateButton: {
+    marginTop: spacing.xl,
+    borderRadius: 20,
+    overflow: 'hidden',
+    ...shadow.elevated,
+  },
+  generateButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm,
+  },
+  generateButtonText: {
+    color: palette.textLight,
+    fontSize: typography.h6,
+    fontWeight: typography.extrabold,
+    letterSpacing: 0.5,
+  },
+  refreshButton: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.xl,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  refreshButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+    backgroundColor: palette.surface,
+  },
+  refreshButtonText: {
+    color: palette.primary,
+    fontSize: typography.body,
+    fontWeight: typography.semibold,
+    letterSpacing: 0.3,
+  },
+  productName: {
+    fontSize: typography.body,
+    fontWeight: typography.bold,
+    color: palette.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  productImpact: {
+    fontSize: typography.bodySmall,
+    fontWeight: typography.medium,
+    color: palette.primary,
+    marginBottom: spacing.xs,
+  },
+  alternativeText: {
+    fontSize: typography.bodySmall,
+    color: palette.success,
+    fontStyle: 'italic',
+    marginTop: spacing.xs,
+  },
+  onboardingCard: {
+    marginBottom: spacing.lg,
+    borderRadius: 28,
+    overflow: 'hidden',
+    ...shadow.elevated,
+    borderWidth: 2,
+    borderColor: palette.gold,
+  },
+  onboardingCardInner: {
+    padding: spacing.xxl,
+    alignItems: 'center',
+  },
+  onboardingTitle: {
+    fontSize: typography.h4,
+    fontWeight: typography.extrabold,
+    color: palette.textPrimary,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+    letterSpacing: -0.3,
+  },
+  onboardingSubtitle: {
+    fontSize: typography.body,
+    color: palette.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    fontWeight: typography.medium,
+  },
+  progressTrackerCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 24,
+    padding: spacing.xl,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: palette.border,
+    ...shadow.card,
+  },
+  progressTrackerTitle: {
+    fontSize: typography.h5,
+    fontWeight: typography.extrabold,
+    color: palette.textPrimary,
+    marginBottom: spacing.lg,
+    letterSpacing: -0.3,
+  },
+  progressItem: {
+    marginBottom: spacing.xl,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  progressLabel: {
+    flex: 1,
+    fontSize: typography.body,
+    fontWeight: typography.semibold,
+    color: palette.textPrimary,
+  },
+  progressCount: {
+    fontSize: typography.body,
+    fontWeight: typography.extrabold,
+    color: palette.primary,
+  },
+  progressBarContainer: {
+    height: 12,
+    backgroundColor: palette.backgroundStart,
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginBottom: spacing.xs,
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: palette.primary,
+    borderRadius: 6,
+  },
+  progressPercentage: {
+    fontSize: typography.caption,
+    color: palette.textSecondary,
+    fontWeight: typography.medium,
+  },
+  featuresCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 24,
+    padding: spacing.xl,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: palette.border,
+    ...shadow.card,
+  },
+  featuresTitle: {
+    fontSize: typography.h5,
+    fontWeight: typography.extrabold,
+    color: palette.textPrimary,
+    marginBottom: spacing.md,
+    letterSpacing: -0.3,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  featureText: {
+    flex: 1,
+    fontSize: typography.bodySmall,
+    color: palette.textSecondary,
+    lineHeight: 20,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  actionButton: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+    ...shadow.elevated,
+  },
+  actionButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    gap: spacing.sm,
+  },
+  actionButtonText: {
+    color: palette.textLight,
+    fontSize: typography.body,
+    fontWeight: typography.extrabold,
+    letterSpacing: 0.3,
+  },
+  requirementMessage: {
+    backgroundColor: palette.overlayBlush,
+    borderRadius: 16,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  requirementText: {
+    fontSize: typography.bodySmall,
+    color: palette.blush,
+    fontWeight: typography.semibold,
+    textAlign: 'center',
   },
 });

@@ -9,9 +9,10 @@ export const REVENUECAT_CONFIG = {
 } as const;
 
 // Product IDs for App Store and Google Play
+// These MUST match your App Store Connect product IDs exactly
 export const PRODUCT_IDS = {
-  MONTHLY: process.env.EXPO_PUBLIC_IAP_MONTHLY_PRODUCT_ID || 'com.glowcheck01.app.premium.monthly',
-  YEARLY: process.env.EXPO_PUBLIC_IAP_YEARLY_PRODUCT_ID || 'com.glowcheck01.app.premium.annual',
+  MONTHLY: process.env.EXPO_PUBLIC_IAP_MONTHLY_PRODUCT_ID || 'com.glowcheck.monthly.premium',
+  YEARLY: process.env.EXPO_PUBLIC_IAP_YEARLY_PRODUCT_ID || 'com.glowcheck.yearly1.premium',
 } as const;
 
 // App Store Connect Configuration
@@ -33,13 +34,13 @@ export const PRICING = {
     price: 8.99,
     currency: 'USD',
     period: 'P1M', // ISO 8601 duration format
-    trialPeriod: 'P3D', // 3 days free trial
+    trialPeriod: 'P7D', // 7 days free trial
   },
   YEARLY: {
     price: 99.00,
     currency: 'USD',
     period: 'P1Y', // ISO 8601 duration format
-    trialPeriod: 'P3D', // 3 days free trial
+    trialPeriod: 'P7D', // 7 days free trial
   },
 } as const;
 
@@ -66,6 +67,7 @@ export interface SubscriptionInfo {
 class PaymentService {
   private isInitialized = false;
   private purchasesModule: any = null;
+  private subscriptionListeners: Set<(customerInfo: any) => void> = new Set();
 
   private async loadPurchasesModule(): Promise<any> {
     try {
@@ -78,9 +80,9 @@ class PaymentService {
     }
   }
 
-  async initialize(): Promise<boolean> {
+  async initialize(userId?: string | null): Promise<boolean> {
     try {
-      console.log('Initializing payment service...');
+      console.log('Initializing payment service...', { userId });
       
       if (Platform.OS === 'web') {
         console.log('Payment service not available on web');
@@ -118,12 +120,27 @@ class PaymentService {
           return true;
         }
         
+        // Configure RevenueCat with user ID if provided
         await Purchases.configure({
           apiKey,
-          appUserID: null,
+          appUserID: userId || null, // Sync with Supabase user ID
         });
         
-        console.log('RevenueCat initialized successfully');
+        // Set up subscription status listener
+        Purchases.addCustomerInfoUpdateListener((customerInfo: any) => {
+          console.log('Subscription status updated:', customerInfo);
+          // Notify all listeners
+          this.subscriptionListeners.forEach(listener => {
+            try {
+              listener(customerInfo);
+            } catch (error) {
+              console.error('Error in subscription listener:', error);
+            }
+          });
+        });
+        
+        this.purchasesModule = Purchases;
+        console.log('RevenueCat initialized successfully with user ID:', userId || 'anonymous');
       } catch (error) {
         console.log('RevenueCat not available, using fallback mode:', error);
       }
@@ -135,6 +152,49 @@ class PaymentService {
       console.error('Failed to initialize payment service:', error);
       return false;
     }
+  }
+
+  /**
+   * Sync RevenueCat user ID with Supabase user ID
+   */
+  async syncUser(userId: string): Promise<boolean> {
+    try {
+      // Initialize if not already done
+      if (!this.isInitialized) {
+        await this.initialize(userId);
+      }
+
+      // In Expo Go or if RevenueCat isn't available, skip syncing
+      if (!this.purchasesModule) {
+        console.log('RevenueCat not available - skipping user sync');
+        return true;
+      }
+
+      const Purchases = this.purchasesModule;
+      await Purchases.logIn(userId);
+      console.log('RevenueCat user ID synced with Supabase user:', userId);
+      return true;
+    } catch (error: any) {
+      // Handle "no singleton instance" error gracefully
+      if (error?.message?.includes('singleton') || error?.message?.includes('configure')) {
+        console.log('RevenueCat not configured - skipping user sync');
+        return true;
+      }
+      console.error('Failed to sync RevenueCat user ID:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Add subscription status listener
+   */
+  addSubscriptionListener(listener: (customerInfo: any) => void): () => void {
+    this.subscriptionListeners.add(listener);
+    
+    // Return unsubscribe function
+    return () => {
+      this.subscriptionListeners.delete(listener);
+    };
   }
 
   private getFallbackProducts(): any[] {
@@ -288,25 +348,85 @@ class PaymentService {
           throw new Error('No offerings available');
         }
         
-        const packageToPurchase = currentOffering.availablePackages.find(
+        // Try to find package by product ID (exact match)
+        let packageToPurchase = currentOffering.availablePackages.find(
           (pkg: any) => pkg.product.identifier === productId
         );
         
+        // If not found, try to find by product ID pattern (for Android base plan format)
         if (!packageToPurchase) {
-          throw new Error(`Product ${productId} not found`);
+          const productIdBase = productId.split(':')[0]; // Remove base plan ID for Android
+          packageToPurchase = currentOffering.availablePackages.find(
+            (pkg: any) => {
+              const pkgProductId = pkg.product.identifier?.split(':')[0];
+              return pkgProductId === productIdBase;
+            }
+          );
         }
         
-        console.log('Purchasing package:', packageToPurchase.product.identifier);
+        // If still not found, try to find by package identifier (RevenueCat standard: $rc_monthly, $rc_annual)
+        if (!packageToPurchase) {
+          const isYearly = productId.includes('yearly') || productId.includes('annual');
+          const packageIdentifier = isYearly ? '$rc_annual' : '$rc_monthly';
+          packageToPurchase = currentOffering.availablePackages.find(
+            (pkg: any) => pkg.identifier === packageIdentifier
+          );
+        }
+        
+        // If still not found, try by package type
+        if (!packageToPurchase) {
+          const packageType = productId.includes('yearly') || productId.includes('annual') 
+            ? 'ANNUAL' 
+            : 'MONTHLY';
+          packageToPurchase = currentOffering.availablePackages.find(
+            (pkg: any) => {
+              const pkgType = pkg.packageType || '';
+              return pkgType === packageType || 
+                     pkg.identifier?.toLowerCase().includes(packageType.toLowerCase()) ||
+                     pkg.identifier?.toLowerCase().includes(productId.includes('yearly') ? 'annual' : 'monthly');
+            }
+          );
+        }
+        
+        // Last resort: use first available package (should not happen in production)
+        if (!packageToPurchase && currentOffering.availablePackages.length > 0) {
+          console.warn(`Product ${productId} not found, using first available package`);
+          console.warn('Available packages:', currentOffering.availablePackages.map((p: any) => ({
+            identifier: p.identifier,
+            productId: p.product.identifier,
+            packageType: p.packageType
+          })));
+          packageToPurchase = currentOffering.availablePackages[0];
+        }
+        
+        if (!packageToPurchase) {
+          throw new Error(`Product ${productId} not found in offerings`);
+        }
+        
+        console.log('Purchasing package:', packageToPurchase.product.identifier, {
+          price: packageToPurchase.product.priceString,
+          trialPeriod: packageToPurchase.product.introPrice?.periodString,
+        });
+        
         const purchaseResult = await Purchases.purchasePackage(packageToPurchase);
         
-        console.log('Purchase completed:', purchaseResult);
+        console.log('Purchase completed:', {
+          productId: purchaseResult.customerInfo.originalAppUserId,
+          entitlements: Object.keys(purchaseResult.customerInfo.entitlements.active),
+        });
         
-        if (purchaseResult.customerInfo.entitlements.active[REVENUECAT_CONFIG.ENTITLEMENT_ID]) {
+        // Check if premium entitlement is active
+        const premiumEntitlement = purchaseResult.customerInfo.entitlements.active[REVENUECAT_CONFIG.ENTITLEMENT_ID];
+        
+        if (premiumEntitlement) {
+          const transactionIdentifier = purchaseResult.customerInfo.originalPurchaseDate;
+          const latestTransaction = purchaseResult.customerInfo.latestExpirationDate;
+          
           return {
             success: true,
-            transactionId: purchaseResult.transaction?.transactionIdentifier,
-            purchaseToken: purchaseResult.transaction?.transactionIdentifier,
-            productId: productId,
+            transactionId: transactionIdentifier || 'purchased',
+            purchaseToken: purchaseResult.customerInfo.originalAppUserId || transactionIdentifier,
+            productId: premiumEntitlement.productIdentifier || productId,
           };
         } else {
           return {
@@ -418,40 +538,68 @@ class PaymentService {
     try {
       console.log('Checking subscription status...');
       
-      if (!this.isInitialized) {
-        await this.initialize();
-      }
-
       if (Platform.OS === 'web') {
         return null;
       }
 
+      // Ensure we're initialized
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
       // Production build with react-native-purchases:
       try {
-        const Purchases = await this.loadPurchasesModule();
-        
-        if (!Purchases) {
-          console.log('RevenueCat not available for subscription status');
-          return null;
+        // Check if purchases module is available
+        if (!this.purchasesModule) {
+          this.purchasesModule = await this.loadPurchasesModule();
+          
+          if (!this.purchasesModule) {
+            console.log('RevenueCat not available for subscription status');
+            return null;
+          }
         }
         
-        const customerInfo = await Purchases.getCustomerInfo();
-        console.log('Customer info:', customerInfo);
+        // Get customer info with error handling
+        let customerInfo;
+        try {
+          customerInfo = await this.purchasesModule.getCustomerInfo();
+        } catch (error: any) {
+          // Handle the specific "no singleton instance" error gracefully
+          if (error?.message?.includes('singleton instance') || 
+              error?.message?.includes('configure') ||
+              error?.message?.includes('Make sure you configure')) {
+            console.log('RevenueCat not configured yet - this is OK in development');
+            return null;
+          }
+          throw error;
+        }
+        
+        console.log('Customer info received:', {
+          userId: customerInfo.originalAppUserId,
+          entitlements: Object.keys(customerInfo.entitlements.active || {}),
+          allPurchaseDates: customerInfo.allPurchaseDates,
+        });
         
         const entitlement = customerInfo.entitlements.active[REVENUECAT_CONFIG.ENTITLEMENT_ID];
         
         if (entitlement) {
-          const subscription = {
-            isActive: true,
-            productId: (entitlement as any).productIdentifier,
-            purchaseDate: (entitlement as any).originalPurchaseDate,
-            expiryDate: (entitlement as any).expirationDate || '',
-            isTrialPeriod: (entitlement as any).isTrialPeriod,
-            autoRenewing: (entitlement as any).willRenew,
-            originalTransactionId: (entitlement as any).originalTransactionId,
+          const isInTrial = entitlement.willRenew && entitlement.isActive && 
+                           entitlement.expirationDate && 
+                           new Date(entitlement.expirationDate) > new Date() &&
+                           (entitlement as any).isTrialPeriod;
+          
+          const subscription: SubscriptionInfo = {
+            isActive: entitlement.isActive,
+            productId: entitlement.productIdentifier || '',
+            purchaseDate: entitlement.latestPurchaseDate || entitlement.originalPurchaseDate || new Date().toISOString(),
+            expiryDate: entitlement.expirationDate || '',
+            isTrialPeriod: isInTrial || false,
+            autoRenewing: entitlement.willRenew || false,
+            originalTransactionId: entitlement.originalTransactionId || '',
+            purchaseToken: customerInfo.originalAppUserId || '',
           };
           
-          console.log('Active subscription:', subscription);
+          console.log('Active subscription found:', subscription);
           return subscription;
         }
         
@@ -464,6 +612,52 @@ class PaymentService {
     } catch (error) {
       console.error('Failed to get subscription status:', error);
       return null;
+    }
+  }
+
+  /**
+   * Get current customer info from RevenueCat
+   */
+  async getCustomerInfo(): Promise<any | null> {
+    try {
+      if (Platform.OS === 'web') {
+        return null;
+      }
+
+      // Ensure we're initialized
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      // Check if purchases module is available
+      if (!this.purchasesModule) {
+        // Try to load it
+        this.purchasesModule = await this.loadPurchasesModule();
+        
+        // If still not available, return null (fallback mode)
+        if (!this.purchasesModule) {
+          console.log('RevenueCat not available - returning null');
+          return null;
+        }
+      }
+
+      // Now safely get customer info
+      try {
+        return await this.purchasesModule.getCustomerInfo();
+      } catch (error: any) {
+        // Handle the specific "no singleton instance" error gracefully
+        if (error?.message?.includes('singleton instance') || 
+            error?.message?.includes('configure') ||
+            error?.message?.includes('Make sure you configure')) {
+          console.log('RevenueCat not configured yet - this is OK in development');
+          return null;
+        }
+        // Re-throw other errors to be caught by outer catch
+        throw error;
+      }
+    } catch (error) {
+      console.error('Failed to get customer info:', error);
+      return null; // Return null instead of throwing - app will work with local state
     }
   }
 
@@ -574,7 +768,7 @@ export const formatPrice = (price: number, currency: string = 'USD'): string => 
 
 export const getTrialEndDate = (startDate: Date = new Date()): Date => {
   const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + 3); // 3 days trial
+  endDate.setDate(endDate.getDate() + 7); // 7 days trial
   return endDate;
 };
 

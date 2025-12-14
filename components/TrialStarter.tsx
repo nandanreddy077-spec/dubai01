@@ -1,30 +1,17 @@
-import React, { useEffect, useRef } from 'react';
-import { Alert, Platform } from 'react-native';
-import { useSubscription } from '@/contexts/SubscriptionContext';
+import React from 'react';
 
+/**
+ * TrialStarter - DISABLED
+ * 
+ * Trial should ONLY start after user adds payment method.
+ * No auto-start - this ensures card-required trial flow.
+ * 
+ * Trial is started via:
+ * - app/trial-offer.tsx -> processInAppPurchase() -> RevenueCat
+ * - Only after successful payment setup
+ */
 export default function TrialStarter(): React.ReactElement | null {
-  const { state, startLocalTrial } = useSubscription();
-  const startedRef = useRef<boolean>(false);
-
-  useEffect(() => {
-    if (startedRef.current) return;
-    if (!state.hasStartedTrial) {
-      startedRef.current = true;
-      (async () => {
-        try {
-          await startLocalTrial(3);
-          if (Platform.OS !== 'web') {
-            Alert.alert('Free Trial Started', 'Your 3-day free trial has started. Enjoy full access!');
-          } else {
-            alert('Your 3-day free trial has started. Enjoy full access!');
-          }
-          console.log('3-day trial started automatically for new user');
-        } catch (e) {
-          console.log('Failed to auto-start trial', e);
-        }
-      })();
-    }
-  }, [state.hasStartedTrial, startLocalTrial]);
-
+  // Trial no longer auto-starts
+  // User must complete payment flow to start 7-day trial
   return null;
 }

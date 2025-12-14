@@ -124,14 +124,77 @@ function getDefaultLocation(): LocationInfo {
   };
 }
 
+// Map Amazon domains to their respective affiliate tags
+// You need to register with each regional Amazon Associates program
+const REGIONAL_AFFILIATE_TAGS: Record<string, string> = {
+  'amazon.com': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_US || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.co.uk': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_UK || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.de': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_DE || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.fr': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_FR || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.it': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_IT || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.es': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_ES || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.ca': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_CA || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.co.jp': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_JP || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.in': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_IN || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.com.au': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_AU || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.ae': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_AE || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.sa': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_SA || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.com.br': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_BR || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.com.mx': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_MX || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.sg': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_SG || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.nl': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_NL || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.se': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_SE || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.pl': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_PL || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+  'amazon.com.tr': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_TR || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
+};
+
 export function formatAmazonAffiliateLink(
-  baseAffiliateTag: string,
   searchQuery: string,
-  country: LocationInfo
+  country?: LocationInfo | null
 ): string {
   const searchEncoded = encodeURIComponent(searchQuery);
   
-  return `https://www.${country.amazonDomain}/s?k=${searchEncoded}&tag=${baseAffiliateTag}`;
+  // Default to amazon.com if country or amazonDomain is not available
+  const amazonDomain = country?.amazonDomain || 'amazon.com';
+  
+  // Get the appropriate affiliate tag for this region
+  const affiliateTag = REGIONAL_AFFILIATE_TAGS[amazonDomain] || 
+                       process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 
+                       'glowcheck-20';
+  
+  // Use Amazon's proper affiliate link format with tracking parameters:
+  // - linkCode=ll2: Associates Link format (required for proper tracking)
+  // - ref=as_li_ss_tl: Reference tag for Associates tracking
+  // These parameters ensure the affiliate tag persists when users click through to products
+  return `https://www.${amazonDomain}/s?k=${searchEncoded}&tag=${affiliateTag}&linkCode=ll2&ref=as_li_ss_tl`;
+}
+
+// For direct product links (if you have specific ASINs)
+export function formatAmazonProductLink(
+  asin: string,
+  country?: LocationInfo | null
+): string {
+  const amazonDomain = country?.amazonDomain || 'amazon.com';
+  const affiliateTag = REGIONAL_AFFILIATE_TAGS[amazonDomain] || 
+                       process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 
+                       'glowcheck-20';
+  
+  // Direct product link with Associates parameters
+  return `https://www.${amazonDomain}/dp/${asin}?tag=${affiliateTag}&linkCode=ll2&ref=as_li_ss_tl`;
+}
+
+// For add-to-cart links (most reliable for attribution)
+export function formatAmazonCartLink(
+  asin: string,
+  country?: LocationInfo | null
+): string {
+  const amazonDomain = country?.amazonDomain || 'amazon.com';
+  const affiliateTag = REGIONAL_AFFILIATE_TAGS[amazonDomain] || 
+                       process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 
+                       'glowcheck-20';
+  
+  // Add to cart link - guarantees affiliate attribution
+  return `https://www.${amazonDomain}/gp/aws/cart/add.html?AssociateTag=${affiliateTag}&ASIN.1=${asin}&Quantity.1=1`;
 }
 
 export function getLocalizedPrice(basePrice: number, fromCurrency: string, toCurrency: string): string {

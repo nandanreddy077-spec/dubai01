@@ -12,7 +12,8 @@ interface PremiumPaywallProps {
 }
 
 export default function PremiumPaywall({ onStartTrial, onSubscribe, testID }: PremiumPaywallProps) {
-  const { inTrial, daysLeft, hoursLeft, scansLeft, isTrialExpired, canScan } = useSubscription();
+  const subscription = useSubscription();
+  const { inTrial = false, daysLeft = 0, hoursLeft = 0, scansLeft = 0, isTrialExpired = false, canScan = true } = subscription || {};
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
 
   const headline = useMemo(() => {

@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import type { Circle, Comment, CreateCircleInput, CreatePostInput, Post, ReactionType, UserMembership, Challenge, UserChallenge, Story, Leaderboard } from '@/types/community';
+import type { Circle, Comment, CreateCircleInput, CreatePostInput, Post, ReactionType, UserMembership, Challenge, UserChallenge, Story, Leaderboard, UserFollow, Collection, ProductTag } from '@/types/community';
 import { useUser } from '@/contexts/UserContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 const storage = {
   async getItem(key: string): Promise<string | null> {
@@ -46,6 +47,9 @@ const CHALLENGES_KEY = 'glow_community_challenges_v1';
 const USER_CHALLENGES_KEY = 'glow_community_user_challenges_v1';
 const STORIES_KEY = 'glow_community_stories_v1';
 const LEADERBOARD_KEY = 'glow_community_leaderboard_v1';
+const FOLLOWS_KEY = 'glow_community_follows_v1';
+const COLLECTIONS_KEY = 'glow_community_collections_v1';
+const PRODUCTS_KEY = 'glow_community_products_v1';
 
 function generateId(prefix: string = 'id'): string {
   return `${prefix}_${Math.random().toString(36).slice(2)}_${Date.now()}`;
@@ -53,6 +57,7 @@ function generateId(prefix: string = 'id'): string {
 
 export const [CommunityProvider, useCommunity] = createContextHook(() => {
   const { user } = useUser();
+  const { user: authUser } = useAuth();
 
   const [circles, setCircles] = useState<Circle[]>([]);
   const [posts, setPosts] = useState<Record<string, Post[]>>({});
@@ -61,13 +66,16 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
   const [userChallenges, setUserChallenges] = useState<UserChallenge[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
   const [leaderboard, setLeaderboard] = useState<Leaderboard[]>([]);
+  const [follows, setFollows] = useState<UserFollow[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [products, setProducts] = useState<ProductTag[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [rawCircles, rawPosts, rawMemberships, rawChallenges, rawUserChallenges, rawStories, rawLeaderboard] = await Promise.all([
+      const [rawCircles, rawPosts, rawMemberships, rawChallenges, rawUserChallenges, rawStories, rawLeaderboard, rawFollows, rawCollections, rawProducts] = await Promise.all([
         storage.getItem(CIRCLES_KEY),
         storage.getItem(POSTS_KEY),
         storage.getItem(MEMBERSHIPS_KEY),
@@ -75,6 +83,9 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
         storage.getItem(USER_CHALLENGES_KEY),
         storage.getItem(STORIES_KEY),
         storage.getItem(LEADERBOARD_KEY),
+        storage.getItem(FOLLOWS_KEY),
+        storage.getItem(COLLECTIONS_KEY),
+        storage.getItem(PRODUCTS_KEY),
       ]);
 
       let nextCircles: Circle[] = createDefaultCircles();
@@ -84,6 +95,9 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       let nextUserChallenges: UserChallenge[] = [];
       let nextStories: Story[] = [];
       let nextLeaderboard: Leaderboard[] = createDefaultLeaderboard();
+      let nextFollows: UserFollow[] = [];
+      let nextCollections: Collection[] = [];
+      let nextProducts: ProductTag[] = [];
       
       // Parse circles with error handling
       if (rawCircles) {
@@ -166,6 +180,40 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       setUserChallenges(nextUserChallenges);
       setStories(nextStories);
       setLeaderboard(nextLeaderboard);
+      
+      // Parse follows
+      if (rawFollows) {
+        try {
+          const parsed = JSON.parse(rawFollows);
+          nextFollows = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.error('Error parsing follows:', e);
+        }
+      }
+      
+      // Parse collections
+      if (rawCollections) {
+        try {
+          const parsed = JSON.parse(rawCollections);
+          nextCollections = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.error('Error parsing collections:', e);
+        }
+      }
+      
+      // Parse products
+      if (rawProducts) {
+        try {
+          const parsed = JSON.parse(rawProducts);
+          nextProducts = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.error('Error parsing products:', e);
+        }
+      }
+      
+      setFollows(nextFollows);
+      setCollections(nextCollections);
+      setProducts(nextProducts);
       setError(null);
     } catch (e) {
       console.error('Failed to load community data', e);
@@ -180,14 +228,17 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
   }, [loadData]);
 
   const persist = useCallback(async (
-    next: Partial<{ 
-      circles: Circle[]; 
-      posts: Record<string, Post[]>; 
+    next: Partial<{
+      circles: Circle[];
+      posts: Record<string, Post[]>;
       memberships: UserMembership[];
       challenges: Challenge[];
       userChallenges: UserChallenge[];
       stories: Story[];
       leaderboard: Leaderboard[];
+      follows: UserFollow[];
+      collections: Collection[];
+      products: ProductTag[];
     }>
   ) => {
     try {
@@ -198,6 +249,9 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       if (next.userChallenges) await storage.setItem(USER_CHALLENGES_KEY, JSON.stringify(next.userChallenges));
       if (next.stories) await storage.setItem(STORIES_KEY, JSON.stringify(next.stories));
       if (next.leaderboard) await storage.setItem(LEADERBOARD_KEY, JSON.stringify(next.leaderboard));
+      if (next.follows) await storage.setItem(FOLLOWS_KEY, JSON.stringify(next.follows));
+      if (next.collections) await storage.setItem(COLLECTIONS_KEY, JSON.stringify(next.collections));
+      if (next.products) await storage.setItem(PRODUCTS_KEY, JSON.stringify(next.products));
     } catch (e) {
       console.error('Failed to persist community data', e);
     }
@@ -254,12 +308,20 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
   }, [memberships, user?.id, circles, persist]);
 
   const createPost = useCallback(async (input: CreatePostInput) => {
+    // Get name from auth metadata first, then user context, then email
+    const authName = authUser?.user_metadata && typeof authUser.user_metadata === 'object' 
+      ? (authUser.user_metadata as { full_name?: string; name?: string }).full_name 
+        ?? (authUser.user_metadata as { full_name?: string; name?: string }).name 
+      : undefined;
+    const userName = user?.name || authName;
+    const displayName = userName || user?.email?.split('@')[0] || authUser?.email?.split('@')[0] || 'Guest';
+    
     const author = {
-      id: user?.id ?? 'guest',
-      name: user?.name ?? 'Guest',
+      id: user?.id ?? authUser?.id ?? 'guest',
+      name: displayName,
       avatar: user?.avatar ?? 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
       isVerified: false,
-      glowScore: 85,
+      glowScore: user?.stats?.glowScore ?? 85,
     };
     const p: Post = {
       id: generateId('post'),
@@ -284,13 +346,56 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       shareCount: 0,
       viewCount: 0,
       challengeId: input.challengeId,
+      reports: [],
+      isRemoved: false,
     };
     const circlePosts = posts[input.circleId] ?? [];
     const nextPosts = { ...posts, [input.circleId]: [p, ...circlePosts].slice(0, 200) };
     setPosts(nextPosts);
     await persist({ posts: nextPosts });
     return p;
-  }, [user, posts, persist]);
+  }, [user, authUser, posts, persist]);
+
+  const reportPost = useCallback(async (circleId: string, postId: string) => {
+    try {
+      const userId = user?.id ?? authUser?.id ?? 'guest';
+      const nextPosts = { ...posts };
+      const list = nextPosts[circleId] ?? [];
+      const idx = list.findIndex(p => p.id === postId);
+      if (idx === -1) {
+        return { removed: false, reportCount: 0, error: 'Post not found' };
+      }
+      
+      const target = list[idx];
+      const currentReports = target.reports || [];
+      
+      // Don't allow same user to report twice
+      if (currentReports.includes(userId)) {
+        return { removed: false, reportCount: currentReports.length, error: 'You have already reported this post' };
+      }
+      
+      const updatedReports = [...currentReports, userId];
+      const reportThreshold = 25; // Remove after 25 reports
+      
+      nextPosts[circleId][idx] = {
+        ...target,
+        reports: updatedReports,
+        isRemoved: updatedReports.length >= reportThreshold,
+      };
+      
+      setPosts(nextPosts);
+      await persist({ posts: nextPosts });
+      
+      if (updatedReports.length >= reportThreshold) {
+        return { removed: true, message: 'Post has been removed due to multiple reports.', reportCount: updatedReports.length };
+      }
+      
+      return { removed: false, reportCount: updatedReports.length };
+    } catch (error) {
+      console.error('Error reporting post:', error);
+      return { removed: false, reportCount: 0, error: 'Failed to report post' };
+    }
+  }, [posts, user?.id, authUser?.id, persist]);
 
   const reactToPost = useCallback(async (circleId: string, postId: string, type: ReactionType) => {
     const userId = user?.id ?? 'guest';
@@ -299,38 +404,72 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     const idx = list.findIndex(p => p.id === postId);
     if (idx === -1) return;
     const target = list[idx];
-    const userExisting = Object.entries(target.reactions).find(([t, users]) => users.includes(userId));
-    if (userExisting) {
-      const [prevType] = userExisting as [ReactionType, string[]];
-      if (prevType === type) {
-        nextPosts[circleId][idx] = {
-          ...target,
-          reactions: { ...target.reactions, [type]: (target.reactions[type] ?? []).filter(id => id !== userId) },
-        };
-      } else {
-        nextPosts[circleId][idx] = {
-          ...target,
-          reactions: {
-            ...target.reactions,
-            [prevType]: (target.reactions[prevType] ?? []).filter(id => id !== userId),
-            [type]: [...(target.reactions[type] ?? []), userId],
-          },
-        };
-      }
-    } else {
+    
+    // Save reactions are independent - they don't affect like/love reactions
+    if (type === 'save') {
+      const currentSaves = target.reactions.save ?? [];
+      const isSaved = currentSaves.includes(userId);
+      
       nextPosts[circleId][idx] = {
         ...target,
-        reactions: { ...target.reactions, [type]: [...(target.reactions[type] ?? []), userId] },
+        reactions: {
+          ...target.reactions,
+          save: isSaved 
+            ? currentSaves.filter(id => id !== userId)
+            : [...currentSaves, userId],
+        },
       };
+    } else {
+      // For like/love reactions, remove other like reactions but keep save
+      const userExisting = Object.entries(target.reactions)
+        .filter(([t]) => t !== 'save') // Exclude save from this check
+        .find(([t, users]) => users.includes(userId));
+      
+      if (userExisting) {
+        const [prevType] = userExisting as [ReactionType, string[]];
+        if (prevType === type) {
+          // Toggle off
+          nextPosts[circleId][idx] = {
+            ...target,
+            reactions: { 
+              ...target.reactions, 
+              [type]: (target.reactions[type] ?? []).filter(id => id !== userId) 
+            },
+          };
+        } else {
+          // Switch reaction type
+          nextPosts[circleId][idx] = {
+            ...target,
+            reactions: {
+              ...target.reactions,
+              [prevType]: (target.reactions[prevType] ?? []).filter(id => id !== userId),
+              [type]: [...(target.reactions[type] ?? []), userId],
+            },
+          };
+        }
+      } else {
+        // Add new reaction
+        nextPosts[circleId][idx] = {
+          ...target,
+          reactions: { ...target.reactions, [type]: [...(target.reactions[type] ?? []), userId] },
+        };
+      }
     }
+    
     setPosts(nextPosts);
     await persist({ posts: nextPosts });
   }, [posts, user?.id, persist]);
 
   const addComment = useCallback(async (circleId: string, postId: string, text: string) => {
+    const authName = authUser?.user_metadata && typeof authUser.user_metadata === 'object' 
+      ? (authUser.user_metadata as { full_name?: string; name?: string }).full_name 
+        ?? (authUser.user_metadata as { full_name?: string; name?: string }).name 
+      : undefined;
+    const userName = user?.name || authName || user?.email?.split('@')[0] || authUser?.email?.split('@')[0] || 'Guest';
+    
     const author = {
-      id: user?.id ?? 'guest',
-      name: user?.name ?? 'Guest',
+      id: user?.id ?? authUser?.id ?? 'guest',
+      name: userName,
       avatar: user?.avatar ?? 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
     };
     const comment: Comment = {
@@ -344,7 +483,7 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     setPosts(nextPosts);
     await persist({ posts: nextPosts });
     return comment;
-  }, [posts, user, persist]);
+  }, [posts, user, authUser, persist]);
 
   const getCircleById = useCallback((id: string) => circles.find(c => c.id === id) ?? null, [circles]);
   const getPostsForCircle = useCallback((id: string) => posts[id] ?? [], [posts]);
@@ -392,11 +531,17 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
   }, [userChallenges, challenges, leaderboard, user?.id, persist]);
 
   const createStory = useCallback(async (mediaUrl: string, mediaType: 'image' | 'video') => {
-    const userId = user?.id ?? 'guest';
+    const userId = user?.id ?? authUser?.id ?? 'guest';
+    const authName = authUser?.user_metadata && typeof authUser.user_metadata === 'object' 
+      ? (authUser.user_metadata as { full_name?: string; name?: string }).full_name 
+        ?? (authUser.user_metadata as { full_name?: string; name?: string }).name 
+      : undefined;
+    const userName = user?.name || authName || user?.email?.split('@')[0] || authUser?.email?.split('@')[0] || 'Guest';
+    
     const story: Story = {
       id: generateId('story'),
       userId,
-      userName: user?.name ?? 'Guest',
+      userName: userName,
       userAvatar: user?.avatar ?? 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150',
       mediaUrl,
       mediaType,
@@ -408,7 +553,7 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     setStories(nextStories);
     await persist({ stories: nextStories });
     return story;
-  }, [user, stories, persist]);
+  }, [user, authUser, stories, persist]);
 
   const viewStory = useCallback(async (storyId: string) => {
     const userId = user?.id ?? 'guest';
@@ -437,6 +582,102 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       .slice(0, 20);
   }, [posts]);
 
+  // Following/Followers functions
+  const followUser = useCallback(async (userId: string) => {
+    const currentUserId = user?.id ?? 'guest';
+    if (currentUserId === userId) return;
+    
+    const existingFollow = follows.find(f => f.followerId === currentUserId && f.followingId === userId);
+    if (existingFollow) return;
+    
+    const newFollow: UserFollow = {
+      followerId: currentUserId,
+      followingId: userId,
+      createdAt: Date.now(),
+    };
+    const nextFollows = [...follows, newFollow];
+    setFollows(nextFollows);
+    await persist({ follows: nextFollows });
+  }, [follows, user?.id, persist]);
+
+  const unfollowUser = useCallback(async (userId: string) => {
+    const currentUserId = user?.id ?? 'guest';
+    const nextFollows = follows.filter(f => !(f.followerId === currentUserId && f.followingId === userId));
+    setFollows(nextFollows);
+    await persist({ follows: nextFollows });
+  }, [follows, user?.id, persist]);
+
+  const isFollowing = useCallback((userId: string) => {
+    const currentUserId = user?.id ?? 'guest';
+    return follows.some(f => f.followerId === currentUserId && f.followingId === userId);
+  }, [follows, user?.id]);
+
+  const getFollowers = useCallback((userId: string) => {
+    return follows.filter(f => f.followingId === userId).length;
+  }, [follows]);
+
+  const getFollowing = useCallback((userId: string) => {
+    return follows.filter(f => f.followerId === userId).length;
+  }, [follows]);
+
+  const getFollowingFeed = useCallback(() => {
+    const currentUserId = user?.id ?? 'guest';
+    const followingIds = follows
+      .filter(f => f.followerId === currentUserId)
+      .map(f => f.followingId);
+    
+    if (followingIds.length === 0) return [];
+    
+    return Object.values(posts)
+      .flat()
+      .filter(post => followingIds.includes(post.author.id))
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }, [posts, follows, user?.id]);
+
+  // Collections functions
+  const createCollection = useCallback(async (name: string, isPrivate: boolean = false) => {
+    const userId = user?.id ?? 'guest';
+    const newCollection: Collection = {
+      id: generateId('collection'),
+      userId,
+      name,
+      coverImage: null,
+      postIds: [],
+      isPrivate,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    const nextCollections = [...collections, newCollection];
+    setCollections(nextCollections);
+    await persist({ collections: nextCollections });
+    return newCollection;
+  }, [collections, user?.id, persist]);
+
+  const addPostToCollection = useCallback(async (collectionId: string, postId: string) => {
+    const nextCollections = collections.map(c => 
+      c.id === collectionId && !c.postIds.includes(postId)
+        ? { ...c, postIds: [...c.postIds, postId], updatedAt: Date.now() }
+        : c
+    );
+    setCollections(nextCollections);
+    await persist({ collections: nextCollections });
+  }, [collections, persist]);
+
+  const removePostFromCollection = useCallback(async (collectionId: string, postId: string) => {
+    const nextCollections = collections.map(c => 
+      c.id === collectionId
+        ? { ...c, postIds: c.postIds.filter(id => id !== postId), updatedAt: Date.now() }
+        : c
+    );
+    setCollections(nextCollections);
+    await persist({ collections: nextCollections });
+  }, [collections, persist]);
+
+  const getUserCollections = useCallback((targetUserId?: string) => {
+    const userId = targetUserId ?? (user?.id ?? 'guest');
+    return collections.filter(c => c.userId === userId);
+  }, [collections, user?.id]);
+
   return useMemo(() => ({
     isLoading,
     error,
@@ -447,6 +688,9 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     userChallenges,
     stories,
     leaderboard,
+    follows,
+    collections,
+    products,
     createCircle,
     joinCircle,
     leaveCircle,
@@ -462,6 +706,17 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     viewStory,
     getUserChallenges,
     getTrendingPosts,
+    followUser,
+    unfollowUser,
+    isFollowing,
+    getFollowers,
+    getFollowing,
+    getFollowingFeed,
+    createCollection,
+    addPostToCollection,
+    removePostFromCollection,
+    getUserCollections,
+    reportPost,
   }), [
     isLoading,
     error,
@@ -472,6 +727,9 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     userChallenges,
     stories,
     leaderboard,
+    follows,
+    collections,
+    products,
     createCircle,
     joinCircle,
     leaveCircle,
@@ -487,6 +745,17 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     viewStory,
     getUserChallenges,
     getTrendingPosts,
+    followUser,
+    unfollowUser,
+    isFollowing,
+    getFollowers,
+    getFollowing,
+    getFollowingFeed,
+    createCollection,
+    addPostToCollection,
+    removePostFromCollection,
+    getUserCollections,
+    reportPost,
   ]);
 });
 

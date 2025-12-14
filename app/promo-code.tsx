@@ -24,7 +24,8 @@ export default function PromoCodeScreen() {
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
-  const { state, setSubscriptionData } = useSubscription();
+  const subscription = useSubscription();
+  const { state = { isPremium: false, scanCount: 0, maxScansInTrial: 3, hasStartedTrial: false }, setSubscriptionData } = subscription || {};
 
   const validatePromoCode = (code: string): boolean => {
     // Basic validation: at least 4 characters, alphanumeric

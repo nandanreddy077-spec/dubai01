@@ -30,7 +30,7 @@ import { router } from 'expo-router';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { getPalette, getGradient, shadow, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
-import { generateText } from '@rork-ai/toolkit-sdk';
+import { generateText } from '@/lib/openai-service';
 
 const { width } = Dimensions.get('window');
 
@@ -132,8 +132,7 @@ const MOCK_TRENDS: BeautyTrend[] = [
 
 export default function TrendsScreen() {
   const { theme } = useTheme();
-  const { state } = useSubscription();
-  const hasActiveSubscription = state.isPremium;
+  // All features free - no subscription checks needed
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [trends, setTrends] = useState<BeautyTrend[]>(MOCK_TRENDS);
   const [refreshing, setRefreshing] = useState(false);
@@ -148,10 +147,7 @@ export default function TrendsScreen() {
     : trends.filter(trend => trend.category === selectedCategory);
 
   const generateWeeklyTrends = async () => {
-    if (!hasActiveSubscription) {
-      router.push('/subscribe');
-      return;
-    }
+    // All features free - no subscription check needed
 
     setIsGeneratingTrends(true);
     try {
@@ -175,7 +171,7 @@ export default function TrendsScreen() {
         {
           id: Date.now().toString(),
           title: 'AI-Generated Trend',
-          description: response.substring(0, 200) + '...',
+          description: response ? response.substring(0, 200) + '...' : 'AI-generated trend',
           category: 'skincare',
           popularity: Math.floor(Math.random() * 20) + 80,
           timeframe: 'weekly',
@@ -435,23 +431,7 @@ export default function TrendsScreen() {
           </Text>
         </View>
 
-        {/* Premium Notice */}
-        {!hasActiveSubscription && (
-          <TouchableOpacity 
-            style={styles.premiumNotice}
-            onPress={() => router.push('/subscribe')}
-          >
-            <LinearGradient colors={gradient.primary} style={styles.premiumNoticeGradient}>
-              <Crown color={palette.textLight} size={20} />
-              <View style={styles.premiumNoticeContent}>
-                <Text style={styles.premiumNoticeTitle}>Unlock Premium Trends</Text>
-                <Text style={styles.premiumNoticeText}>
-                  Get personalized trend recommendations and early access to emerging beauty trends
-                </Text>
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
+        {/* All features free - Premium Notice removed */}
 
         {/* Trends */}
         {filteredTrends.map(renderTrendCard)}

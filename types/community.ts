@@ -1,6 +1,6 @@
 export type ReactionType = 'like' | 'love' | 'sparkle' | 'wow' | 'fire' | 'queen' | 'save';
 export type PostType = 'normal' | 'transformation' | 'tip' | 'review' | 'challenge';
-export type ViewMode = 'feed' | 'trending' | 'glowups' | 'challenges';
+export type ViewMode = 'feed' | 'trending' | 'glowups' | 'challenges' | 'saved';
 
 export type ChallengeType = 'daily' | 'weekly' | 'trending';
 export type ChallengeStatus = 'active' | 'completed' | 'expired';
@@ -112,6 +112,8 @@ export interface Post {
   isPinned?: boolean;
   reviewRating?: number;
   tipCategory?: string;
+  reports?: string[]; // Array of user IDs who reported this post
+  isRemoved?: boolean; // Whether post was removed due to reports
 }
 
 export interface Circle {
@@ -188,4 +190,62 @@ export interface BeautyStreak {
   currentStreak: number;
   longestStreak: number;
   lastActivity: number;
+}
+
+export interface UserFollow {
+  followerId: string;
+  followingId: string;
+  createdAt: number;
+}
+
+export interface UserProfile {
+  userId: string;
+  username: string;
+  displayName: string;
+  bio?: string;
+  avatar: string;
+  isVerified: boolean;
+  glowScore: number;
+  followersCount: number;
+  followingCount: number;
+  postsCount: number;
+  isPrivate: boolean;
+  website?: string;
+  highlights?: StoryHighlight[];
+}
+
+export interface StoryHighlight {
+  id: string;
+  title: string;
+  coverImage: string;
+  stories: string[]; // story IDs
+  createdAt: number;
+}
+
+export interface Collection {
+  id: string;
+  userId: string;
+  name: string;
+  coverImage: string | null;
+  postIds: string[];
+  isPrivate: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ProductTag {
+  id: string;
+  name: string;
+  brand?: string;
+  image?: string;
+  price?: number;
+  link?: string;
+  category: 'skincare' | 'makeup' | 'haircare' | 'fragrance' | 'tools' | 'other';
+}
+
+export interface PostTag {
+  postId: string;
+  productId: string;
+  x: number; // position on image (0-1)
+  y: number; // position on image (0-1)
 }

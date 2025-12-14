@@ -152,80 +152,22 @@ export const [SkincareProvider, useSkincare] = createContextHook((): SkincareCon
     }
   }, [planHistory, currentPlan, activePlans]);
 
-  // Utility function for making AI API calls with retry logic
+  // Utility function for making AI API calls using centralized OpenAI service
   const makeAIRequest = async (messages: any[], maxRetries = 2): Promise<any> => {
-    let lastError: Error | null = null;
+    const { makeOpenAIRequest, formatMessages } = await import('../lib/openai-service');
     
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`AI API attempt ${attempt + 1}/${maxRetries + 1}`);
-        
-        // Try the original API first
-        try {
-          const response = await fetch('https://toolkit.rork.com/text/llm/', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ messages })
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data.completion) {
-              return data.completion;
-            }
-          }
-        } catch (error) {
-          console.log('Primary API failed, trying fallback...');
-        }
-        
-        // Fallback to OpenAI API
-        const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY || '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'}`
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: messages,
-            max_tokens: 2000,
-            temperature: 0.7
-          })
-        });
-
-        if (!openaiResponse.ok) {
-          const errorText = await openaiResponse.text().catch(() => 'Unknown error');
-          console.error(`OpenAI API Response not OK (attempt ${attempt + 1}):`, openaiResponse.status, errorText);
-          
-          if (openaiResponse.status === 500 && attempt < maxRetries) {
-            lastError = new Error(`AI API error: ${openaiResponse.status}`);
-            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-            continue;
-          }
-          
-          throw new Error(`AI API error: ${openaiResponse.status}`);
-        }
-
-        const openaiData = await openaiResponse.json();
-        if (!openaiData.choices?.[0]?.message?.content) {
-          throw new Error('No completion in AI response');
-        }
-        
-        return openaiData.choices[0].message.content;
-      } catch (error) {
-        console.error(`AI API error (attempt ${attempt + 1}):`, error);
-        lastError = error instanceof Error ? error : new Error('Unknown error');
-        
-        if (attempt < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-          continue;
-        }
-      }
+    const formattedMessages = formatMessages(messages);
+    const result = await makeOpenAIRequest(formattedMessages, {
+      model: 'gpt-4o-mini',
+      temperature: 0.7,
+      maxTokens: 2000,
+    }, maxRetries);
+    
+    if (!result) {
+      throw new Error('AI API request failed after all retries');
     }
     
-    throw lastError || new Error('AI API request failed after all retries');
+    return result;
   };
 
   const generateCustomPlan = useCallback(async (analysisResult: AnalysisResult, customGoal?: string): Promise<SkincarePlan> => {
@@ -234,7 +176,7 @@ export const [SkincareProvider, useSkincare] = createContextHook((): SkincareCon
       const messages = [
         {
           role: 'system',
-          content: `You are a professional dermatologist and skincare expert. Create a comprehensive 30-day personalized skincare plan based on the skin analysis results. The plan should be practical, safe, and effective.
+          content: `You are a beauty and skincare advisor providing cosmetic guidance. Create a comprehensive 30-day personalized skincare plan based on the beauty analysis results. The plan should be practical, safe, and use only over-the-counter products. IMPORTANT: This is for beauty enhancement only, NOT medical treatment. Always recommend consulting a dermatologist for medical concerns.
 
 IMPORTANT: Return ONLY a valid JSON object. Do not include any markdown formatting, code blocks, or explanatory text. Just the raw JSON object with this exact structure:
 {
@@ -548,7 +490,7 @@ Create a progressive 30-day plan with 4 weekly phases. Focus on the lowest scori
       const messages = [
         {
           role: 'system',
-          content: `You are a professional dermatologist. Create a detailed 30-day skincare plan based on the template "${template.title}" and customize it for the user's specific skin analysis results.
+          content: `You are a beauty and skincare advisor providing cosmetic guidance. Create a detailed 30-day skincare plan based on the template "${template.title}" and customize it for the user's specific beauty analysis results. IMPORTANT: Use only over-the-counter products. This is for beauty enhancement only, NOT medical treatment.
 
 IMPORTANT: Return ONLY a valid JSON object. Do not include any markdown formatting, code blocks, or explanatory text. Just the raw JSON object with the exact structure:
 {

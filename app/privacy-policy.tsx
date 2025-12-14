@@ -41,7 +41,15 @@ export default function PrivacyPolicyScreen() {
 
           <Text style={styles.subTitle}>Photos & Media</Text>
           <Text style={styles.bulletPoint}>• Profile photo you upload</Text>
-          <Text style={styles.bulletPoint}>• Selfies and images you submit for AI analysis (only with your consent)</Text>
+          <Text style={styles.bulletPoint}>• Selfies and images you submit for AI analysis (only with your explicit consent)</Text>
+
+          <Text style={styles.subTitle}>Biometric Data</Text>
+          <Text style={styles.bulletPoint}>• Facial photos and facial feature data (landmarks, measurements, symmetry analysis)</Text>
+          <Text style={styles.bulletPoint}>• Biometric data is collected only with your explicit consent via the in-app consent form</Text>
+          <Text style={styles.bulletPoint}>• Used solely for beauty analysis and progress tracking</Text>
+          <Text style={styles.bulletPoint}>• You can withdraw consent and request deletion at any time</Text>
+          <Text style={styles.bulletPoint}>• Biometric data is stored securely and encrypted</Text>
+          <Text style={styles.bulletPoint}>• We comply with BIPA (Illinois), GDPR, and other biometric data protection laws</Text>
 
           <Text style={styles.subTitle}>Location Data</Text>
           <Text style={styles.bulletPoint}>• Approximate location (IP-based) for basic personalization and security</Text>
@@ -73,7 +81,7 @@ export default function PrivacyPolicyScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>3. Legal Bases (GDPR/UK GDPR)</Text>
-          <Text style={styles.bulletPoint}>• Consent: processing selfies for AI analysis; precise location; marketing</Text>
+          <Text style={styles.bulletPoint}>• Consent: processing selfies and biometric data for AI analysis; precise location; marketing</Text>
           <Text style={styles.bulletPoint}>• Contract: providing the App and subscription features you request</Text>
           <Text style={styles.bulletPoint}>• Legitimate Interests: safety, fraud prevention, analytics, service improvement</Text>
           <Text style={styles.bulletPoint}>• Legal Obligation: tax/accounting retention, responding to lawful requests</Text>
@@ -92,6 +100,7 @@ export default function PrivacyPolicyScreen() {
           <Text style={styles.sectionTitle}>5. Data Retention</Text>
           <Text style={styles.bulletPoint}>• Account data: kept while your account is active; deleted upon request or after 2 years of inactivity</Text>
           <Text style={styles.bulletPoint}>• Photos/selfies for analysis: processed promptly and retained up to 72 hours unless you choose to save them to your profile</Text>
+          <Text style={styles.bulletPoint}>• Biometric data: retained only as long as necessary for analysis; deleted upon withdrawal of consent or account deletion</Text>
           <Text style={styles.bulletPoint}>• Payment records: retained 7 years for legal and accounting compliance</Text>
           <Text style={styles.bulletPoint}>• Analytics data: anonymized/aggregated within 18 months</Text>
         </View>
@@ -137,6 +146,7 @@ export default function PrivacyPolicyScreen() {
           <Text style={styles.subTitle}>GDPR/UK GDPR</Text>
           <Text style={styles.bulletPoint}>• Access, rectification, erasure, restriction, portability, and objection</Text>
           <Text style={styles.bulletPoint}>• Withdraw consent at any time without affecting prior lawful processing</Text>
+          <Text style={styles.bulletPoint}>• Request deletion of biometric data (we will delete within 30 days of request)</Text>
 
           <Text style={styles.subTitle}>CCPA/CPRA (California)</Text>
           <Text style={styles.bulletPoint}>• Right to know, delete, correct, and opt out of sale/sharing (we do not sell/share)</Text>

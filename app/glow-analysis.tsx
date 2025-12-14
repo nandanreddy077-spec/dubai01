@@ -15,10 +15,12 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import { Camera, AlertTriangle, RotateCcw, CheckCircle, User, Sparkles, Star, Heart } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from 'expo-linear-gradient';
-import SubscriptionGuard from '@/components/SubscriptionGuard';
+// All features free - SubscriptionGuard removed
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { getPalette, getGradient, shadow } from '@/constants/theme';
+import BiometricConsent from '@/components/BiometricConsent';
+import MedicalDisclaimer from '@/components/MedicalDisclaimer';
 
 const { width } = Dimensions.get('window');
 
@@ -31,12 +33,13 @@ interface CapturedPhoto {
 export default function GlowAnalysisScreen() {
   const { error } = useLocalSearchParams<{ error?: string }>();
   const { theme } = useTheme();
-  const { canScan, needsPremium, scansLeft, inTrial, isTrialExpired } = useSubscription();
+  // All features free - no subscription checks needed
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [showError, setShowError] = useState<boolean>(false);
   const [capturedPhotos, setCapturedPhotos] = useState<CapturedPhoto[]>([]);
   const [currentAngle, setCurrentAngle] = useState<'front' | 'left' | 'right'>('front');
   const [showInstructions, setShowInstructions] = useState<boolean>(true);
+  const [biometricConsented, setBiometricConsented] = useState<boolean>(false);
   
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
@@ -94,6 +97,15 @@ export default function GlowAnalysisScreen() {
   };
 
   const handleTakePhoto = async () => {
+    // Check biometric consent first
+    if (!biometricConsented) {
+      Alert.alert(
+        'Biometric Consent Required',
+        'You must consent to biometric data processing (facial photo analysis) to use this feature. Please provide consent below.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
 
     if (Platform.OS === 'web') {
       alert('Camera not available on web. Please use upload photo instead.');
@@ -185,6 +197,7 @@ export default function GlowAnalysisScreen() {
   };
 
   const handleUploadPhoto = async () => {
+    // All features free - no checks needed
 
     setIsLoading(true);
     try {
@@ -213,8 +226,7 @@ export default function GlowAnalysisScreen() {
 
   if (showError) {
     return (
-      <SubscriptionGuard requiresPremium showPaywall accessMode="scan">
-        <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container}>
           <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
         <Stack.Screen 
           options={{ 
@@ -245,14 +257,12 @@ export default function GlowAnalysisScreen() {
           </View>
         </View>
         </SafeAreaView>
-      </SubscriptionGuard>
     );
   }
 
   if (!showInstructions) {
     return (
-      <SubscriptionGuard requiresPremium showPaywall accessMode="scan">
-        <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container}>
           <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
         <Stack.Screen 
           options={{ 
@@ -319,7 +329,6 @@ export default function GlowAnalysisScreen() {
           </View>
         </View>
         </SafeAreaView>
-      </SubscriptionGuard>
     );
   }
 
@@ -328,8 +337,7 @@ export default function GlowAnalysisScreen() {
   const totalAngles = 3;
 
   return (
-    <SubscriptionGuard requiresPremium showPaywall accessMode="scan">
-      <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container}>
         <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
       <Stack.Screen 
         options={{ 
@@ -374,6 +382,12 @@ export default function GlowAnalysisScreen() {
             </View>
             <Text style={styles.instructionText}>{currentInstructions.instruction}</Text>
           </View>
+
+          <BiometricConsent 
+            onConsentChange={setBiometricConsented}
+            required={true}
+          />
+          <MedicalDisclaimer />
 
           {capturedPhotos.length > 0 && (
             <View style={styles.capturedSection}>
@@ -454,17 +468,16 @@ export default function GlowAnalysisScreen() {
           </View>
 
           <View style={styles.professionalNote}>
-            <Text style={styles.noteTitle}>Professional-Grade Analysis</Text>
+            <Text style={styles.noteTitle}>AI-Powered Beauty Analysis</Text>
             <Text style={styles.noteText}>
-              Our multi-angle capture provides dermatologist-level accuracy by analyzing facial structure, 
-              skin texture, and symmetry from multiple perspectives. This comprehensive approach delivers 
-              the most precise beauty and skin health assessment available.
+              Our multi-angle capture provides comprehensive beauty analysis by examining facial structure, 
+              skin appearance, and symmetry from multiple perspectives. This approach delivers 
+              detailed cosmetic guidance for beauty enhancement purposes only.
             </Text>
           </View>
         </View>
       </ScrollView>
       </SafeAreaView>
-    </SubscriptionGuard>
   );
 }
 
@@ -790,3 +803,5 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     textAlign: 'center',
   },
 });
+
+

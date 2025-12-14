@@ -176,6 +176,8 @@ export default function PhotoPickerModal({ visible, onClose, onPicked, isRequire
       transparent
       animationType="fade"
       onRequestClose={handleModalClose}
+      statusBarTranslucent={true}
+      presentationStyle="overFullScreen"
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
@@ -234,10 +236,11 @@ export default function PhotoPickerModal({ visible, onClose, onPicked, isRequire
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
+    zIndex: 9999,
   },
   modal: {
     backgroundColor: '#FFFFFF',
@@ -245,6 +248,8 @@ const styles = StyleSheet.create({
     padding: 24,
     width: '100%',
     maxWidth: 320,
+    zIndex: 10000,
+    elevation: 10,
   },
   header: {
     flexDirection: 'row',

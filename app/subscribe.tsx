@@ -25,7 +25,8 @@ import { getPalette, getGradient } from '@/constants/theme';
 const { width } = Dimensions.get('window');
 
 export default function SubscribeScreen() {
-  const { startLocalTrial, processInAppPurchase, inTrial, state, setSubscriptionData } = useSubscription();
+  const subscription = useSubscription();
+  const { startLocalTrial, processInAppPurchase, inTrial = false, state = { isPremium: false, scanCount: 0, maxScansInTrial: 3, hasStartedTrial: false }, setSubscriptionData } = subscription || {};
 
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();

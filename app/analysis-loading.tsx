@@ -27,7 +27,7 @@ const ANALYSIS_STEPS: AnalysisStep[] = [
   { id: 'skin', title: 'Advanced Dermatological Analysis', completed: false },
   { id: 'symmetry', title: 'Facial Symmetry & Proportions', completed: false },
   { id: 'texture', title: 'Skin Texture & Pore Analysis', completed: false },
-  { id: 'medical', title: 'Medical-Grade Assessment', completed: false },
+  { id: 'beauty', title: 'AI Beauty Analysis', completed: false },
   { id: 'insights', title: 'Professional Recommendations', completed: false },
 ];
 
@@ -133,22 +133,22 @@ export default function AnalysisLoadingScreen() {
     setIsAnalyzing(true);
     
     // Perform actual AI analysis
-    const analysisResult = await performAIAnalysis();
-    
-    if (analysisResult) {
+      const analysisResult = await performAIAnalysis();
+      
+      if (analysisResult) {
       // Store the result in context and AsyncStorage
-      setCurrentResult(analysisResult);
-      await saveAnalysis(analysisResult);
+        setCurrentResult(analysisResult);
+        await saveAnalysis(analysisResult);
       // Refresh user data to update stats
-      refreshUserData();
+        refreshUserData();
     }
     
     // Stop animations
-    setFlowAnimationRunning(false);
-    flowAnimation.stop();
-    pulseAnimation.stop();
-    setIsAnalyzing(false);
-    
+      setFlowAnimationRunning(false);
+      flowAnimation.stop();
+      pulseAnimation.stop();
+      setIsAnalyzing(false);
+      
     // Navigate to results
     router.replace('/analysis-results');
   };
@@ -164,17 +164,17 @@ export default function AnalysisLoadingScreen() {
     if (!frontImage) return null;
 
     try {
-      console.log('🚀 Starting', isMultiAngle ? 'multi-angle' : 'single-angle', 'analysis...');
-      
+    console.log('🚀 Starting', isMultiAngle ? 'multi-angle' : 'single-angle', 'analysis...');
+    
       // Convert images to base64
       const frontBase64 = await convertImageToBase64(frontImage);
       let leftBase64: string | null = null;
       let rightBase64: string | null = null;
       
       if (isMultiAngle && leftImage && rightImage) {
-        leftBase64 = await convertImageToBase64(leftImage);
-        rightBase64 = await convertImageToBase64(rightImage);
-        console.log('📸 All three angles converted to base64');
+          leftBase64 = await convertImageToBase64(leftImage);
+          rightBase64 = await convertImageToBase64(rightImage);
+          console.log('📸 All three angles converted to base64');
       }
 
       // Perform comprehensive face analysis
@@ -218,16 +218,37 @@ export default function AnalysisLoadingScreen() {
   };
 
   const convertImageToBase64 = async (imageUri: string): Promise<string> => {
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
-    return new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        resolve(result.split(',')[1]); // Remove data:image/jpeg;base64, prefix
+    // If already a data URL, return as-is
+    if (imageUri.startsWith('data:')) {
+      return imageUri;
+    }
+
+    try {
+      // For React Native file:// URIs, use FileReader
+      if (imageUri.startsWith('file://')) {
+        // In React Native, we need to use a different approach
+        // Import the conversion utility
+        const { convertImageToDataURL } = await import('../lib/ai-service');
+        return await convertImageToDataURL(imageUri);
+      }
+
+      // For HTTP/HTTPS URLs, fetch and convert
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const result = reader.result as string;
+          resolve(result); // Keep full data URL
       };
-      reader.readAsDataURL(blob);
-    });
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Error converting image to base64:', error);
+      throw new Error('Failed to convert image to base64');
+    }
   };
 
 
@@ -245,15 +266,15 @@ export default function AnalysisLoadingScreen() {
       console.log('2. Strict face validation with professional criteria');
       console.log('3. Advanced AI dermatological assessment');
       console.log('4. 3D facial structure analysis (if multi-angle)');
-      console.log('5. Medical-grade scoring & recommendations');
+      console.log('5. AI-powered beauty scoring & recommendations');
       
       // Step 1: Analyze all available angles with Google Vision API
       console.log('\n🔍 Step 1: Multi-angle Google Vision API analysis...');
       const frontVisionData = await analyzeWithGoogleVision(images.front);
       let leftVisionData = null;
       let rightVisionData = null;
-      
-      if (images.isMultiAngle && images.left && images.right) {
+        
+        if (images.isMultiAngle && images.left && images.right) {
         console.log('📸 Analyzing left profile...');
         leftVisionData = await analyzeWithGoogleVision(images.left);
         console.log('📸 Analyzing right profile...');
@@ -270,13 +291,13 @@ export default function AnalysisLoadingScreen() {
       // Step 3: Advanced AI dermatological analysis with multi-angle context
       console.log('\n🧠 Step 3: Advanced multi-angle dermatological analysis...');
       const dermatologyData = await analyzeWithAdvancedAI(images, {
-        front: frontVisionData,
-        left: leftVisionData,
-        right: rightVisionData
-      });
+          front: frontVisionData,
+          left: leftVisionData,
+          right: rightVisionData
+        });
       
       // Step 4: Calculate comprehensive scores with 3D analysis
-      console.log('\n📊 Step 4: Medical-grade scoring with 3D facial analysis...');
+      console.log('\n📊 Step 4: AI-powered beauty scoring with 3D facial analysis...');
       const finalResult = calculateAdvancedScores({
         front: frontVisionData,
         left: leftVisionData,
@@ -305,121 +326,57 @@ export default function AnalysisLoadingScreen() {
   };
 
   const analyzeWithGoogleVision = async (base64Image: string) => {
-    const GOOGLE_VISION_API_KEY = 'AIzaSyBFOUmZkW1F8pFFFlGs0S-gKGaej74VROg';
-    
     try {
-      console.log('Calling Google Vision API...');
+      console.log('Calling Google Vision API via Edge Function...');
       
-      const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          requests: [{
-            image: {
-              content: base64Image
-            },
-            features: [
-              { type: 'FACE_DETECTION', maxResults: 1 },
-              { type: 'IMAGE_PROPERTIES', maxResults: 1 },
-              { type: 'SAFE_SEARCH_DETECTION', maxResults: 1 }
-            ]
-          }]
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Google Vision API error:', response.status, errorText);
-        throw new Error(`Vision API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Google Vision API response:', JSON.stringify(data, null, 2));
+      // Use secure Edge Function instead of direct API call
+      const { analyzeImageWithVision } = await import('../lib/vision-service');
       
-      return data.responses[0];
+      const result = await analyzeImageWithVision(base64Image, [
+        { type: 'FACE_DETECTION', maxResults: 1 },
+        { type: 'IMAGE_PROPERTIES', maxResults: 1 },
+        { type: 'SAFE_SEARCH_DETECTION', maxResults: 1 }
+      ]);
       
-    } catch (error) {
-      console.error('Google Vision API error:', error);
+      console.log('✅ Google Vision API response received');
+      console.log('Response keys:', Object.keys(result || {}));
+      
+      // Return in the expected format (Google Vision API response structure)
+      // The Edge Function returns the Google Vision API response directly
+      return {
+        faceAnnotations: result?.faceAnnotations || [],
+        imagePropertiesAnnotation: result?.imagePropertiesAnnotation || null,
+        safeSearchAnnotation: result?.safeSearchAnnotation || null,
+        landmarkAnnotations: result?.landmarkAnnotations || [],
+        labelAnnotations: result?.labelAnnotations || [],
+      };
+      
+    } catch (error: any) {
+      console.error('❌ Google Vision API error:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
       throw error;
     }
   };
 
-  // Utility function for making AI API calls with retry logic
+  // Note: AI requests now go through Edge Functions via ai-service.ts
+  // This function is kept for backward compatibility but should not be used
   const makeAIRequest = async (messages: any[], maxRetries = 2): Promise<any> => {
-    let lastError: Error | null = null;
+    console.warn('⚠️ makeAIRequest is deprecated. Use analyzeImageWithAI from ai-service.ts instead.');
+    const { makeOpenAIRequest, formatMessages } = await import('../lib/openai-service');
     
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`Analysis AI API attempt ${attempt + 1}/${maxRetries + 1}`);
-        
-        // Try the original API first
-        try {
-          const response = await fetch('https://toolkit.rork.com/text/llm/', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ messages })
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data.completion) {
-              return data.completion;
-            }
-          }
-        } catch {
-          console.log('Primary API failed, trying fallback...');
-        }
-        
-        // Fallback to OpenAI API
-        const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY || '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'}`
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: messages,
-            max_tokens: 2000,
-            temperature: 0.7
-          })
-        });
-
-        if (!openaiResponse.ok) {
-          const errorText = await openaiResponse.text().catch(() => 'Unknown error');
-          console.error(`OpenAI API Response not OK (attempt ${attempt + 1}):`, openaiResponse.status, errorText);
-          
-          if (openaiResponse.status === 500 && attempt < maxRetries) {
-            lastError = new Error(`AI API error: ${openaiResponse.status}`);
-            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-            continue;
-          }
-          
-          throw new Error(`AI API error: ${openaiResponse.status}`);
-        }
-
-        const openaiData = await openaiResponse.json();
-        if (!openaiData.choices?.[0]?.message?.content) {
-          throw new Error('No completion in AI response');
-        }
-        
-        return openaiData.choices[0].message.content;
-      } catch (error) {
-        console.error(`Analysis AI API error (attempt ${attempt + 1}):`, error);
-        lastError = error instanceof Error ? error : new Error('Unknown error');
-        
-        if (attempt < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-          continue;
-        }
-      }
+    const formattedMessages = formatMessages(messages);
+    const result = await makeOpenAIRequest(formattedMessages, {
+      model: 'gpt-4o-mini',
+      temperature: 0.7,
+      maxTokens: 2000,
+    }, maxRetries);
+    
+    if (!result) {
+      throw new Error('AI API request failed after all retries');
     }
     
-    throw lastError || new Error('AI API request failed after all retries');
+    return result;
   };
 
   const analyzeWithAdvancedAI = async (images: {
@@ -432,145 +389,64 @@ export default function AnalysisLoadingScreen() {
     left: any;
     right: any;
   }) => {
-    const analysisType = images.isMultiAngle ? 'multi-angle professional' : 'single-angle';
-    const prompt = `You are a board-certified dermatologist and facial aesthetics expert with 20+ years of experience. Perform a ${analysisType} comprehensive facial analysis using the provided Google Vision data.
+    // Try Edge Function with retries (90% success target)
+    const MAX_RETRIES = 3;
+    let lastError: any = null;
+    
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        console.log(`🤖 Starting AI analysis via Edge Function (attempt ${attempt + 1}/${MAX_RETRIES})...`);
+        
+        // Use the unified AI service
+        const { analyzeImageWithAI } = await import('../lib/ai-service');
+        
+        // Combine vision data if available
+        const combinedVisionData = images.isMultiAngle && visionData.left && visionData.right
+          ? {
+              front: visionData.front,
+              left: visionData.left,
+              right: visionData.right,
+            }
+          : { front: visionData.front };
 
-${images.isMultiAngle ? 'MULTI-ANGLE ANALYSIS DATA:' : 'SINGLE-ANGLE ANALYSIS DATA:'}
-Front View Vision Data: ${JSON.stringify(visionData.front, null, 2)}
-${images.isMultiAngle && visionData.left ? `Left Profile Vision Data: ${JSON.stringify(visionData.left, null, 2)}` : ''}
-${images.isMultiAngle && visionData.right ? `Right Profile Vision Data: ${JSON.stringify(visionData.right, null, 2)}` : ''}
+        const aiResult = await analyzeImageWithAI({
+          imageUri: images.front,
+          analysisType: 'glow',
+          multiAngle: images.isMultiAngle,
+          visionData: combinedVisionData,
+        });
 
-PROFESSIONAL ASSESSMENT REQUIREMENTS:
-1. Medical-grade skin analysis (texture, pores, pigmentation, elasticity)
-2. Dermatological pathology assessment (acne, rosacea, melasma, aging)
-3. Facial structure analysis ${images.isMultiAngle ? '(3D symmetry, profile proportions)' : '(frontal symmetry)'}
-4. Professional beauty scoring with clinical accuracy
-5. Evidence-based treatment recommendations
-6. Skin health prognosis and prevention strategies
-
-CRITICAL: Your analysis must be as accurate as an in-person dermatologist consultation. Use medical terminology and provide specific, actionable recommendations.
-
-Respond with ONLY a valid JSON object with this structure:
-{
-  "skinAnalysis": {
-    "skinType": "Normal/Dry/Oily/Combination/Sensitive",
-    "skinTone": "Very Light/Light/Medium Light/Medium/Medium Dark/Dark/Very Dark + Warm/Cool/Neutral undertone",
-    "skinQuality": "Poor/Fair/Good/Very Good/Excellent",
-    "textureScore": 85,
-    "clarityScore": 90,
-    "hydrationLevel": 80,
-    "poreVisibility": 75,
-    "elasticity": 88,
-    "pigmentationEvenness": 82
-  },
-  "dermatologyAssessment": {
-    "acneRisk": "Low/Medium/High",
-    "agingSigns": ["Fine lines", "Loss of elasticity", "Volume loss", "Pigmentation"],
-    "skinConcerns": ["Enlarged pores", "Uneven texture", "Dark spots"],
-    "recommendedTreatments": ["Retinoid therapy", "Chemical peels", "Laser resurfacing"],
-    "skinConditions": ["Any detected conditions like rosacea, melasma, etc."],
-    "preventiveMeasures": ["SPF 30+ daily", "Antioxidant serums", "Gentle cleansing"]
-  },
-  "beautyScores": {
-    "overallScore": 88,
-    "facialSymmetry": 92,
-    "skinGlow": 85,
-    "jawlineDefinition": 78,
-    "eyeArea": 90,
-    "lipArea": 85,
-    "cheekboneDefinition": 87,
-    "skinTightness": 83,
-    "facialHarmony": 89
-  },
-  "professionalRecommendations": ["5-7 specific dermatologist-level recommendations"],
-  "confidence": 0.95,
-  "analysisAccuracy": "${images.isMultiAngle ? 'Professional-grade (multi-angle)' : 'Standard (single-angle)'}"
-}`;
-
-    try {
-      console.log('Making advanced AI analysis request...');
-      
-      const messages = [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image', image: images.front }
-          ]
+        console.log(`✅ AI analysis completed via Edge Function (attempt ${attempt + 1})`);
+        return aiResult;
+      } catch (error: any) {
+        lastError = error;
+        console.warn(`⚠️ AI analysis attempt ${attempt + 1} failed:`, error?.message || error);
+        
+        // Retry on network/temporary errors
+        if (attempt < MAX_RETRIES - 1 && (
+          error?.message?.includes('network') ||
+          error?.message?.includes('timeout') ||
+          error?.message?.includes('rate limit') ||
+          error?.message?.includes('429') ||
+          error?.message?.includes('503') ||
+          error?.message?.includes('502')
+        )) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+          continue;
         }
-      ];
-
-      let analysisText;
-      try {
-        analysisText = await makeAIRequest(messages);
-        console.log('Raw AI response:', analysisText);
-      } catch (error) {
-        console.error('Analysis AI API failed after retries, using fallback:', error);
-        console.log('🔄 Using enhanced fallback analysis due to API error...');
-        return generateFallbackAnalysis(visionData);
-      }
-      
-      // Parse JSON response with better error handling
-      let cleanedText = analysisText.trim();
-      
-      // Remove markdown code blocks
-      cleanedText = cleanedText.replace(/```json\s*/g, '').replace(/```\s*$/g, '');
-      
-      // Find the JSON object
-      const jsonStart = cleanedText.indexOf('{');
-      const jsonEnd = cleanedText.lastIndexOf('}');
-      
-      if (jsonStart === -1 || jsonEnd === -1 || jsonStart >= jsonEnd) {
-        console.error('No valid JSON structure found in response');
-        throw new Error('No valid JSON found in AI response');
-      }
-      
-      const jsonString = cleanedText.substring(jsonStart, jsonEnd + 1);
-      console.log('Extracted JSON string:', jsonString);
-      
-      try {
-        // First attempt: parse as-is
-        return JSON.parse(jsonString);
-      } catch (parseError) {
-        console.error('Initial JSON parse error:', parseError);
-        console.log('Attempting to sanitize JSON...');
-
-        // Second attempt: sanitize and parse
-        const sanitized = sanitizeJson(jsonString);
-        try {
-          const parsed = JSON.parse(sanitized);
-          console.log('Successfully parsed after sanitization');
-          return parsed;
-        } catch (e2) {
-          console.error('Failed to parse JSON after sanitization:', e2);
-          
-          // Third attempt: try to fix specific issues
-          try {
-            // Remove problematic characters and fix structure
-            let fixed = sanitized;
-            // Fix arrays that might be incomplete
-            fixed = fixed.replace(/\[([^\]]*),\s*$/gm, '[$1]');
-            // Ensure all strings are properly quoted
-            fixed = fixed.replace(/(:\s*)([^"\[\{\d\-][^,\}\]]*)/g, '$1"$2"');
-            // Remove any remaining problematic characters
-            fixed = fixed.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
-            
-            const parsed = JSON.parse(fixed);
-            console.log('Successfully parsed after deep fix');
-            return parsed;
-          } catch (e3) {
-            console.error('Failed all JSON parse attempts');
-            console.log('🔄 Using enhanced fallback analysis due to parse error...');
-            return generateFallbackAnalysis(visionData);
-          }
+        
+        // If last attempt or non-retryable error, use fallback
+        if (attempt === MAX_RETRIES - 1) {
+          console.error('❌ AI analysis failed after all retries, using fallback');
+          console.log('🔄 Using enhanced fallback analysis due to API error...');
+          return generateFallbackAnalysis(visionData);
         }
       }
-      
-    } catch (error) {
-      console.error('Advanced AI analysis error:', error);
-      console.log('🔄 Using enhanced fallback analysis due to API error...');
-      return generateFallbackAnalysis(visionData);
     }
+    
+    // Final fallback if all retries failed
+    console.log('🔄 Using enhanced fallback analysis due to API error...');
+    return generateFallbackAnalysis(visionData);
   };
 
   const generateConsistentScore = (imageUri: string, visionData?: any): number => {
@@ -672,7 +548,7 @@ Respond with ONLY a valid JSON object with this structure:
     
     if (baseScore >= 85) {
       recommendations.push("Your skin shows excellent health - maintain current routine");
-      recommendations.push("Consider advanced treatments like retinoids for anti-aging");
+      recommendations.push("For advanced anti-aging treatments, consult a licensed dermatologist");
     }
     
     recommendations.push("Stay hydrated and maintain a balanced diet for optimal skin health");

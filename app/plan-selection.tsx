@@ -7,7 +7,8 @@ import { ArrowLeft, Star, Shield, TrendingUp } from 'lucide-react-native';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 
 export default function PlanSelectionScreen() {
-  const { state, processInAppPurchase } = useSubscription();
+  const subscription = useSubscription();
+  const { state = { isPremium: false, scanCount: 0, maxScansInTrial: 3, hasStartedTrial: false }, processInAppPurchase } = subscription || {};
   const insets = useSafeAreaInsets();
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -34,7 +35,7 @@ export default function PlanSelectionScreen() {
       if (result.success) {
         Alert.alert(
           '🎉 Welcome to Premium!', 
-          `Your ${selectedPlan} subscription is now active. Enjoy unlimited access to all premium features!`,
+          `Your 7-day free trial has started! You'll be charged ${selectedPlan === 'yearly' ? '$99/year' : '$8.99/month'} after the trial ends. Enjoy unlimited access to all premium features!`,
           [{ 
             text: 'Start Your Journey ✨', 
             style: 'default', 
@@ -76,8 +77,8 @@ export default function PlanSelectionScreen() {
   }, []);
 
   const trialDaysLeft = state.trialStartedAt 
-    ? Math.max(0, 3 - Math.floor((Date.now() - Number(new Date(state.trialStartedAt))) / (1000 * 60 * 60 * 24)))
-    : 3;
+    ? Math.max(0, 7 - Math.floor((Date.now() - Number(new Date(state.trialStartedAt))) / (1000 * 60 * 60 * 24)))
+    : 7;
 
   return (
     <View style={styles.container}>
@@ -110,9 +111,9 @@ export default function PlanSelectionScreen() {
               <Star color="#FFFFFF" size={16} strokeWidth={2.5} />
             </LinearGradient>
             <View style={styles.trialContent}>
-              <Text style={styles.trialTitle}>Trial Active</Text>
+              <Text style={styles.trialTitle}>7-Day Free Trial Active</Text>
               <Text style={styles.trialText}>
-                {state.scanCount}/3 scans used • {trialDaysLeft > 0 ? `${trialDaysLeft} days left` : 'NaN days left'}
+                {trialDaysLeft > 0 ? `${trialDaysLeft} days remaining` : 'Trial expired'}
               </Text>
             </View>
           </View>

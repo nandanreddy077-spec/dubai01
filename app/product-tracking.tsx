@@ -25,7 +25,8 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProducts } from '@/contexts/ProductContext';
-import { getPalette, getGradient, shadow } from '@/constants/theme';
+// All features free - SubscriptionGuard removed
+import { getPalette, getGradient, shadow, spacing } from '@/constants/theme';
 
 export default function ProductTrackingScreen() {
   const { theme } = useTheme();
@@ -105,19 +106,44 @@ export default function ProductTrackingScreen() {
             <Text style={styles.subtitle}>
               Log products, get recommendations, and earn rewards
             </Text>
+            <LinearGradient
+              colors={[palette.overlayBlush, palette.blush + '30']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.insightsInfoCard}
+            >
+              <View style={styles.insightsIconContainer}>
+                <Sparkles color={palette.primary} size={18} strokeWidth={2.5} />
+              </View>
+              <Text style={styles.insightsInfoText}>
+                Track products here to see personalized insights in Progress Tracker
+              </Text>
+            </LinearGradient>
           </View>
           
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Package color={palette.blush} size={20} strokeWidth={2.5} />
+              <LinearGradient
+                colors={[palette.overlayBlush, palette.blush + '40']}
+                style={styles.statIconContainer}
+              >
+                <Package color={palette.blush} size={24} strokeWidth={2.5} />
+              </LinearGradient>
               <Text style={styles.statNumber}>{products.length}</Text>
               <Text style={styles.statLabel}>Products</Text>
             </View>
             
             <View style={styles.statCard}>
-              <Star color={palette.gold} size={20} fill={palette.gold} strokeWidth={2.5} />
+              <LinearGradient
+                colors={[palette.overlayGold, palette.gold + '40']}
+                style={styles.statIconContainer}
+              >
+                <Star color={palette.gold} size={24} fill={palette.gold} strokeWidth={2.5} />
+              </LinearGradient>
               <Text style={styles.statNumber}>{recommendations.length}</Text>
-              <Text style={styles.statLabel}>Recommendations</Text>
+              <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit={true} minimumFontScale={0.8}>
+                Recommendations
+              </Text>
             </View>
           </View>
         </View>
@@ -144,6 +170,7 @@ export default function ProductTrackingScreen() {
                 styles.tabText,
                 activeTab === 'my-products' && styles.tabTextActive,
               ]}
+              numberOfLines={1}
             >
               My Products
             </Text>
@@ -171,6 +198,9 @@ export default function ProductTrackingScreen() {
                 styles.tabText,
                 activeTab === 'recommendations' && styles.tabTextActive,
               ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit={true}
+              minimumFontScale={0.85}
             >
               Recommendations
             </Text>
@@ -187,75 +217,97 @@ export default function ProductTrackingScreen() {
             <TouchableOpacity
               onPress={() => setShowAddProduct(!showAddProduct)}
               activeOpacity={0.9}
-              style={[styles.addButton, shadow.card]}
+              style={styles.addButton}
             >
               <LinearGradient
-                colors={['#FF6B9D', '#C44569']}
+                colors={gradient.primary}
                 start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
+                end={{ x: 1, y: 1 }}
                 style={styles.addButtonGradient}
               >
-                <Plus color={palette.textLight} size={24} strokeWidth={2.5} />
+                <View style={styles.addButtonIconContainer}>
+                  <Plus color={palette.textLight} size={22} strokeWidth={3} />
+                </View>
                 <Text style={styles.addButtonText}>Add Product</Text>
               </LinearGradient>
             </TouchableOpacity>
             
             {showAddProduct && (
-              <View style={[styles.addProductForm, shadow.card]}>
-                <Text style={styles.formTitle}>Add New Product</Text>
-                
-                <TextInput
-                  style={styles.input}
-                  placeholder="Product Name"
-                  placeholderTextColor={palette.textSecondary}
-                  value={newProduct.name}
-                  onChangeText={(text) => setNewProduct({ ...newProduct, name: text })}
-                />
-                
-                <TextInput
-                  style={styles.input}
-                  placeholder="Brand"
-                  placeholderTextColor={palette.textSecondary}
-                  value={newProduct.brand}
-                  onChangeText={(text) => setNewProduct({ ...newProduct, brand: text })}
-                />
-                
-                <View style={styles.formButtons}>
-                  <TouchableOpacity
-                    onPress={() => setShowAddProduct(false)}
-                    style={styles.cancelButton}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
+              <View style={styles.addProductForm}>
+                <LinearGradient
+                  colors={[palette.surface, palette.surfaceElevated]}
+                  style={styles.addProductFormGradient}
+                >
+                  <View style={styles.formHeader}>
+                    <View style={styles.formIconContainer}>
+                      <Plus color={palette.primary} size={20} strokeWidth={2.5} />
+                    </View>
+                    <Text style={styles.formTitle}>Add New Product</Text>
+                  </View>
                   
-                  <TouchableOpacity
-                    onPress={handleAddProduct}
-                    disabled={!newProduct.name || !newProduct.brand}
-                    style={[
-                      styles.saveButton,
-                      (!newProduct.name || !newProduct.brand) && styles.saveButtonDisabled,
-                    ]}
-                  >
-                    <LinearGradient
-                      colors={
-                        !newProduct.name || !newProduct.brand
-                          ? ['#ccc', '#999']
-                          : ['#4CAF50', '#45a049']
-                      }
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={styles.saveButtonGradient}
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Product Name</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter product name"
+                      placeholderTextColor={palette.textMuted}
+                      value={newProduct.name}
+                      onChangeText={(text) => setNewProduct({ ...newProduct, name: text })}
+                    />
+                  </View>
+                  
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Brand</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter brand name"
+                      placeholderTextColor={palette.textMuted}
+                      value={newProduct.brand}
+                      onChangeText={(text) => setNewProduct({ ...newProduct, brand: text })}
+                    />
+                  </View>
+                  
+                  <View style={styles.formButtons}>
+                    <TouchableOpacity
+                      onPress={() => setShowAddProduct(false)}
+                      style={styles.cancelButton}
+                      activeOpacity={0.7}
                     >
-                      <Text style={styles.saveButtonText}>Save Product</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      onPress={handleAddProduct}
+                      disabled={!newProduct.name || !newProduct.brand}
+                      style={styles.saveButton}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient
+                        colors={
+                          !newProduct.name || !newProduct.brand
+                            ? [palette.disabled, palette.disabled]
+                            : gradient.success
+                        }
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.saveButtonGradient}
+                      >
+                        <Text style={styles.saveButtonText}>Save Product</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
+                </LinearGradient>
               </View>
             )}
             
             {products.length === 0 ? (
               <View style={styles.emptyState}>
-                <Package color={palette.textSecondary} size={64} strokeWidth={1.5} />
+                <LinearGradient
+                  colors={[palette.overlayBlush, palette.blush + '30']}
+                  style={styles.emptyIconContainer}
+                >
+                  <Package color={palette.blush} size={48} strokeWidth={2} />
+                </LinearGradient>
                 <Text style={styles.emptyTitle}>No products yet</Text>
                 <Text style={styles.emptySubtitle}>
                   Start tracking your beauty products to get personalized insights
@@ -310,7 +362,12 @@ export default function ProductTrackingScreen() {
           <View style={styles.content}>
             {recommendations.length === 0 ? (
               <View style={styles.emptyState}>
-                <Sparkles color={palette.textSecondary} size={64} strokeWidth={1.5} />
+                <LinearGradient
+                  colors={[palette.overlayGold, palette.gold + '30']}
+                  style={styles.emptyIconContainer}
+                >
+                  <Sparkles color={palette.gold} size={48} strokeWidth={2} />
+                </LinearGradient>
                 <Text style={styles.emptyTitle}>Complete your analysis first</Text>
                 <Text style={styles.emptySubtitle}>
                   Get your glow analysis or create a skincare plan to receive personalized product recommendations
@@ -356,7 +413,7 @@ export default function ProductTrackingScreen() {
                     
                     <View style={styles.productImageContainer}>
                       <Image
-                        source={{ uri: rec.imageUrl }}
+                        source={{ uri: rec.imageUrl || 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=800&h=600&fit=crop' }}
                         style={styles.productRecommendationImage}
                         resizeMode="cover"
                       />
@@ -508,7 +565,7 @@ export default function ProductTrackingScreen() {
                     
                     <View style={styles.productImageContainer}>
                       <Image
-                        source={{ uri: rec.imageUrl }}
+                        source={{ uri: rec.imageUrl || 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=800&h=600&fit=crop' }}
                         style={styles.productRecommendationImage}
                         resizeMode="cover"
                       />
@@ -661,17 +718,51 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
     marginBottom: 24,
   },
   title: {
-    fontSize: 28,
+    fontSize: 34,
     fontWeight: '900' as const,
     color: palette.textPrimary,
-    marginBottom: 8,
-    letterSpacing: -0.5,
+    marginBottom: spacing.sm,
+    letterSpacing: -1,
+    lineHeight: 40,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 17,
     color: palette.textSecondary,
-    fontWeight: '500' as const,
-    lineHeight: 22,
+    fontWeight: '600' as const,
+    lineHeight: 24,
+    marginBottom: spacing.sm,
+    letterSpacing: 0.2,
+  },
+  insightsInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: 16,
+    marginTop: spacing.md,
+    borderWidth: 1.5,
+    borderColor: palette.blush + '60',
+    ...shadow.card,
+    shadowColor: palette.blush,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  insightsIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  insightsInfoText: {
+    flex: 1,
+    fontSize: 13,
+    color: palette.textPrimary,
+    fontWeight: '700' as const,
+    lineHeight: 20,
+    letterSpacing: 0.2,
   },
   statsRow: {
     flexDirection: 'row',
@@ -680,24 +771,40 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
   statCard: {
     flex: 1,
     backgroundColor: palette.surface,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 24,
+    padding: 24,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: palette.divider,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    ...shadow.elevated,
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  statIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    ...shadow.card,
+    shadowOpacity: 0.1,
   },
   statNumber: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: '900' as const,
     color: palette.textPrimary,
-    marginVertical: 8,
-    letterSpacing: -0.5,
+    marginBottom: spacing.xs,
+    letterSpacing: -1,
   },
   statLabel: {
     fontSize: 12,
-    fontWeight: '600' as const,
+    fontWeight: '700' as const,
     color: palette.textSecondary,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase' as const,
+    textAlign: 'center' as const,
   },
   tabBar: {
     flexDirection: 'row',
@@ -711,43 +818,59 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 20,
     backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.divider,
+    borderWidth: 1.5,
+    borderColor: palette.border,
     position: 'relative',
+    ...shadow.card,
+    shadowOpacity: 0.06,
+    minWidth: 0,
   },
   tabActive: {
     backgroundColor: palette.blush,
     borderColor: palette.blush,
+    ...shadow.elevated,
+    shadowColor: palette.blush,
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700' as const,
     color: palette.textSecondary,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
+    flexShrink: 1,
   },
   tabTextActive: {
     color: palette.textLight,
   },
   badge: {
     position: 'absolute',
-    top: -6,
-    right: -6,
+    top: -8,
+    right: -8,
     backgroundColor: '#FF6B9D',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
+    ...shadow.elevated,
+    shadowColor: '#FF6B9D',
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    borderWidth: 2,
+    borderColor: palette.textLight,
   },
   badgeText: {
-    fontSize: 11,
-    fontWeight: '800' as const,
+    fontSize: 12,
+    fontWeight: '900' as const,
     color: palette.textLight,
+    letterSpacing: 0.3,
   },
   content: {
     paddingHorizontal: 24,
@@ -755,46 +878,91 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
     gap: 16,
   },
   addButton: {
-    borderRadius: 16,
+    borderRadius: 24,
     overflow: 'hidden',
+    ...shadow.elevated,
+    shadowColor: palette.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
   },
   addButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    gap: 10,
+    paddingVertical: 18,
+    gap: 12,
+  },
+  addButtonIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addButtonText: {
-    fontSize: 16,
-    fontWeight: '800' as const,
+    fontSize: 17,
+    fontWeight: '900' as const,
     color: palette.textLight,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   addProductForm: {
-    backgroundColor: palette.surface,
-    borderRadius: 20,
-    padding: 24,
-    gap: 16,
-    borderWidth: 1,
-    borderColor: palette.divider,
+    borderRadius: 28,
+    overflow: 'hidden',
+    ...shadow.elevated,
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+  },
+  addProductFormGradient: {
+    padding: 28,
+    gap: 20,
+  },
+  formHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  formIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: palette.overlayBlush,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadow.card,
+    shadowOpacity: 0.1,
   },
   formTitle: {
-    fontSize: 20,
-    fontWeight: '800' as const,
+    fontSize: 22,
+    fontWeight: '900' as const,
     color: palette.textPrimary,
-    marginBottom: 8,
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
+    flex: 1,
+  },
+  inputContainer: {
+    gap: spacing.xs,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: palette.textSecondary,
+    letterSpacing: 0.3,
+    marginLeft: spacing.xs,
   },
   input: {
     backgroundColor: palette.backgroundStart,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     fontSize: 16,
     color: palette.textPrimary,
-    borderWidth: 1,
-    borderColor: palette.divider,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    fontWeight: '600' as const,
+    ...shadow.card,
+    shadowOpacity: 0.05,
   },
   formButtons: {
     flexDirection: 'row',
@@ -803,64 +971,85 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: palette.backgroundStart,
-    borderRadius: 12,
-    paddingVertical: 14,
+    backgroundColor: palette.surface,
+    borderRadius: 16,
+    paddingVertical: 16,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: palette.divider,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    ...shadow.card,
+    shadowOpacity: 0.05,
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '700' as const,
+    fontWeight: '800' as const,
     color: palette.textSecondary,
+    letterSpacing: 0.5,
   },
   saveButton: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
+    ...shadow.elevated,
+    shadowOpacity: 0.2,
   },
   saveButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   saveButtonGradient: {
-    paddingVertical: 14,
+    paddingVertical: 16,
     alignItems: 'center',
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '800' as const,
+    fontWeight: '900' as const,
     color: palette.textLight,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: 80,
     paddingHorizontal: 40,
   },
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+    ...shadow.elevated,
+    shadowColor: palette.blush,
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+  },
   emptyTitle: {
-    fontSize: 22,
-    fontWeight: '800' as const,
+    fontSize: 26,
+    fontWeight: '900' as const,
     color: palette.textPrimary,
-    marginTop: 20,
-    marginBottom: 8,
-    letterSpacing: -0.3,
+    marginBottom: spacing.sm,
+    letterSpacing: -0.5,
   },
   emptySubtitle: {
     fontSize: 16,
     color: palette.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 24,
+    fontWeight: '500' as const,
+    paddingHorizontal: spacing.lg,
   },
   productsList: {
     gap: 16,
   },
   productCard: {
     backgroundColor: palette.surface,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: palette.divider,
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    ...shadow.elevated,
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
   },
   productHeader: {
     flexDirection: 'row',
@@ -876,12 +1065,14 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
   productImagePlaceholder: {
     width: 70,
     height: 70,
-    borderRadius: 12,
+    borderRadius: 16,
     backgroundColor: palette.backgroundStart,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: palette.divider,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    ...shadow.card,
+    shadowOpacity: 0.05,
   },
   productInfo: {
     flex: 1,

@@ -13,9 +13,8 @@ import { Shirt, Sparkles, Camera, Upload } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useStyle } from "@/contexts/StyleContext";
 import { LinearGradient } from 'expo-linear-gradient';
-import SubscriptionGuard from '@/components/SubscriptionGuard';
-import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTheme } from '@/contexts/ThemeContext';
+// All features free - subscription checks removed
 import { getPalette, getGradient, shadow } from '@/constants/theme';
 
 export default function StyleCheckScreen() {
@@ -26,13 +25,15 @@ export default function StyleCheckScreen() {
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
   const styles = createStyles(palette);
-  const { needsPremium, isTrialExpired, inTrial } = useSubscription();
+  // All features free - no subscription checks needed
 
   React.useEffect(() => {
     resetAnalysis();
   }, [resetAnalysis]);
 
   const handleTakePhoto = async () => {
+    // All features free - no checks needed
+
     if (Platform.OS === 'web') {
       Alert.alert('Camera not available', 'Camera not available on web. Please use upload photo instead.');
       return;
@@ -71,6 +72,8 @@ export default function StyleCheckScreen() {
   };
 
   const handleUploadPhoto = async () => {
+    // All features free - no checks needed
+
     setIsLoading(true);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -98,7 +101,6 @@ export default function StyleCheckScreen() {
   };
 
   return (
-    <SubscriptionGuard requiresPremium showPaywall>
       <SafeAreaView style={styles.container}>
         <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
       <Stack.Screen 
@@ -157,8 +159,9 @@ export default function StyleCheckScreen() {
         </View>
 
       </View>
+
+      {/* All features free - UpgradePrompt removed */}
       </SafeAreaView>
-    </SubscriptionGuard>
   );
 }
 

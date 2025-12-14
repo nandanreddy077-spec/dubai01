@@ -20,6 +20,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { getPalette, getGradient, shadow } from '@/constants/theme';
 import BlurredContent from '@/components/BlurredContent';
 import { useProducts } from '@/contexts/ProductContext';
+import MedicalDisclaimer from '@/components/MedicalDisclaimer';
 
 export default function AnalysisResultsScreen() {
   const { currentResult, analysisHistory } = useAnalysis();
@@ -371,9 +372,7 @@ export default function AnalysisResultsScreen() {
               </View>
             </View>
           </TouchableOpacity>
-          <Text style={styles.disclaimer}>
-            ✨ This analysis is for beauty enhancement purposes. For medical concerns, please consult a dermatologist.
-          </Text>
+          <MedicalDisclaimer />
         </View>
       </ScrollView>
   );
@@ -386,6 +385,13 @@ export default function AnalysisResultsScreen() {
       <BlurredContent 
         message="Upgrade to Premium to view your detailed analysis results"
         testID="blurred-results"
+        score={currentResult?.overallScore}
+        rating={currentResult?.rating}
+        badge={badge}
+        skinType={currentResult?.skinType}
+        topConcern={currentResult?.dermatologyInsights?.skinConcerns?.[0]}
+        showPaywall={true}
+        showDismiss={true}
       >
         {resultsContent}
       </BlurredContent>

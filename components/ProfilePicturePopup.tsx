@@ -7,9 +7,12 @@ import {
   TouchableOpacity,
   Image,
   Animated,
+  Alert,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Camera, Sparkles, Heart, X } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useUser } from '@/contexts/UserContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getPalette, getGradient, shadow, spacing, radii } from '@/constants/theme';
@@ -21,7 +24,7 @@ interface ProfilePicturePopupProps {
 }
 
 export default function ProfilePicturePopup({ visible, onClose }: ProfilePicturePopupProps) {
-  const { user } = useUser();
+  const { user, updateAvatar } = useUser();
   const { theme } = useTheme();
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -30,6 +33,10 @@ export default function ProfilePicturePopup({ visible, onClose }: ProfilePicture
   
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
+
+  useEffect(() => {
+    console.log('PhotoPickerModal visibility changed:', showPhotoPicker);
+  }, [showPhotoPicker]);
 
   useEffect(() => {
     if (visible) {
@@ -77,23 +84,100 @@ export default function ProfilePicturePopup({ visible, onClose }: ProfilePicture
     }
   }, [visible, fadeAnim, scaleAnim, sparkleAnim]);
 
-  const handleAddPhoto = () => {
-    console.log('Add photo button pressed');
-    setShowPhotoPicker(true);
+  const handleAddPhoto = async () => {
+    console.log('Add photo button pressed - opening photo picker');
+    try {
+      // Request permissions first
+      if (Platform.OS !== 'web') {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permission Required',
+            'Please grant camera roll permissions to select a photo.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      }
+
+      // Show action sheet to choose between library and camera
+      if (Platform.OS === 'web') {
+        // For web, just open library
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+
+        if (!result.canceled && result.assets && result.assets[0]) {
+          await updateAvatar(result.assets[0].uri);
+          onClose();
+        }
+      } else {
+        // For mobile, show options
+        Alert.alert(
+          'Select Photo',
+          'Choose an option',
+          [
+            {
+              text: 'Camera',
+              onPress: async () => {
+                const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                if (status !== 'granted') {
+                  Alert.alert('Permission Required', 'Please grant camera permissions.');
+                  return;
+                }
+                const result = await ImagePicker.launchCameraAsync({
+                  allowsEditing: true,
+                  aspect: [1, 1],
+                  quality: 0.8,
+                });
+                if (!result.canceled && result.assets && result.assets[0]) {
+                  await updateAvatar(result.assets[0].uri);
+                  onClose();
+                }
+              },
+            },
+            {
+              text: 'Photo Library',
+              onPress: async () => {
+                const result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  allowsEditing: true,
+                  aspect: [1, 1],
+                  quality: 0.8,
+                });
+                if (!result.canceled && result.assets && result.assets[0]) {
+                  await updateAvatar(result.assets[0].uri);
+                  onClose();
+                }
+              },
+            },
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error opening photo picker:', error);
+      Alert.alert('Error', 'Failed to open photo picker. Please try again.');
+    }
+  };
+
+  const handlePhotoPicked = (uri: string) => {
+    console.log('Photo picked:', uri);
+    setShowPhotoPicker(false);
+    // Photo is already saved, just close the picker
   };
 
   const handlePhotoPickerClose = () => {
+    console.log('Photo picker closed');
     setShowPhotoPicker(false);
-    if (user?.avatar) {
-      onClose();
-    }
   };
 
   const handleSkip = () => {
     onClose();
   };
-
-  if (!visible) return null;
 
   const styles = createStyles(palette);
 
@@ -217,6 +301,8 @@ export default function ProfilePicturePopup({ visible, onClose }: ProfilePicture
                 onPress={handleAddPhoto}
                 activeOpacity={0.8}
                 style={[styles.addPhotoButton, shadow.glow]}
+                testID="add-profile-picture-button"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <LinearGradient
                   colors={gradient.primary}
@@ -247,7 +333,8 @@ export default function ProfilePicturePopup({ visible, onClose }: ProfilePicture
       
       <PhotoPickerModal 
         visible={showPhotoPicker} 
-        onClose={handlePhotoPickerClose} 
+        onClose={handlePhotoPickerClose}
+        onPicked={handlePhotoPicked}
       />
     </>
   );
@@ -386,6 +473,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.xl,
     gap: spacing.sm,
+    minHeight: 56,
   },
   addPhotoText: {
     fontSize: 16,

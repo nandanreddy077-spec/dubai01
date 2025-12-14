@@ -19,10 +19,8 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useGamification } from "@/contexts/GamificationContext";
 import { useProducts } from "@/contexts/ProductContext";
 import PhotoPickerModal from "@/components/PhotoPickerModal";
-import DailyCheckInModal from "@/components/DailyCheckInModal";
 import { getPalette, getGradient, shadow, spacing, radii, typography } from "@/constants/theme";
 import { trackAppOpen, scheduleDailyNotifications } from "@/lib/smart-notifications";
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -111,7 +109,6 @@ export default function HomeScreen() {
   
   const currentStreak = user?.stats.dayStreak || 0;
   const [showPhotoPicker, setShowPhotoPicker] = useState<boolean>(false);
-  const [showDailyCheckIn, setShowDailyCheckIn] = useState<boolean>(false);
   const [sparkleAnim] = useState(new Animated.Value(0));
   const [floatingAnim] = useState(new Animated.Value(0));
   const [currentAffirmationIndex, setCurrentAffirmationIndex] = useState<number>(0);
@@ -120,26 +117,28 @@ export default function HomeScreen() {
   const gradient = getGradient(theme);
   const currentAffirmation = DAILY_AFFIRMATIONS[currentAffirmationIndex];
 
+  // Initialize notifications and tracking once on mount
   useEffect(() => {
     const initializeHome = async () => {
       await trackAppOpen();
-      await scheduleDailyNotifications(currentStreak);
-      
-      const lastCheckInDate = await AsyncStorage.getItem('last_daily_check_in_date');
-      const today = new Date().toISOString().split('T')[0];
-      
-      if (lastCheckInDate !== today && !hasCompletedToday()) {
-        setTimeout(() => setShowDailyCheckIn(true), 1000);
-      }
+      await scheduleDailyNotifications(user?.stats.dayStreak || 0);
     };
     
     initializeHome();
-    
-    if (isFirstTime) {
-      setShowPhotoPicker(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Handle first time user - just mark as not first time anymore
+  // Don't automatically show photo picker as it can cause issues on app startup
+  useEffect(() => {
+    if (isFirstTime && user) {
+      // Just mark as not first time - user can add profile photo from profile screen
       setIsFirstTime(false);
     }
-    
+  }, [isFirstTime, setIsFirstTime, user]);
+
+  // Animations effect - only runs once
+  useEffect(() => {
     // Gentle sparkle animation
     const sparkleAnimation = Animated.loop(
       Animated.sequence([
@@ -185,7 +184,7 @@ export default function HomeScreen() {
       floatingAnimation.stop();
       clearInterval(affirmationInterval);
     };
-  }, [isFirstTime, setIsFirstTime, sparkleAnim, floatingAnim, currentStreak, hasCompletedToday]);
+  }, [sparkleAnim, floatingAnim]);
 
   const handleProfilePress = () => {
     router.push('/profile');
@@ -222,12 +221,6 @@ export default function HomeScreen() {
   
   const handleProductTracking = () => {
     router.push("/product-tracking");
-  };
-  
-  const handleDailyCheckInClose = async () => {
-    const today = new Date().toISOString().split('T')[0];
-    await AsyncStorage.setItem('last_daily_check_in_date', today);
-    setShowDailyCheckIn(false);
   };
 
   return (

@@ -28,7 +28,7 @@ export default function LoginScreen() {
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'testing' | 'connected' | 'failed'>('unknown');
   const [sparkleAnim] = useState(new Animated.Value(0));
   const [floatingAnim] = useState(new Animated.Value(0));
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const { theme } = useTheme();
   
   const palette = getPalette(theme);
@@ -123,6 +123,22 @@ export default function LoginScreen() {
 
   const navigateToForgotPassword = () => {
     router.push('/forgot-password');
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    const { error } = await signInWithGoogle();
+    setIsLoading(false);
+
+    if (error) {
+      if (error.message === 'Sign-in cancelled' || error.message === 'Sign-in dismissed') {
+        // Don't show alert for user cancellation
+        return;
+      }
+      Alert.alert('Google Sign In', error.message || 'Something went wrong. Please try again.');
+    } else {
+      router.replace('/(tabs)');
+    }
   };
 
   const styles = createStyles(palette);
@@ -313,6 +329,26 @@ export default function LoginScreen() {
                 </LinearGradient>
               </TouchableOpacity>
 
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>OR</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.googleButton, isLoading && styles.googleButtonDisabled]}
+                onPress={handleGoogleSignIn}
+                disabled={isLoading}
+                testID="google-signin-button"
+              >
+                <View style={styles.googleButtonContent}>
+                  <Text style={styles.googleIcon}>G</Text>
+                  <Text style={styles.googleButtonText}>
+                    {isLoading ? 'Signing in...' : 'Continue with Google'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
               <View style={styles.signupContainer}>
                 <Text style={styles.signupText}>New to our beautiful community? </Text>
                 <TouchableOpacity onPress={navigateToSignup} testID="signup-link">
@@ -466,6 +502,51 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     color: palette.primary,
     fontSize: 15,
     fontWeight: '700',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.lg,
+    gap: spacing.md,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: palette.borderLight,
+  },
+  dividerText: {
+    fontSize: 12,
+    color: palette.textMuted,
+    fontWeight: '600',
+  },
+  googleButton: {
+    backgroundColor: palette.surfaceElevated,
+    borderRadius: radii.lg,
+    height: 52,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: palette.borderLight,
+    ...shadow.card,
+  },
+  googleButtonDisabled: {
+    opacity: 0.6,
+  },
+  googleButtonContent: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  googleIcon: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#4285F4',
+  },
+  googleButtonText: {
+    color: palette.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
   },
   
   // Floating elements

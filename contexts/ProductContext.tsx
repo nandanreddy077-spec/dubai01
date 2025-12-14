@@ -40,7 +40,7 @@ const createProductTier = (title: string, description: string, guidance: string,
   description,
   guidance,
   priceRange,
-  affiliateUrl: formatAmazonAffiliateLink('4r8xgWO', searchQuery, location),
+  affiliateUrl: formatAmazonAffiliateLink(searchQuery, location),
   keywords: searchQuery.split(' '),
 });
 
@@ -77,11 +77,12 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
 
   const loadData = async () => {
     try {
-      const [productsData, usageData, routinesData, recsData] = await Promise.all([
+      const [productsData, usageData, routinesData, recsData, recsVersion] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.PRODUCTS),
         AsyncStorage.getItem(STORAGE_KEYS.USAGE_HISTORY),
         AsyncStorage.getItem(STORAGE_KEYS.ROUTINES),
         AsyncStorage.getItem(STORAGE_KEYS.RECOMMENDATIONS),
+        AsyncStorage.getItem('product_recommendations_version'),
       ]);
 
       if (productsData) {
@@ -99,10 +100,16 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
         setRoutines(Array.isArray(parsed) ? parsed : []);
       }
 
-      if (recsData) {
+      // Version 3: Added linkCode and ref params for proper affiliate tracking
+      const CURRENT_VERSION = '3';
+      if (recsData && recsVersion === CURRENT_VERSION) {
         const parsed = JSON.parse(recsData);
         setRecommendations(Array.isArray(parsed) ? parsed : []);
       } else {
+        // Clear old recommendations to force regeneration with fixed URLs
+        console.log('🔄 Clearing old recommendations to regenerate with proper affiliate tracking params');
+        await AsyncStorage.removeItem(STORAGE_KEYS.RECOMMENDATIONS);
+        await AsyncStorage.setItem('product_recommendations_version', CURRENT_VERSION);
         setRecommendations([]);
       }
     } catch (error) {
@@ -221,7 +228,14 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
     console.log('🎯 Generating personalized recommendations...');
     
     try {
-      const location = userLocation || await getUserLocation();
+      // Get location with fallback to default US location
+      const defaultLocation: LocationInfo = {
+        country: 'United States',
+        countryCode: 'US',
+        currency: 'USD',
+        amazonDomain: 'amazon.com',
+      };
+      const location: LocationInfo = userLocation || await getUserLocation() || defaultLocation;
       
       const recommendations: ProductRecommendation[] = [];
       
@@ -231,31 +245,31 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
         
         const analysisRecommendations = [
           {
-            name: 'Gentle Cleanser',
-            description: 'Use a mild, pH-balanced cleanser designed for your skin type to remove impurities without stripping natural moisture.',
+            name: 'Gentle Cleansing',
+            description: 'Use a mild, pH-balanced cleanser to remove excess oils without stripping hydration.',
             category: 'cleansers',
-            imageUrl: 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=400',
-            matchScore: 92,
+            imageUrl: 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=800&h=600&fit=crop',
+            matchScore: 90,
           },
           {
             name: 'Hydrating Serum',
             description: 'Apply a hyaluronic acid serum to deeply hydrate and plump your skin, improving its overall texture and appearance.',
             category: 'serums',
-            imageUrl: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400',
+            imageUrl: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800&h=600&fit=crop',
             matchScore: 88,
           },
           {
             name: 'Daily Moisturizer',
             description: 'Lock in hydration with a lightweight moisturizer formulated for your skin type to maintain a healthy moisture barrier.',
             category: 'moisturizers',
-            imageUrl: 'https://images.unsplash.com/photo-1556228841-7cfb04e5093e?w=400',
+            imageUrl: 'https://images.unsplash.com/photo-1556228841-7cfb04e5093e?w=800&h=600&fit=crop',
             matchScore: 90,
           },
           {
             name: 'SPF Sunscreen',
             description: 'Protect your skin with broad-spectrum SPF 30+ sunscreen daily to prevent premature aging and sun damage.',
             category: 'sunscreens',
-            imageUrl: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=400',
+            imageUrl: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=800&h=600&fit=crop',
             matchScore: 95,
           },
         ];
@@ -265,7 +279,7 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
             name: 'Anti-Aging Night Cream',
             description: 'Target aging signs with retinol or peptides to improve skin elasticity and reduce fine lines while you sleep.',
             category: 'treatments',
-            imageUrl: 'https://images.unsplash.com/photo-1570554886111-e80fcca6a029?w=400',
+            imageUrl: 'https://images.unsplash.com/photo-1570554886111-e80fcca6a029?w=800&h=600&fit=crop',
             matchScore: 87,
           });
         }
@@ -337,8 +351,20 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
           });
         }
 
+        // Map category to product images
+        const categoryImages: Record<string, string> = {
+          'cleansers': 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=800&h=600&fit=crop',
+          'toners': 'https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=800&h=600&fit=crop',
+          'serums': 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800&h=600&fit=crop',
+          'moisturizers': 'https://images.unsplash.com/photo-1556228841-7cfb04e5093e?w=800&h=600&fit=crop',
+          'sunscreens': 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=800&h=600&fit=crop',
+          'masks': 'https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=800&h=600&fit=crop',
+          'treatments': 'https://images.unsplash.com/photo-1570554886111-e80fcca6a029?w=800&h=600&fit=crop',
+        };
+
         uniqueSteps.forEach((stepData, stepName) => {
           const baseSearchQuery = `${stepName.toLowerCase().replace(/[^a-z ]/g, '')} ${skinType.toLowerCase()} skin`;
+          const imageUrl = categoryImages[stepData.category] || 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=800&h=600&fit=crop';
           
           const recommendation: ProductRecommendation = {
             id: `coach_${stepName.toLowerCase().replace(/\s+/g, '_')}`,
@@ -347,6 +373,7 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
             description: stepData.description,
             source: 'glow-coach',
             matchScore: 90,
+            imageUrl: imageUrl,
             tiers: {
               luxury: createProductTier(
                 'Luxury Option',
@@ -382,6 +409,7 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
       console.log(`✅ Generated ${recommendations.length} recommendations`);
       setRecommendations(recommendations);
       await AsyncStorage.setItem(STORAGE_KEYS.RECOMMENDATIONS, JSON.stringify(recommendations));
+      await AsyncStorage.setItem('product_recommendations_version', '3');
     } catch (error) {
       console.error('Error generating recommendations:', error);
       setRecommendations([]);

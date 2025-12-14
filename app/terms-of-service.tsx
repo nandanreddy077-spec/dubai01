@@ -77,7 +77,26 @@ export default function TermsOfServiceScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>7. Medical and Safety Disclaimer</Text>
-          <Text style={styles.paragraph}>GlowCheck provides informational guidance only and is not a substitute for professional medical advice. Do not rely solely on the App for diagnosis or treatment. Stop using products if irritation occurs and consult a professional.</Text>
+          <Text style={styles.paragraph}>
+            <Text style={styles.bold}>IMPORTANT: NOT MEDICAL ADVICE</Text>
+            {'\n\n'}
+            GlowCheck provides beauty and cosmetic guidance only. This app is NOT a substitute for professional medical advice, diagnosis, or treatment. The app does NOT provide medical services, medical diagnoses, or medical treatments.
+            {'\n\n'}
+            <Text style={styles.bold}>You must NOT:</Text>
+            {'\n'}• Rely solely on the App for diagnosis or treatment of any medical condition
+            {'\n'}• Use the App to diagnose, treat, cure, or prevent any disease or medical condition
+            {'\n'}• Delay seeking professional medical advice because of information provided by the App
+            {'\n'}• Disregard professional medical advice because of information provided by the App
+            {'\n\n'}
+            <Text style={styles.bold}>You must:</Text>
+            {'\n'}• Consult a licensed dermatologist or healthcare provider for any medical concerns
+            {'\n'}• Stop using any products immediately if irritation, allergic reaction, or adverse effects occur
+            {'\n'}• Seek immediate medical attention for serious skin conditions or reactions
+            {'\n\n'}
+            The App's AI analysis, recommendations, and scores are for beauty enhancement purposes only and are not medical assessments. Any similarity to medical terminology is coincidental and does not constitute medical advice.
+            {'\n\n'}
+            By using this App, you acknowledge and agree that you understand these limitations and will not hold GlowCheck liable for any decisions made based on the App's content.
+          </Text>
         </View>
 
         <View style={styles.section}>
@@ -174,6 +193,9 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     color: palette.textSecondary,
     marginBottom: 4,
     paddingLeft: 8,
+  },
+  bold: {
+    fontWeight: '700',
   },
   footer: {
     marginTop: 20,

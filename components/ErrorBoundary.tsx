@@ -14,6 +14,8 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, errorMessage: '' };
+    // Bind methods to ensure 'this' is always available
+    this.handleReset = this.handleReset.bind(this);
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -24,15 +26,23 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
     console.log('ErrorBoundary caught an error', error?.message, info?.componentStack);
   }
 
+  handleReset = (): void => {
+    this.setState({ hasError: false, errorMessage: '' });
+  }
+
   render(): React.ReactNode {
-    if (this.state.hasError) {
+    // Safely check state
+    const hasError = this.state?.hasError ?? false;
+    const errorMessage = this.state?.errorMessage ?? 'An unexpected error occurred';
+    
+    if (hasError) {
       return (
         <View style={styles.container} testID="error-boundary">
           <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.message}>{this.state.errorMessage}</Text>
+          <Text style={styles.message}>{errorMessage}</Text>
           <TouchableOpacity
             style={styles.button}
-            onPress={() => this.setState({ hasError: false, errorMessage: '' })}
+            onPress={this.handleReset}
             accessibilityRole="button"
             testID="error-boundary-retry"
           >
@@ -41,7 +51,7 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
         </View>
       );
     }
-    return this.props.children;
+    return this.props?.children || null;
   }
 }
 

@@ -1,212 +1,159 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Crown, Sparkles, Lock } from 'lucide-react-native';
-import { getPalette } from '@/constants/theme';
-import { useTheme } from '@/contexts/ThemeContext';
+import React, { useState, useCallback } from 'react';
+import {
+  View,
+  StyleSheet,
+  Platform,
+} from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useSubscription } from '@/contexts/SubscriptionContext';
-import { router } from 'expo-router';
+import ResultsPaywallOverlay from './ResultsPaywallOverlay';
+import MiniPaywallBanner from './MiniPaywallBanner';
 
 interface BlurredContentProps {
   children: React.ReactNode;
   message?: string;
   showUpgrade?: boolean;
   testID?: string;
+  // Props for paywall overlay
+  score?: number;
+  rating?: string;
+  badge?: string;
+  skinType?: string;
+  topConcern?: string;
+  onStartTrial?: () => void;
+  onViewPlans?: () => void;
+  onDismiss?: () => void;
+  // Control whether to show paywall or just blur
+  showPaywall?: boolean;
+  showDismiss?: boolean;
 }
 
+/**
+ * BlurredContent - Psychology-driven paywall component
+ * 
+ * Shows blurred content with paywall overlay for non-subscribers.
+ * Uses loss aversion psychology - users see their results exist but are blurred.
+ * 
+ * Flow:
+ * 1. Non-subscriber sees full paywall overlay on blurred content
+ * 2. If they press "Maybe Later", paywall closes but content stays blurred
+ * 3. A mini floating banner appears at bottom
+ * 4. User can tap banner or explore (with blurred content)
+ * 5. Banner has option to expand back to full paywall
+ */
 export default function BlurredContent({ 
-  children, 
-  message = "Upgrade to Premium to view your results",
-  showUpgrade = true,
-  testID
+  children,
+  score,
+  rating,
+  badge,
+  skinType,
+  topConcern,
+  onStartTrial,
+  onViewPlans,
+  onDismiss,
+  showPaywall = true,
+  showDismiss = true,
+  testID,
 }: BlurredContentProps) {
-  const { theme } = useTheme();
-  const { canViewResults, isTrialExpired, inTrial, daysLeft } = useSubscription();
-  const palette = getPalette(theme);
-
-  // If user can view results, show content normally
-  if (canViewResults) {
+  const subscription = useSubscription();
+  
+  // Track if user dismissed the full paywall
+  const [isPaywallDismissed, setIsPaywallDismissed] = useState(false);
+  
+  // Check if user has access - canViewResults returns true for premium OR trial users
+  const hasAccess = subscription?.canViewResults === true;
+  
+  // Handle paywall dismiss - don't navigate away, just hide full paywall
+  const handleDismiss = useCallback(() => {
+    setIsPaywallDismissed(true);
+    // Call custom onDismiss if provided (for analytics etc)
+    if (onDismiss) {
+      onDismiss();
+    }
+  }, [onDismiss]);
+  
+  // Handle expanding mini banner back to full paywall
+  const handleExpandPaywall = useCallback(() => {
+    setIsPaywallDismissed(false);
+  }, []);
+  
+  // If user has access, show content without blur
+  if (hasAccess) {
     return <>{children}</>;
   }
-
-  const getTrialMessage = () => {
-    if (isTrialExpired) {
-      return "Your 3-day trial has ended";
-    }
-    if (inTrial) {
-      return `${daysLeft} day${daysLeft === 1 ? '' : 's'} left in trial`;
-    }
-    return "Start your 3-day free trial";
-  };
-
-  const upgradeMessage = isTrialExpired 
-    ? "Upgrade to Premium to continue your glow journey!"
-    : message;
-
+  
+  // Determine what to show based on dismissal state
+  const showFullPaywall = showPaywall && !isPaywallDismissed;
+  const showMiniBanner = showPaywall && isPaywallDismissed;
+  
+  // User doesn't have access - show blurred content with paywall overlay
   return (
     <View style={styles.container} testID={testID}>
-      <View style={[styles.blurredContent, { opacity: 0.3 }]}>
+      {/* Blurred Content Layer */}
+      <View style={styles.contentWrapper}>
         {children}
+        
+        {/* Blur Overlay */}
+        {Platform.OS === 'web' ? (
+          // Web fallback - CSS blur
+          <View style={styles.webBlurOverlay} />
+        ) : (
+          // Native blur using expo-blur
+          <BlurView
+            intensity={25}
+            tint="light"
+            style={styles.blurOverlay}
+          />
+        )}
       </View>
       
-      <View style={styles.overlay}>
-        <LinearGradient 
-          colors={['rgba(0,0,0,0.7)', 'rgba(0,0,0,0.9)']} 
-          style={styles.overlayGradient}
-        >
-          <View style={styles.upgradeCard}>
-            <View style={styles.iconContainer}>
-              <View style={styles.lockIcon}>
-                <Lock color={palette.gold} size={32} strokeWidth={2} />
-              </View>
-              <Sparkles 
-                color={palette.blush} 
-                size={24} 
-                style={styles.sparkle1}
-              />
-              <Sparkles 
-                color={palette.lavender} 
-                size={20} 
-                style={styles.sparkle2}
-              />
-            </View>
-            
-            <Text style={[styles.trialStatus, { color: palette.gold }]}>
-              {getTrialMessage()}
-            </Text>
-            
-            <Text style={[styles.upgradeTitle, { color: palette.textLight }]}>
-              Premium Required
-            </Text>
-            
-            <Text style={[styles.upgradeMessage, { color: palette.textSecondary }]}>
-              {upgradeMessage}
-            </Text>
-            
-            {showUpgrade && (
-              <TouchableOpacity 
-                style={styles.upgradeButton}
-                onPress={() => router.push('/unlock-glow')}
-                activeOpacity={0.8}
-                testID="upgrade-button"
-              >
-                <LinearGradient 
-                  colors={[palette.gold, palette.blush]} 
-                  start={{ x: 0, y: 0 }} 
-                  end={{ x: 1, y: 1 }} 
-                  style={styles.upgradeButtonGradient}
-                >
-                  <Crown color="#000" size={20} strokeWidth={2.5} />
-                  <Text style={styles.upgradeButtonText}>
-                    {isTrialExpired ? 'Upgrade Now' : 'Start Free Trial'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            )}
-            
-            <Text style={[styles.legalText, { color: palette.textMuted }]}>
-              {!isTrialExpired ? '3-day free trial • ' : ''}Cancel anytime
-            </Text>
-          </View>
-        </LinearGradient>
-      </View>
+      {/* Full Paywall Overlay - shown initially */}
+      {showFullPaywall && (
+        <ResultsPaywallOverlay
+          score={score}
+          rating={rating}
+          badge={badge}
+          skinType={skinType}
+          topConcern={topConcern}
+          onStartTrial={onStartTrial}
+          onViewPlans={onViewPlans}
+          onDismiss={handleDismiss}
+          showDismiss={showDismiss}
+        />
+      )}
+      
+      {/* Mini Banner - shown after dismiss */}
+      {showMiniBanner && (
+        <MiniPaywallBanner
+          score={score}
+          onStartTrial={onStartTrial}
+          onExpand={handleExpandPaywall}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    position: 'relative',
     flex: 1,
-  },
-  blurredContent: {
-    flex: 1,
-  },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  overlayGradient: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  upgradeCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 24,
-    padding: 32,
-    alignItems: 'center',
-    marginHorizontal: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    backdropFilter: 'blur(10px)',
-  },
-  iconContainer: {
     position: 'relative',
-    marginBottom: 16,
   },
-  lockIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(212, 175, 55, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  contentWrapper: {
+    flex: 1,
+    position: 'relative',
   },
-  sparkle1: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
+  blurOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10,
   },
-  sparkle2: {
-    position: 'absolute',
-    bottom: -4,
-    left: -12,
-  },
-  trialStatus: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  upgradeTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  upgradeMessage: {
-    fontSize: 16,
-    lineHeight: 24,
-    textAlign: 'center',
-    marginBottom: 24,
-    maxWidth: 280,
-  },
-  upgradeButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  upgradeButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    gap: 8,
-  },
-  upgradeButtonText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  legalText: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 16,
+  webBlurOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    // CSS backdrop-filter for web
+    // @ts-ignore - Web-specific property
+    backdropFilter: 'blur(15px)',
+    WebkitBackdropFilter: 'blur(15px)',
+    zIndex: 10,
   },
 });

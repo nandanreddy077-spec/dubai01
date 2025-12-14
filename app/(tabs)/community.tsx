@@ -13,6 +13,7 @@ import {
   RefreshControl,
   Modal,
   Share,
+  Alert,
 } from "react-native";
 import {
   Heart,
@@ -46,7 +47,9 @@ import { useCommunity } from "@/contexts/CommunityContext";
 import type { Post, ReactionType, Challenge, ViewMode } from "@/types/community";
 import * as ImagePicker from 'expo-image-picker';
 import { useUser } from "@/contexts/UserContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -58,6 +61,7 @@ export default function CommunityScreen() {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const { user } = useUser();
+  const { user: authUser } = useAuth();
 
   const {
     posts,
@@ -71,6 +75,18 @@ export default function CommunityScreen() {
     getTrendingPosts,
     getUserChallenges,
     joinChallenge,
+    createPost,
+    addComment,
+    followUser,
+    unfollowUser,
+    isFollowing,
+    getFollowers,
+    getFollowing,
+    getFollowingFeed,
+    createCollection,
+    getUserCollections,
+    addPostToCollection,
+    reportPost,
   } = useCommunity();
 
   const [viewMode, setViewMode] = useState<ViewMode>('feed');
@@ -80,27 +96,56 @@ export default function CommunityScreen() {
   const [showCreatePost, setShowCreatePost] = useState<boolean>(false);
   const [showCircles, setShowCircles] = useState<boolean>(false);
   const [showChallenges, setShowChallenges] = useState<boolean>(false);
+  const [showComments, setShowComments] = useState<boolean>(false);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [commentText, setCommentText] = useState<string>('');
+  const [postCaption, setPostCaption] = useState<string>('');
+  const [postImage, setPostImage] = useState<string | null>(null);
+  const [postImages, setPostImages] = useState<string[]>([]);
+  const [isPosting, setIsPosting] = useState<boolean>(false);
+  const [showCollections, setShowCollections] = useState<boolean>(false);
+  const [postToSave, setPostToSave] = useState<Post | null>(null);
+  const [showCreateCollection, setShowCreateCollection] = useState<boolean>(false);
+  const [newCollectionName, setNewCollectionName] = useState<string>('');
   const selectedCircleId = 'global';
 
   const userChallenges = getUserChallenges();
 
+  // Get saved posts
+  const savedPosts = useMemo(() => {
+    const userId = user?.id ?? authUser?.id ?? 'guest';
+    return Object.values(posts)
+      .flat()
+      .filter(post => {
+        const saveReactions = post.reactions.save || [];
+        return saveReactions.includes(userId);
+      })
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }, [posts, user?.id, authUser?.id]);
+
   const allPosts = useMemo(() => {
-    let feedPosts = Object.values(posts).flat();
+    let feedPosts = Object.values(posts).flat().filter(p => !p.isRemoved); // Filter out removed posts
     
     switch (viewMode) {
       case 'trending':
-        return getTrendingPosts();
+        return getTrendingPosts().filter(p => !p.isRemoved);
       case 'glowups':
         return feedPosts.filter(p => p.isBeforeAfter || p.type === 'transformation');
       case 'challenges':
         return feedPosts.filter(p => p.challengeId);
+      case 'saved':
+        return savedPosts.filter(p => !p.isRemoved);
+      case 'feed':
+        // Show following feed if user follows anyone, otherwise show all posts
+        const followingFeed = getFollowingFeed().filter(p => !p.isRemoved);
+        return followingFeed.length > 0 ? followingFeed : feedPosts;
       default:
         return feedPosts;
     }
-  }, [posts, viewMode, getTrendingPosts]);
+  }, [posts, viewMode, getTrendingPosts, savedPosts, getFollowingFeed]);
 
   const filteredPosts = useMemo(() => {
-    let filtered = allPosts;
+    let filtered = allPosts.filter(p => !p.isRemoved); // Ensure removed posts are filtered
     
     if (filterType !== 'all') {
       filtered = filtered.filter(p => {
@@ -162,6 +207,80 @@ export default function CommunityScreen() {
     }
   }, [createStory]);
 
+  const handleCreatePost = useCallback(async () => {
+    if (!postCaption.trim() && postImages.length === 0 && !postImage) {
+      Alert.alert('Empty Post', 'Please add a caption or image to create a post.');
+      return;
+    }
+    
+    setIsPosting(true);
+    try {
+      const allImages = postImage ? [postImage, ...postImages] : postImages;
+      const newPost = await createPost({
+        circleId: selectedCircleId,
+        caption: postCaption.trim(),
+        imageUrl: allImages.length > 0 ? allImages[0] : null,
+        images: allImages.length > 1 ? allImages : undefined,
+      });
+      
+      if (newPost) {
+        Alert.alert('✨ Posted!', 'Your post has been shared successfully!');
+        setShowCreatePost(false);
+        setPostCaption('');
+        setPostImage(null);
+        setPostImages([]);
+      } else {
+        throw new Error('Failed to create post');
+      }
+    } catch (error) {
+      console.error('Error creating post:', error);
+      Alert.alert('Error', 'Failed to create post. Please try again.');
+    } finally {
+      setIsPosting(false);
+    }
+  }, [postCaption, postImage, postImages, createPost, selectedCircleId]);
+
+  const handlePickImage = useCallback(async (allowMultiple: boolean = false) => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: !allowMultiple,
+        aspect: allowMultiple ? undefined : [1, 1],
+        quality: 0.8,
+        allowsMultipleSelection: allowMultiple,
+        selectionLimit: allowMultiple ? 10 : 1,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        if (allowMultiple) {
+          const newImages = result.assets.map(asset => asset.uri);
+          setPostImages(prev => [...prev, ...newImages].slice(0, 10));
+        } else {
+          setPostImage(result.assets[0].uri);
+        }
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+    }
+  }, []);
+
+  const handleAddComment = useCallback(async () => {
+    if (!commentText.trim() || !selectedPost) return;
+    
+    try {
+      await addComment(selectedCircleId, selectedPost.id, commentText.trim());
+      setCommentText('');
+    } catch (error) {
+      console.error('Error adding comment:', error);
+    }
+  }, [commentText, selectedPost, addComment, selectedCircleId]);
+
+
   const likeOverlay = useRef<Record<string, Animated.Value>>({}).current;
   const lastTapRef = useRef<Record<string, number>>({});
 
@@ -192,6 +311,30 @@ export default function CommunityScreen() {
       });
     } catch (error) {
       console.log('Share error:', error);
+    }
+  };
+
+  const handleShareToStory = async (post: Post) => {
+    try {
+      if (!post.imageUrl && (!post.images || post.images.length === 0)) {
+        Alert.alert('No Image', 'This post doesn\'t have an image to share to story.');
+        return;
+      }
+      
+      const imageUri = post.imageUrl || post.images?.[0];
+      if (imageUri) {
+        const story = await createStory(imageUri, 'image');
+        if (story) {
+          Alert.alert('✨ Shared!', 'Post shared to your story successfully!');
+        } else {
+          throw new Error('Failed to create story');
+        }
+      } else {
+        Alert.alert('Error', 'Could not find image to share.');
+      }
+    } catch (error) {
+      console.error('Error sharing to story:', error);
+      Alert.alert('Error', 'Failed to share to story. Please try again.');
     }
   };
 
@@ -249,8 +392,13 @@ export default function CommunityScreen() {
   };
 
   const renderPost = (post: Post) => {
+    // Don't render removed posts
+    if (post.isRemoved) {
+      return null;
+    }
+    
     const overlay = ensurePostAnim(post.id);
-    const userId = user?.id ?? 'guest';
+    const userId = user?.id ?? authUser?.id ?? 'guest';
     const totalReactions = Object.values(post.reactions).reduce((sum, arr) => sum + arr.length, 0);
     const hasLiked = post.reactions.love?.includes(userId) || post.reactions.like?.includes(userId);
     const hasSaved = post.reactions.save?.includes(userId);
@@ -270,7 +418,11 @@ export default function CommunityScreen() {
         )}
 
         <View style={styles.postHeader}>
-          <TouchableOpacity style={styles.postUserInfo} activeOpacity={0.7}>
+          <TouchableOpacity 
+            style={styles.postUserInfo} 
+            activeOpacity={0.7}
+            onPress={() => router.push(`/user-profile?userId=${post.author.id}`)}
+          >
             <View style={styles.avatarContainer}>
               <Image source={{ uri: post.author.avatar }} style={styles.postAvatar} />
               {post.author.isVerified && (
@@ -282,6 +434,9 @@ export default function CommunityScreen() {
             <View style={styles.authorInfo}>
               <View style={styles.usernameRow}>
                 <Text style={styles.postUserName}>{post.author.name}</Text>
+                {post.author.isVerified && (
+                  <BadgeCheck size={14} color={palette.primary} fill={palette.primary} />
+                )}
                 {post.author.glowScore && (
                   <View style={styles.glowScoreBadge}>
                     <Sparkles size={10} color={palette.primary} />
@@ -297,15 +452,183 @@ export default function CommunityScreen() {
               )}
             </View>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.moreBtn}>
+          <TouchableOpacity 
+            style={styles.moreBtn}
+            onPress={() => {
+              const isOwnPost = post.author.id === (user?.id || 'guest');
+              Alert.alert(
+                'Post Options',
+                'Choose an option',
+                [
+                  ...(isOwnPost ? [
+                    {
+                      text: 'Edit Post',
+                      onPress: () => {
+                        Alert.alert('Edit', 'Edit post functionality coming soon!');
+                      },
+                    },
+                    {
+                      text: 'Delete Post',
+                      onPress: () => {
+                        Alert.alert(
+                          'Delete Post',
+                          'Are you sure you want to delete this post?',
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                              text: 'Delete',
+                              style: 'destructive' as const,
+                              onPress: () => {
+                                Alert.alert('Deleted', 'Post deletion functionality coming soon!');
+                              },
+                            },
+                          ]
+                        );
+                      },
+                      style: 'destructive' as const,
+                    },
+                  ] : [
+                    {
+                      text: 'Report',
+                      onPress: async () => {
+                        Alert.alert(
+                          'Report Post',
+                          'Why are you reporting this post?',
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                              text: 'Spam',
+                              onPress: async () => {
+                                try {
+                                  const result = await reportPost(selectedCircleId, post.id);
+                                  if (result?.error) {
+                                    Alert.alert('Already Reported', result.error);
+                                  } else if (result?.removed) {
+                                    Alert.alert('Post Removed', result.message || 'Post has been removed due to multiple reports.');
+                                  } else {
+                                    Alert.alert('Reported', `Thank you for reporting. This post has ${result?.reportCount || 0} reports.`);
+                                  }
+                                } catch (error) {
+                                  console.error('Error reporting post:', error);
+                                  Alert.alert('Error', 'Failed to report post. Please try again.');
+                                }
+                              },
+                            },
+                            {
+                              text: 'Inappropriate',
+                              onPress: async () => {
+                                try {
+                                  const result = await reportPost(selectedCircleId, post.id);
+                                  if (result?.error) {
+                                    Alert.alert('Already Reported', result.error);
+                                  } else if (result?.removed) {
+                                    Alert.alert('Post Removed', result.message || 'Post has been removed due to multiple reports.');
+                                  } else {
+                                    Alert.alert('Reported', `Thank you for reporting. This post has ${result?.reportCount || 0} reports.`);
+                                  }
+                                } catch (error) {
+                                  console.error('Error reporting post:', error);
+                                  Alert.alert('Error', 'Failed to report post. Please try again.');
+                                }
+                              },
+                            },
+                            {
+                              text: 'Other',
+                              onPress: async () => {
+                                try {
+                                  const result = await reportPost(selectedCircleId, post.id);
+                                  if (result?.error) {
+                                    Alert.alert('Already Reported', result.error);
+                                  } else if (result?.removed) {
+                                    Alert.alert('Post Removed', result.message || 'Post has been removed due to multiple reports.');
+                                  } else {
+                                    Alert.alert('Reported', `Thank you for reporting. This post has ${result?.reportCount || 0} reports.`);
+                                  }
+                                } catch (error) {
+                                  console.error('Error reporting post:', error);
+                                  Alert.alert('Error', 'Failed to report post. Please try again.');
+                                }
+                              },
+                            },
+                          ]
+                        );
+                      },
+                      style: 'destructive' as const,
+                    },
+                    {
+                      text: 'Block User',
+                      onPress: () => {
+                        Alert.alert(
+                          'Block User',
+                          `Are you sure you want to block ${post.author.name}?`,
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                              text: 'Block',
+                              style: 'destructive' as const,
+                              onPress: () => {
+                                Alert.alert('Blocked', 'User blocked. Block functionality coming soon!');
+                              },
+                            },
+                          ]
+                        );
+                      },
+                      style: 'destructive' as const,
+                    },
+                  ]),
+                  {
+                    text: 'Share',
+                    onPress: () => handleShare(post),
+                  },
+                  { text: 'Cancel', style: 'cancel' },
+                ]
+              );
+            }}
+          >
             <MoreHorizontal color={palette.textPrimary} size={22} />
           </TouchableOpacity>
         </View>
 
-        {post.imageUrl && (
-          <TouchableOpacity activeOpacity={0.95} onPress={() => handlePostImageTap(post.id)}>
+        {(post.imageUrl || (post.images && post.images.length > 0)) && (
+          <TouchableOpacity 
+            activeOpacity={0.95} 
+            onPress={() => {
+              router.push({
+                pathname: '/post-detail',
+                params: { postId: post.id, circleId: post.circleId },
+              });
+            }}
+            onLongPress={() => handlePostImageTap(post.id)}
+          >
             <View>
-              <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
+              {post.images && post.images.length > 1 ? (
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.postImageCarousel}
+                >
+                  {post.images.map((imageUri, index) => (
+                    <Image key={index} source={{ uri: imageUri }} style={styles.postImage} />
+                  ))}
+                </ScrollView>
+              ) : (
+                <Image source={{ uri: post.imageUrl || post.images?.[0] }} style={styles.postImage} />
+              )}
+              
+              {post.images && post.images.length > 1 && (
+                <View style={styles.carouselIndicator}>
+                  {post.images.map((_, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.carouselDot,
+                        index === 0 && styles.carouselDotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              )}
               
               {renderPostTypeIndicator(post)}
               
@@ -330,7 +653,15 @@ export default function CommunityScreen() {
           <View style={styles.leftActions}>
             <TouchableOpacity 
               style={styles.actionBtn} 
-              onPress={() => reactToPost(selectedCircleId, post.id, 'love')}
+              onPress={async (e) => {
+                e.stopPropagation();
+                try {
+                  await reactToPost(selectedCircleId, post.id, 'love');
+                } catch (error) {
+                  console.error('Error reacting to post:', error);
+                  Alert.alert('Error', 'Failed to react to post. Please try again.');
+                }
+              }}
               activeOpacity={0.7}
             >
               <Heart 
@@ -339,26 +670,64 @@ export default function CommunityScreen() {
                 fill={hasLiked ? palette.danger : 'none'}
               />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
+            <TouchableOpacity 
+              style={styles.actionBtn} 
+              activeOpacity={0.7}
+              onPress={() => {
+                setSelectedPost(post);
+                setShowComments(true);
+              }}
+            >
               <MessageCircle color={palette.textPrimary} size={26} />
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionBtn} 
               activeOpacity={0.7}
-              onPress={() => handleShare(post)}
+              onPress={() => {
+                Alert.alert(
+                  'Share Post',
+                  'Choose an option',
+                  [
+                    {
+                      text: 'Share to Story',
+                      onPress: () => handleShareToStory(post),
+                    },
+                    {
+                      text: 'Share',
+                      onPress: () => handleShare(post),
+                    },
+                    { text: 'Cancel', style: 'cancel' },
+                  ]
+                );
+              }}
             >
               <Send color={palette.textPrimary} size={24} />
             </TouchableOpacity>
           </View>
           <TouchableOpacity 
             style={styles.actionBtn} 
-            onPress={() => reactToPost(selectedCircleId, post.id, 'save')}
+            onPress={async (e) => {
+              e.stopPropagation();
+              try {
+                if (hasSaved) {
+                  // If already saved, unsave it
+                  await reactToPost(selectedCircleId, post.id, 'save');
+                } else {
+                  // If not saved, show collections modal to choose where to save
+                  setPostToSave(post);
+                  setShowCollections(true);
+                }
+              } catch (error) {
+                console.error('Error toggling save:', error);
+                Alert.alert('Error', 'Failed to save post. Please try again.');
+              }
+            }}
             activeOpacity={0.7}
           >
             <Bookmark 
-              color={hasSaved ? palette.textPrimary : palette.textPrimary} 
+              color={hasSaved ? palette.primary : palette.textPrimary} 
               size={24}
-              fill={hasSaved ? palette.textPrimary : 'none'}
+              fill={hasSaved ? palette.primary : 'none'}
             />
           </TouchableOpacity>
         </View>
@@ -390,10 +759,20 @@ export default function CommunityScreen() {
         {post.hashtags && post.hashtags.length > 0 && (
           <View style={styles.hashtagsRow}>
             {post.hashtags.slice(0, 5).map((tag, i) => (
-              <TouchableOpacity key={i} activeOpacity={0.7}>
+              <TouchableOpacity 
+                key={i} 
+                activeOpacity={0.7}
+                onPress={() => {
+                  setSearchQuery(`#${tag}`);
+                  setViewMode('feed');
+                }}
+              >
                 <Text style={styles.hashtag}>#{tag}</Text>
               </TouchableOpacity>
             ))}
+            {post.hashtags.length > 5 && (
+              <Text style={styles.hashtagMore}>+{post.hashtags.length - 5} more</Text>
+            )}
           </View>
         )}
 
@@ -538,22 +917,27 @@ export default function CommunityScreen() {
 
       <View style={styles.viewModeSelector}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {(['feed', 'trending', 'glowups', 'challenges'] as ViewMode[]).map(mode => (
-            <TouchableOpacity
-              key={mode}
-              style={[styles.viewModeBtn, viewMode === mode && styles.viewModeBtnActive]}
-              onPress={() => setViewMode(mode)}
-              activeOpacity={0.7}
-            >
-              {mode === 'feed' && <Sparkles size={16} color={viewMode === mode ? '#FFF' : palette.textSecondary} />}
-              {mode === 'trending' && <TrendingUp size={16} color={viewMode === mode ? '#FFF' : palette.textSecondary} />}
-              {mode === 'glowups' && <Zap size={16} color={viewMode === mode ? '#FFF' : palette.textSecondary} />}
-              {mode === 'challenges' && <Target size={16} color={viewMode === mode ? '#FFF' : palette.textSecondary} />}
-              <Text style={[styles.viewModeText, viewMode === mode && styles.viewModeTextActive]}>
-                {mode.charAt(0).toUpperCase() + mode.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {(['feed', 'trending', 'glowups', 'challenges', 'saved'] as ViewMode[]).map(mode => {
+            const isActive = viewMode === mode;
+            const iconColor = isActive ? '#FFF' : palette.textSecondary;
+            return (
+              <TouchableOpacity
+                key={mode}
+                style={[styles.viewModeBtn, isActive && styles.viewModeBtnActive]}
+                onPress={() => setViewMode(mode)}
+                activeOpacity={0.7}
+              >
+                {mode === 'feed' && <Sparkles size={16} color={iconColor} />}
+                {mode === 'trending' && <TrendingUp size={16} color={iconColor} />}
+                {mode === 'glowups' && <Zap size={16} color={iconColor} />}
+                {mode === 'challenges' && <Target size={16} color={iconColor} />}
+                {mode === 'saved' && <Bookmark size={16} color={iconColor} fill={isActive ? iconColor : 'none'} />}
+                <Text style={[styles.viewModeText, isActive && styles.viewModeTextActive]}>
+                  {mode === 'feed' ? 'Following' : mode.charAt(0).toUpperCase() + mode.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -646,11 +1030,23 @@ export default function CommunityScreen() {
           
           {!isLoading && filteredPosts.length === 0 && (
             <View style={styles.emptyState}>
-              <Sparkles color={palette.textSecondary} size={48} />
-              <Text style={styles.emptyTitle}>No posts yet</Text>
-              <Text style={styles.emptyText}>
-                {searchQuery ? 'No posts match your search' : 'Start following circles to see posts!'}
-              </Text>
+              {viewMode === 'saved' ? (
+                <>
+                  <Bookmark color={palette.textSecondary} size={48} />
+                  <Text style={styles.emptyTitle}>No saved posts</Text>
+                  <Text style={styles.emptyText}>
+                    {searchQuery ? 'No saved posts match your search' : 'Save posts you love to view them here!'}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Sparkles color={palette.textSecondary} size={48} />
+                  <Text style={styles.emptyTitle}>No posts yet</Text>
+                  <Text style={styles.emptyText}>
+                    {searchQuery ? 'No posts match your search' : 'Start following circles to see posts!'}
+                  </Text>
+                </>
+              )}
             </View>
           )}
           
@@ -721,6 +1117,336 @@ export default function CommunityScreen() {
           <ScrollView>
             {activeChallenges.map(renderChallenge)}
           </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Create Post Modal */}
+      <Modal
+        visible={showCreatePost}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          setShowCreatePost(false);
+          setPostCaption('');
+          setPostImage(null);
+          setPostImages([]);
+        }}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowCreatePost(false)}>
+              <X size={24} color={palette.textPrimary} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Create Post</Text>
+            <TouchableOpacity 
+              onPress={handleCreatePost}
+              disabled={isPosting || (!postCaption.trim() && postImages.length === 0 && !postImage)}
+            >
+              <Text style={[
+                styles.postButton,
+                { 
+                  color: (isPosting || (!postCaption.trim() && postImages.length === 0 && !postImage)) 
+                    ? palette.textMuted 
+                    : palette.primary 
+                }
+              ]}>
+                {isPosting ? 'Posting...' : 'Post'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.createPostContent}>
+            <View style={styles.createPostUserInfo}>
+              <Image 
+                source={{ uri: user?.avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150' }} 
+                style={styles.createPostAvatar} 
+              />
+              <Text style={styles.createPostUsername}>{user?.name || user?.email?.split('@')[0] || 'You'}</Text>
+            </View>
+            
+            <TextInput
+              style={styles.captionInput}
+              placeholder="What's on your mind?"
+              placeholderTextColor={palette.textMuted}
+              value={postCaption}
+              onChangeText={setPostCaption}
+              multiline
+              textAlignVertical="top"
+            />
+
+            {(postImage || postImages.length > 0) && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagesPreviewContainer}>
+                {postImage && (
+                  <View style={styles.postImagePreview}>
+                    <Image source={{ uri: postImage }} style={styles.previewImage} />
+                    <TouchableOpacity 
+                      style={styles.removeImageBtn}
+                      onPress={() => setPostImage(null)}
+                    >
+                      <X size={20} color="#FFF" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {postImages.map((uri, index) => (
+                  <View key={index} style={styles.postImagePreview}>
+                    <Image source={{ uri }} style={styles.previewImage} />
+                    <TouchableOpacity 
+                      style={styles.removeImageBtn}
+                      onPress={() => setPostImages(prev => prev.filter((_, i) => i !== index))}
+                    >
+                      <X size={20} color="#FFF" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            <View style={styles.imageButtonsRow}>
+              <TouchableOpacity 
+                style={styles.addImageBtn}
+                onPress={() => handlePickImage(false)}
+              >
+                <PlusCircle color={palette.primary} size={24} />
+                <Text style={styles.addImageText}>Add Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.addImageBtn}
+                onPress={() => handlePickImage(true)}
+              >
+                <PlusCircle color={palette.primary} size={24} />
+                <Text style={styles.addImageText}>Add Multiple</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Comments Modal */}
+      <Modal
+        visible={showComments}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          setShowComments(false);
+          setSelectedPost(null);
+          setCommentText('');
+        }}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Comments</Text>
+            <TouchableOpacity onPress={() => {
+              setShowComments(false);
+              setSelectedPost(null);
+              setCommentText('');
+            }}>
+              <X size={24} color={palette.textPrimary} />
+            </TouchableOpacity>
+          </View>
+          
+          {selectedPost && (
+            <>
+              <ScrollView style={styles.commentsContent}>
+                {selectedPost.comments.length === 0 ? (
+                  <View style={styles.emptyComments}>
+                    <MessageCircle color={palette.textMuted} size={48} />
+                    <Text style={styles.emptyCommentsText}>No comments yet</Text>
+                    <Text style={styles.emptyCommentsSubtext}>Be the first to comment!</Text>
+                  </View>
+                ) : (
+                  selectedPost.comments.map((comment) => (
+                    <View key={comment.id} style={styles.commentItem}>
+                      <Image 
+                        source={{ uri: comment.author.avatar }} 
+                        style={styles.commentAvatar} 
+                      />
+                      <View style={styles.commentContent}>
+                        <Text style={styles.commentAuthor}>{comment.author.name}</Text>
+                        <Text style={styles.commentText}>{comment.text}</Text>
+                        <Text style={styles.commentTime}>{formatTimeAgo(comment.createdAt)}</Text>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+
+              <View style={styles.commentInputContainer}>
+                <Image 
+                  source={{ uri: user?.avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150' }} 
+                  style={styles.commentInputAvatar} 
+                />
+                <TextInput
+                  style={styles.commentInput}
+                  placeholder="Add a comment..."
+                  placeholderTextColor={palette.textMuted}
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  multiline
+                />
+                <TouchableOpacity 
+                  onPress={handleAddComment}
+                  disabled={!commentText.trim()}
+                  style={styles.sendCommentBtn}
+                >
+                  <Send 
+                    color={commentText.trim() ? palette.primary : palette.textMuted} 
+                    size={20} 
+                  />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
+      </Modal>
+
+      {/* Collections Modal for Saving Posts */}
+      <Modal
+        visible={showCollections}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          setShowCollections(false);
+          setPostToSave(null);
+        }}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Save to Collection</Text>
+            <TouchableOpacity onPress={() => {
+              setShowCollections(false);
+              setPostToSave(null);
+            }}>
+              <X size={24} color={palette.textPrimary} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.collectionsContent}>
+            <TouchableOpacity
+              style={styles.collectionItem}
+              onPress={async () => {
+                if (postToSave) {
+                  try {
+                    await reactToPost(selectedCircleId, postToSave.id, 'save');
+                    Alert.alert('✨ Saved!', 'Post saved to your collection');
+                    setShowCollections(false);
+                    setPostToSave(null);
+                  } catch (error) {
+                    console.error('Error saving post:', error);
+                    Alert.alert('Error', 'Failed to save post. Please try again.');
+                  }
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.collectionIcon, { backgroundColor: palette.surfaceElevated }]}>
+                <Bookmark size={24} color={palette.primary} />
+              </View>
+              <Text style={styles.collectionName}>All Saved Posts</Text>
+            </TouchableOpacity>
+
+            {getUserCollections().map(collection => (
+              <TouchableOpacity
+                key={collection.id}
+                style={styles.collectionItem}
+                onPress={async () => {
+                  if (postToSave) {
+                    try {
+                      // Save the post first
+                      const userId = user?.id ?? authUser?.id ?? 'guest';
+                      const isAlreadySaved = postToSave.reactions.save?.includes(userId);
+                      if (!isAlreadySaved) {
+                        await reactToPost(selectedCircleId, postToSave.id, 'save');
+                      }
+                      // Add to collection
+                      await addPostToCollection(collection.id, postToSave.id);
+                      Alert.alert('✨ Saved!', `Post saved to "${collection.name}"`);
+                      setShowCollections(false);
+                      setPostToSave(null);
+                    } catch (error) {
+                      console.error('Error saving to collection:', error);
+                      Alert.alert('Error', 'Failed to save post. Please try again.');
+                    }
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                {collection.coverImage ? (
+                  <Image source={{ uri: collection.coverImage }} style={styles.collectionCover} />
+                ) : (
+                  <View style={[styles.collectionIcon, { backgroundColor: palette.surfaceElevated }]}>
+                    <Bookmark size={24} color={palette.primary} />
+                  </View>
+                )}
+                <View style={styles.collectionInfo}>
+                  <Text style={styles.collectionName}>{collection.name}</Text>
+                  <Text style={styles.collectionCount}>{collection.postIds.length} posts</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={styles.createCollectionBtn}
+              onPress={() => setShowCreateCollection(true)}
+              activeOpacity={0.7}
+            >
+              <PlusCircle size={20} color={palette.primary} />
+              <Text style={styles.createCollectionText}>New Collection</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Create Collection Modal */}
+      <Modal
+        visible={showCreateCollection}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowCreateCollection(false);
+          setNewCollectionName('');
+        }}
+      >
+        <View style={styles.createCollectionOverlay}>
+          <View style={styles.createCollectionModal}>
+            <Text style={styles.createCollectionTitle}>New Collection</Text>
+            <TextInput
+              style={styles.createCollectionInput}
+              placeholder="Collection name"
+              placeholderTextColor={palette.textMuted}
+              value={newCollectionName}
+              onChangeText={setNewCollectionName}
+              autoFocus
+            />
+            <View style={styles.createCollectionActions}>
+              <TouchableOpacity
+                style={styles.createCollectionCancel}
+                onPress={() => {
+                  setShowCreateCollection(false);
+                  setNewCollectionName('');
+                }}
+              >
+                <Text style={styles.createCollectionCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.createCollectionCreate, !newCollectionName.trim() && styles.createCollectionCreateDisabled]}
+                onPress={async () => {
+                  if (newCollectionName.trim()) {
+                    try {
+                      await createCollection(newCollectionName.trim());
+                      setShowCreateCollection(false);
+                      setNewCollectionName('');
+                      Alert.alert('✨ Created!', `Collection "${newCollectionName.trim()}" created successfully`);
+                    } catch (error) {
+                      console.error('Error creating collection:', error);
+                      Alert.alert('Error', 'Failed to create collection. Please try again.');
+                    }
+                  }
+                }}
+                disabled={!newCollectionName.trim()}
+              >
+                <Text style={styles.createCollectionCreateText}>Create</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
     </View>
@@ -1389,5 +2115,311 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontSize: 13,
     fontWeight: '700' as const,
     color: '#FFF'
+  },
+
+  // Create Post Modal Styles
+  createPostContent: {
+    flex: 1,
+    padding: spacing.lg,
+  },
+  createPostUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  createPostAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: palette.surfaceElevated,
+  },
+  createPostUsername: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: palette.textPrimary,
+  },
+  captionInput: {
+    minHeight: 120,
+    fontSize: 16,
+    color: palette.textPrimary,
+    padding: spacing.md,
+    backgroundColor: palette.surface,
+    borderRadius: radii.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  postImagePreview: {
+    position: 'relative' as const,
+    marginBottom: spacing.md,
+    borderRadius: radii.md,
+    overflow: 'hidden' as const,
+  },
+  previewImage: {
+    width: '100%',
+    height: 300,
+    backgroundColor: palette.surfaceElevated,
+  },
+  removeImageBtn: {
+    position: 'absolute' as const,
+    top: spacing.sm,
+    right: spacing.sm,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addImageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+    backgroundColor: palette.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  addImageText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: palette.textPrimary,
+  },
+  postButton: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+  },
+
+  // Comments Modal Styles
+  commentsContent: {
+    flex: 1,
+    padding: spacing.lg,
+  },
+  emptyComments: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xxxl,
+  },
+  emptyCommentsText: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: palette.textPrimary,
+    marginTop: spacing.md,
+  },
+  emptyCommentsSubtext: {
+    fontSize: 14,
+    color: palette.textSecondary,
+    marginTop: spacing.xs,
+  },
+  commentItem: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  commentAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: palette.surfaceElevated,
+  },
+  commentContent: {
+    flex: 1,
+    backgroundColor: palette.surface,
+    padding: spacing.md,
+    borderRadius: radii.md,
+  },
+  commentAuthor: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: palette.textPrimary,
+    marginBottom: 4,
+  },
+  commentText: {
+    fontSize: 14,
+    color: palette.textPrimary,
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  commentTime: {
+    fontSize: 12,
+    color: palette.textMuted,
+  },
+  commentInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+    backgroundColor: palette.background,
+  },
+  commentInputAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: palette.surfaceElevated,
+  },
+  commentInput: {
+    flex: 1,
+    fontSize: 14,
+    color: palette.textPrimary,
+    padding: spacing.sm,
+    backgroundColor: palette.surface,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: palette.border,
+    maxHeight: 100,
+  },
+  sendCommentBtn: {
+    padding: spacing.sm,
+  },
+
+  // Collections Styles
+  collectionsContent: {
+    flex: 1,
+    padding: spacing.lg,
+  },
+  collectionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.border,
+  },
+  collectionIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  collectionCover: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: palette.surfaceElevated,
+  },
+  collectionInfo: {
+    flex: 1,
+  },
+  collectionName: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: palette.textPrimary,
+    marginBottom: 4,
+  },
+  collectionCount: {
+    fontSize: 14,
+    color: palette.textSecondary,
+  },
+  createCollectionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.lg,
+    marginTop: spacing.md,
+  },
+  createCollectionText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: palette.primary,
+  },
+  createCollectionOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  createCollectionModal: {
+    backgroundColor: palette.surface,
+    borderRadius: radii.xl,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 400,
+  },
+  createCollectionTitle: {
+    fontSize: 20,
+    fontWeight: '800' as const,
+    color: palette.textPrimary,
+    marginBottom: spacing.lg,
+  },
+  createCollectionInput: {
+    backgroundColor: palette.surfaceElevated,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    fontSize: 16,
+    color: palette.textPrimary,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  createCollectionActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.md,
+  },
+  createCollectionCancel: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  createCollectionCancelText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: palette.textSecondary,
+  },
+  createCollectionCreate: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: palette.primary,
+  },
+  createCollectionCreateDisabled: {
+    opacity: 0.5,
+  },
+  createCollectionCreateText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: palette.textLight,
+  },
+
+  // Image Carousel Styles
+  postImageCarousel: {
+    width: screenWidth,
+    height: screenWidth,
+  },
+  carouselIndicator: {
+    position: 'absolute' as const,
+    bottom: spacing.md,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  carouselDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+  },
+  carouselDotActive: {
+    backgroundColor: '#FFF',
+    width: 20,
+  },
+  imagesPreviewContainer: {
+    marginBottom: spacing.md,
+  },
+  imageButtonsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  hashtagMore: {
+    fontSize: 14,
+    color: palette.textMuted,
+    fontWeight: '600' as const,
   },
 });

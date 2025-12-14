@@ -240,3 +240,5 @@ export const [AnalysisProvider, useAnalysis] = createContextHook((): AnalysisCon
     loadHistory,
   }), [currentResult, analysisHistory, saveAnalysis, clearHistory, loadHistory]);
 });
+
+

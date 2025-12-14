@@ -66,7 +66,8 @@ const DEFAULT_USER: User = {
 
 export const [UserProvider, useUser] = createContextHook(() => {
   const [user, setUser] = useState<User | null>(null);
-  const [isFirstTime, setIsFirstTime] = useState<boolean>(true);
+  // Start with false to prevent PhotoPicker from showing immediately on app load
+  const [isFirstTime, setIsFirstTime] = useState<boolean>(false);
 
   useEffect(() => {
     loadUserData();

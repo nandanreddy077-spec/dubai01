@@ -50,6 +50,7 @@ import { router } from 'expo-router';
 import DailyRewardsModal from '@/components/DailyRewardsModal';
 import AnimatedProgressBar from '@/components/AnimatedProgressBar';
 import { useProducts } from '@/contexts/ProductContext';
+// All features free - SubscriptionGuard removed
 import { Linking } from 'react-native';
 
 interface DailyReward {
@@ -73,6 +74,7 @@ export default function GlowCoachScreen() {
   } = useSkincare();
   const { completeDailyRoutine, hasCompletedToday, hasCompletedForPlanDay } = useGamification();
   const { recommendations, generateRecommendations, trackAffiliateTap } = useProducts();
+  // All features free - no subscription checks needed
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [selectedMood, setSelectedMood] = useState<'great' | 'good' | 'okay' | 'bad' | null>(null);

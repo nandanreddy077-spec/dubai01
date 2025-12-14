@@ -561,6 +561,18 @@ export const [GamificationProvider, useGamification] = createContextHook(() => {
       const updatedBadges = [...badges, ...newBadges];
       setBadges(updatedBadges);
       await saveBadges(updatedBadges);
+      
+      // Send achievement notifications for new badges
+      try {
+        const { sendImmediateNotification } = await import('@/lib/engagement-notifications');
+        for (const badge of newBadges) {
+          await sendImmediateNotification('ACHIEVEMENT', {
+            badge: badge.name,
+          });
+        }
+      } catch (error) {
+        console.error('Error sending achievement notification:', error);
+      }
     }
 
     return newBadges;
@@ -643,6 +655,19 @@ export const [GamificationProvider, useGamification] = createContextHook(() => {
 
     const currentStreak = getCurrentStreak() + 1; // +1 because we just added today
     console.log('🔥 Current streak:', currentStreak);
+    
+    // Send streak milestone notification if applicable
+    if ([3, 7, 14, 30].includes(currentStreak)) {
+      try {
+        const { sendImmediateNotification } = await import('@/lib/engagement-notifications');
+        await sendImmediateNotification('STREAK_MILESTONE', {
+          streak: currentStreak,
+        });
+      } catch (error) {
+        console.error('Error sending streak milestone notification:', error);
+      }
+    }
+    
     const rewards: DailyReward[] = [];
 
     // Base daily completion reward
