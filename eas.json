@@ -1,0 +1,72 @@
+{
+  "cli": {
+    "version": ">= 5.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "resourceClass": "m1-medium",
+        "simulator": true
+      },
+      "android": {
+        "resourceClass": "medium",
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://pmroozitldbgnchainxv.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtcm9veml0bGRiZ25jaGFpbnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1NjcxNDYsImV4cCI6MjA4MDE0MzE0Nn0.2a36x2xDZBE9XAmjmzsV_j4ljCp5aq3jx3uAlpFOWlY"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "resourceClass": "m1-medium",
+        "simulator": false
+      },
+      "android": {
+        "resourceClass": "medium",
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://pmroozitldbgnchainxv.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtcm9veml0bGRiZ25jaGFpbnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1NjcxNDYsImV4cCI6MjA4MDE0MzE0Nn0.2a36x2xDZBE9XAmjmzsV_j4ljCp5aq3jx3uAlpFOWlY",
+        "EXPO_PUBLIC_OPENAI_API_KEY": "${EXPO_PUBLIC_OPENAI_API_KEY}",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG": "glowcheck-20"
+      }
+    },
+    "production": {
+      "ios": {
+        "resourceClass": "m1-medium",
+        "simulator": false,
+        "bundleIdentifier": "com.glowcheck01.app"
+      },
+      "android": {
+        "resourceClass": "medium",
+        "buildType": "aab",
+        "package": "com.glowcheck01.app"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://pmroozitldbgnchainxv.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtcm9veml0bGRiZ25jaGFpbnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1NjcxNDYsImV4cCI6MjA4MDE0MzE0Nn0.2a36x2xDZBE9XAmjmzsV_j4ljCp5aq3jx3uAlpFOWlY",
+        "EXPO_PUBLIC_OPENAI_API_KEY": "${EXPO_PUBLIC_OPENAI_API_KEY}",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG": "glowcheck-20"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "your-apple-id@example.com",
+        "ascAppId": "your-app-store-connect-app-id",
+        "appleTeamId": "2V4DJQD8G3"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-services.json",
+        "track": "production"
+      }
+    }
+  }
+}
+

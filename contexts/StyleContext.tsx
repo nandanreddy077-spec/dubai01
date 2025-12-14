@@ -215,25 +215,6 @@ Respond in this exact JSON format:
         await saveAnalysisToHistory(result);
         return result;
       }
-        }
-      }
-      
-      // If we get here without analysisData, something went wrong
-      if (!analysisData) {
-        console.error('❌ Style analysis failed completely, using fallback');
-        const fallbackAnalysis = createFallbackStyleAnalysis(occasion);
-        const result: StyleAnalysisResult = {
-          id: Date.now().toString(),
-          image: imageUri,
-          occasion,
-          ...fallbackAnalysis,
-          timestamp: new Date()
-        };
-        
-        setAnalysisResult(result);
-        await saveAnalysisToHistory(result);
-        return result;
-      }
 
       const result: StyleAnalysisResult = {
         id: Date.now().toString(),
