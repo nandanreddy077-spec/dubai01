@@ -2,7 +2,7 @@
  * Image Utilities for Optimization and Storage
  */
 
-import * as ImageManipulator from 'expo-image-manipulator';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Platform } from 'react-native';
 
 export interface ImageOptimizationOptions {
@@ -27,7 +27,7 @@ export async function optimizeImage(
   } = options;
 
   try {
-    const manipulatedImage = await ImageManipulator.manipulateAsync(
+    const manipulatedImage = await manipulateAsync(
       uri,
       [
         {
@@ -39,7 +39,7 @@ export async function optimizeImage(
       ],
       {
         compress: quality,
-        format: format === 'jpeg' ? ImageManipulator.SaveFormat.JPEG : ImageManipulator.SaveFormat.PNG,
+        format: format === 'jpeg' ? SaveFormat.JPEG : SaveFormat.PNG,
       }
     );
 

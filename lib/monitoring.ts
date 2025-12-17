@@ -139,9 +139,9 @@ export async function getPerformanceStats(
     }, {} as Record<string, number>);
 
     const topEndpoints = Object.entries(endpointCounts)
-      .map(([endpoint, count]) => ({ endpoint, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
+      .map(([endpoint, count]) => ({ endpoint, count: count as number }))
+      .sort((a, b) => (b.count as number) - (a.count as number))
+      .slice(0, 10) as { endpoint: string; count: number }[];
 
     return {
       avgResponseTime,

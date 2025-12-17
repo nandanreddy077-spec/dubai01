@@ -67,7 +67,7 @@ export default function TrialStatusBanner() {
       activeOpacity={0.9}
     >
       <LinearGradient
-        colors={getGradientColors()}
+        colors={getGradientColors() as [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.gradient}

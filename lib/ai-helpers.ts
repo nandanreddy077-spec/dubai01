@@ -205,7 +205,11 @@ async function makeAIRequest(
     role: msg.role as 'system' | 'user' | 'assistant',
     content: typeof msg.content === 'string' 
       ? msg.content 
-      : msg.content, // Handle image content if needed
+      : msg.content.map(c => ({
+          type: (c.type === 'image_url' ? 'image_url' : 'text') as 'text' | 'image_url',
+          text: c.text,
+          image_url: c.image_url,
+        })),
   }));
 
   return makeOpenAIRequest(formattedMessages, {

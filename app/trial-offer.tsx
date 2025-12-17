@@ -156,12 +156,12 @@ export default function TrialOfferScreen() {
         // User was redirected to store
         console.log('User redirected to store');
       } else {
-        const errorMessage = result.cancelled 
+        const errorMessage = result.error === 'USER_CANCELLED'
           ? 'To start your free trial, please add a payment method. Your card won\'t be charged until after the 7-day trial period ends.'
           : result.error || 'Please add a payment method to start your trial.';
         
         Alert.alert(
-          result.cancelled ? 'Payment Required' : 'Payment Required',
+          result.error === 'USER_CANCELLED' ? 'Payment Required' : 'Payment Required',
           errorMessage,
           [
             { text: 'Maybe Later', style: 'cancel', onPress: () => router.replace('/(tabs)') },
