@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,11 @@ import {
   TouchableOpacity,
   Image,
   Share,
-  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { Sparkles, Award, Crown, Share2, TrendingUp, Heart, Star, Gem } from 'lucide-react-native';
-import { useAnalysis } from '@/contexts/AnalysisContext';
+import { useAnalysis, AnalysisResult } from '@/contexts/AnalysisContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,15 +23,13 @@ import MedicalDisclaimer from '@/components/MedicalDisclaimer';
 
 export default function AnalysisResultsScreen() {
   const { currentResult, analysisHistory } = useAnalysis();
-  const { canViewResults, incrementScanCount } = useSubscription();
+  const { incrementScanCount } = useSubscription();
   const { theme } = useTheme();
   const { generateRecommendations, recommendations } = useProducts();
-  const [revealedScore, setRevealedScore] = useState<number>(0);
-  const [badge, setBadge] = useState<string>('');
-  const [rankPercent, setRankPercent] = useState<number>(0);
+  const [glowLevel, setGlowLevel] = useState<string>('');
+  const [topStrength, setTopStrength] = useState<string>('');
   const [streak, setStreak] = useState<number>(0);
   const [streakProtected, setStreakProtected] = useState<boolean>(false);
-  const scoreAnim = useRef(new Animated.Value(0)).current;
   
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
@@ -48,7 +45,7 @@ export default function AnalysisResultsScreen() {
 
 
 
-  const hasCountedRef = useRef<string | null>(null);
+  const hasCountedRef = React.useRef<string | null>(null);
 
   useEffect(() => {
     if (!currentResult) return;
@@ -60,42 +57,34 @@ export default function AnalysisResultsScreen() {
       generateRecommendations(currentResult);
     }
 
-    const s = currentResult.overallScore;
-    setBadge(getBadgeForScore(s));
-    setRankPercent(getMockRankPercent(s));
+    const level = getGlowLevelForResult(currentResult);
+    const strength = getTopStrength(currentResult);
+    setGlowLevel(level);
+    setTopStrength(strength);
     updateStreak();
-    scoreAnim.stopAnimation();
-    scoreAnim.setValue(0);
-    const sub = scoreAnim.addListener(({ value }) => {
-      setRevealedScore(Math.round(value));
-    });
-    Animated.timing(scoreAnim, {
-      toValue: s,
-      duration: 1400,
-      useNativeDriver: false,
-    }).start();
-    return () => {
-      scoreAnim.removeListener(sub);
-      scoreAnim.stopAnimation();
-    };
-  }, [currentResult?.timestamp, scoreAnim]);
+  }, [currentResult?.timestamp]);
 
-  const previousScore = useMemo(() => {
-    if (!analysisHistory || analysisHistory.length === 0 || !currentResult) return null as number | null;
+  const progressMessage = useMemo(() => {
+    if (!analysisHistory || analysisHistory.length < 2 || !currentResult) return null;
     const prev = analysisHistory.find(r => r.timestamp < currentResult.timestamp);
-    return prev ? prev.overallScore : null;
+    if (!prev) return null;
+    
+    const improvements = [];
+    const current = currentResult.detailedScores;
+    const previous = prev.detailedScores;
+    
+    if (current.brightnessGlow > previous.brightnessGlow + 3) improvements.push('Brighter Glow');
+    if (current.hydrationLevel > previous.hydrationLevel + 3) improvements.push('Better Hydration');
+    if (current.skinTexture > previous.skinTexture + 3) improvements.push('Smoother Texture');
+    
+    return improvements.length > 0 ? `Improved: ${improvements.join(', ')}` : 'Keep up the routine!';
   }, [analysisHistory, currentResult]);
-
-  const scoreDelta = useMemo(() => {
-    if (previousScore === null || !currentResult) return null as number | null;
-    return currentResult.overallScore - (previousScore ?? 0);
-  }, [previousScore, currentResult]);
 
   const onShare = async () => {
     try {
       if (!currentResult) return;
       
-      const shareContent = createShareContent(currentResult, badge);
+      const shareContent = createShareContent(currentResult, glowLevel, topStrength);
       await Share.share({
         message: shareContent.message,
         title: shareContent.title,
@@ -106,44 +95,52 @@ export default function AnalysisResultsScreen() {
     }
   };
 
-  const createShareContent = (result: typeof currentResult, badgeText: string) => {
+  const createShareContent = (result: typeof currentResult, level: string, strength: string) => {
     if (!result) return { message: '', title: '', url: '' };
-    
-    const scoreEmoji = result.overallScore >= 90 ? '💎' : 
-                      result.overallScore >= 85 ? '💫' : 
-                      result.overallScore >= 80 ? '✨' : 
-                      result.overallScore >= 75 ? '🌟' : '⭐';
     
     const improvements = [];
     if (result.detailedScores.brightnessGlow >= 85) improvements.push('✨ Radiant Glow');
-    if (result.detailedScores.facialSymmetry >= 85) improvements.push('🎯 Perfect Symmetry');
-    if (result.detailedScores.jawlineSharpness >= 85) improvements.push('💪 Sharp Jawline');
+    if (result.detailedScores.facialSymmetry >= 85) improvements.push('🎯 Beautiful Symmetry');
+    if (result.detailedScores.jawlineSharpness >= 85) improvements.push('💪 Defined Features');
     if (result.detailedScores.hydrationLevel >= 85) improvements.push('💧 Hydrated Skin');
     
     const improvementText = improvements.length > 0 ? 
       `\n\nMy strengths: ${improvements.slice(0, 2).join(', ')}` : '';
     
-    const confidenceText = result.confidence >= 0.9 ? 
-      '\n\n📊 Analysis Confidence: 95%+' : '';
-    
     return {
-      message: `${scoreEmoji} Just got my Glow Score: ${result.overallScore}/100!\n\n🏆 Achievement: ${badgeText}\n${result.rating}${improvementText}${confidenceText}\n\n✨ Ready to discover your glow? Try GlowCheck AI!`,
-      title: `My Glow Score: ${result.overallScore}/100 ${scoreEmoji}`,
-      url: 'https://glowcheck.ai' // Replace with actual app URL
+      message: `✨ Just got my GlowCheck Analysis!\n\n🌟 Glow Level: ${level}\n💫 Top Strength: ${strength}${improvementText}\n\n✨ Ready to discover your unique glow? Try GlowCheck AI!`,
+      title: `My GlowCheck Analysis ✨`,
+      url: 'https://glowcheck.ai'
     };
   };
 
-  function getBadgeForScore(score: number): string {
-    if (score >= 90) return 'Diamond Glow';
-    if (score >= 80) return 'Gold Glow';
-    if (score >= 70) return 'Silver Glow';
-    if (score >= 60) return 'Bronze Glow';
-    return 'Rising Glow';
+  function getGlowLevelForResult(result: AnalysisResult): string {
+    const scores = result.detailedScores;
+    const avgScore = (scores.brightnessGlow + scores.hydrationLevel + scores.skinTexture + scores.evenness) / 4;
+    
+    if (avgScore >= 90) return '✨ Radiant & Luminous';
+    if (avgScore >= 80) return '🌟 Glowing & Vibrant';
+    if (avgScore >= 70) return '💫 Fresh & Healthy';
+    if (avgScore >= 60) return '🌸 Natural Beauty';
+    return '🌱 Developing Radiance';
   }
 
-  function getMockRankPercent(score: number): number {
-    const pct = Math.max(1, Math.min(99, Math.round(100 - score)));
-    return pct;
+  function getTopStrength(result: AnalysisResult): string {
+    const scores = result.detailedScores;
+    const scoreEntries = [
+      { name: 'Natural Glow', value: scores.brightnessGlow },
+      { name: 'Hydrated Skin', value: scores.hydrationLevel },
+      { name: 'Smooth Texture', value: scores.skinTexture },
+      { name: 'Even Tone', value: scores.evenness },
+      { name: 'Facial Harmony', value: scores.facialSymmetry },
+      { name: 'Youthful Elasticity', value: scores.elasticity },
+    ];
+    
+    const topScore = scoreEntries.reduce((prev, current) => 
+      current.value > prev.value ? current : prev
+    );
+    
+    return topScore.name;
   }
 
   const updateStreak = async () => {
@@ -201,9 +198,9 @@ export default function AnalysisResultsScreen() {
         <View style={styles.heroWrap} testID="hero-wrap">
           <LinearGradient colors={gradient.card} style={styles.glassCard}>
             <View style={styles.heroHeader}>
-              <View style={styles.badgePill}>
-                <Award color={palette.primary} size={16} strokeWidth={2.5} />
-                <Text style={styles.badgePillText}>{badge}</Text>
+              <View style={styles.glowLevelPill}>
+                <Sparkles color={palette.primary} size={18} fill={palette.primary} strokeWidth={2.5} />
+                <Text style={styles.glowLevelText}>{glowLevel}</Text>
               </View>
               <TouchableOpacity onPress={onShare} style={styles.shareBtn} testID="share-glow">
                 <View style={styles.shareBtnContent}>
@@ -218,23 +215,25 @@ export default function AnalysisResultsScreen() {
               <View style={styles.imageGlow} />
             </View>
             
-            <Text style={styles.overallLabel}>Your Beautiful Glow Score</Text>
-            <View style={styles.scoreRow}>
-              <Text style={styles.scoreNumber} testID="animated-score">{revealedScore}</Text>
-              <Text style={styles.scoreOutOf}>/100</Text>
+            <Text style={styles.overallLabel}>Your Unique Glow Profile</Text>
+            
+            <View style={styles.strengthCard}>
+              <Award color={palette.champagne} size={24} strokeWidth={2.5} />
+              <View style={styles.strengthContent}>
+                <Text style={styles.strengthLabel}>Your Top Strength</Text>
+                <Text style={styles.strengthValue}>{topStrength}</Text>
+              </View>
             </View>
             
             <View style={styles.metaRow}>
+              {progressMessage && (
+                <View style={styles.metaItem}>
+                  <TrendingUp color={palette.success} size={16} strokeWidth={2.5} />
+                  <Text style={styles.metaText}>{progressMessage}</Text>
+                </View>
+              )}
               <View style={styles.metaItem}>
-                <TrendingUp color={palette.success} size={16} strokeWidth={2.5} />
-                <Text style={styles.metaText}>{scoreDelta === null ? '—' : scoreDelta! >= 0 ? `+${scoreDelta}` : `${scoreDelta}`}</Text>
-              </View>
-              <View style={styles.metaItem}>
-                <Crown color={palette.champagne} size={16} strokeWidth={2.5} />
-                <Text style={styles.metaText}>Top {rankPercent}%</Text>
-              </View>
-              <View style={styles.metaItem}>
-                <Sparkles color={palette.blush} size={16} fill={palette.blush} strokeWidth={2.5} />
+                <Heart color={palette.rose} size={16} fill={palette.rose} strokeWidth={2.5} />
                 <Text style={styles.metaText}>{currentResult.rating}</Text>
               </View>
             </View>
@@ -367,7 +366,7 @@ export default function AnalysisResultsScreen() {
               <Text style={styles.ctaButtonSecondaryText}>Share Your Glow Score</Text>
               <View style={styles.sharePreview}>
                 <Text style={styles.sharePreviewText}>
-                  {currentResult?.overallScore}/100 {getBadgeForScore(currentResult?.overallScore || 0)}
+                  {glowLevel}
                 </Text>
               </View>
             </View>
@@ -424,20 +423,21 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     marginBottom: 24,
     width: '100%',
   },
-  badgePill: {
+  glowLevelPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: palette.overlayBlush,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: palette.primary,
+    maxWidth: '65%',
   },
-  badgePillText: {
+  glowLevelText: {
     color: palette.textPrimary,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
@@ -509,50 +509,59 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontWeight: '600',
     letterSpacing: 0.5,
   },
-  scoreRow: {
+  strengthCard: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'center',
-    marginBottom: 24,
+    alignItems: 'center',
+    gap: 16,
+    backgroundColor: palette.overlayGold,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderRadius: 24,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: palette.champagne,
+    ...shadow.card,
   },
-  scoreNumber: {
-    fontSize: 72,
-    fontWeight: '900',
-    color: palette.primary,
-    letterSpacing: -2,
+  strengthContent: {
+    flex: 1,
   },
-  scoreOutOf: {
-    fontSize: 24,
+  strengthLabel: {
+    fontSize: 13,
     color: palette.textSecondary,
-    marginLeft: 8,
+    marginBottom: 4,
     fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  strengthValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: palette.primary,
+    letterSpacing: 0.2,
   },
   metaRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: 12,
     marginBottom: 16,
     width: '100%',
+    flexWrap: 'wrap',
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     backgroundColor: palette.overlayLight,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: palette.divider,
     ...shadow.card,
-    flex: 1,
-    marginHorizontal: 2,
-    justifyContent: 'center',
   },
   metaText: {
     color: palette.textPrimary,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    textAlign: 'center',
   },
   streakRow: {
     flexDirection: 'row',
