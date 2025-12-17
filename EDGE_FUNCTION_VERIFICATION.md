@@ -18,7 +18,7 @@ Based on your Supabase Edge Function Secrets page, here's what you have configur
 
 You just provided a **NEW** OpenAI API key:
 ```
-[REDACTED - Set in Supabase Dashboard Secrets]
+[REDACTED - Set this in Supabase Dashboard → Edge Functions → Secrets]
 ```
 
 Your Edge Function `OPENAI_API_KEY` was last updated on **14 Dec 2025**, which might be the old key.
@@ -28,10 +28,7 @@ Your Edge Function `OPENAI_API_KEY` was last updated on **14 Dec 2025**, which m
 2. Find `OPENAI_API_KEY` in the list
 3. Click the three dots (⋮) on the right
 4. Select "Replace" or "Edit"
-5. Update the value with your new key:
-   ```
-   [REDACTED - Set in Supabase Dashboard Secrets]
-   ```
+5. Update the value with your new key (set in Supabase Dashboard Secrets)
 6. Click "Save"
 
 ## ✅ Configuration Checklist
