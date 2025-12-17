@@ -253,6 +253,10 @@ export async function analyzeImageWithAI(
       }
       
       throw new Error('Failed to parse AI response');
+    } catch (fallbackError) {
+      // If fallback also fails, throw to outer catch
+      console.error('❌ Fallback OpenAI API also failed:', fallbackError);
+      throw fallbackError;
     }
   } catch (error) {
     console.error('Error in analyzeImageWithAI:', error);

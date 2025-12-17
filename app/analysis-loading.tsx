@@ -239,9 +239,9 @@ export default function AnalysisLoadingScreen() {
       return new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => {
-            const result = reader.result as string;
+          const result = reader.result as string;
           resolve(result); // Keep full data URL
-      };
+        };
         reader.onerror = reject;
         reader.readAsDataURL(blob);
       });

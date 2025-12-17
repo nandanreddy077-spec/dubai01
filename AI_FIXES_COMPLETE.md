@@ -127,3 +127,5 @@ Test each feature to ensure they work:
 
 All AI features are now fixed and should work correctly! The app will automatically use the best available method (Edge Function or direct API) based on configuration.
 
+
+
