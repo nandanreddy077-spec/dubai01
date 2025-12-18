@@ -62,7 +62,7 @@ export default function AnalysisResultsScreen() {
     setGlowLevel(level);
     setTopStrength(strength);
     updateStreak();
-  }, [currentResult?.timestamp]);
+  }, [currentResult, incrementScanCount, generateRecommendations]);
 
   const progressMessage = useMemo(() => {
     if (!analysisHistory || analysisHistory.length < 2 || !currentResult) return null;
@@ -386,7 +386,6 @@ export default function AnalysisResultsScreen() {
         testID="blurred-results"
         score={currentResult?.overallScore}
         rating={currentResult?.rating}
-        badge={badge}
         skinType={currentResult?.skinType}
         topConcern={currentResult?.dermatologyInsights?.skinConcerns?.[0]}
         showPaywall={true}

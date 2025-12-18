@@ -5,7 +5,6 @@ import {
   StyleSheet, 
   ScrollView, 
   TouchableOpacity, 
-  Dimensions,
   Platform,
   Alert,
   Animated,
@@ -28,8 +27,6 @@ import {
 } from 'lucide-react-native';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import Logo from '@/components/Logo';
-
-const { width } = Dimensions.get('window');
 
 interface Feature {
   icon: React.ReactNode;
@@ -73,7 +70,7 @@ const PREMIUM_FEATURES: Feature[] = [
 export default function TrialOfferScreen() {
   const insets = useSafeAreaInsets();
   const subscription = useSubscription();
-  const { processInAppPurchase, startLocalTrial } = subscription || {};
+  const { processInAppPurchase } = subscription || {};
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [isProcessing, setIsProcessing] = useState(false);
   const [pulseAnim] = useState(new Animated.Value(0));
@@ -99,7 +96,7 @@ export default function TrialOfferScreen() {
     pulseAnimation.start();
 
     return () => pulseAnimation.stop();
-  }, []);
+  }, [pulseAnim]);
 
   const handleStartTrial = useCallback(async () => {
     if (isProcessing) return;
@@ -156,12 +153,12 @@ export default function TrialOfferScreen() {
         // User was redirected to store
         console.log('User redirected to store');
       } else {
-        const errorMessage = result.cancelled 
+        const errorMessage = result.error === 'USER_CANCELLED'
           ? 'To start your free trial, please add a payment method. Your card won\'t be charged until after the 7-day trial period ends.'
           : result.error || 'Please add a payment method to start your trial.';
         
         Alert.alert(
-          result.cancelled ? 'Payment Required' : 'Payment Required',
+          result.error === 'USER_CANCELLED' ? 'Payment Required' : 'Payment Required',
           errorMessage,
           [
             { text: 'Maybe Later', style: 'cancel', onPress: () => router.replace('/(tabs)') },
@@ -182,7 +179,7 @@ export default function TrialOfferScreen() {
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedPlan, processInAppPurchase, startLocalTrial, isProcessing, scaleAnim]);
+  }, [selectedPlan, processInAppPurchase, isProcessing, scaleAnim]);
 
   const handleSkip = useCallback(() => {
     Alert.alert(
@@ -255,7 +252,7 @@ export default function TrialOfferScreen() {
             7 days free, then {selectedPlan === 'yearly' ? '$99/year' : '$8.99/month'}
             {'\n'}
             <Text style={styles.trustSubtext}>
-              Card required • Won't charge until Day 8
+              Card required • Won&apos;t charge until Day 8
             </Text>
           </Text>
 
@@ -365,7 +362,7 @@ export default function TrialOfferScreen() {
         <View style={styles.trustSection}>
           <View style={styles.trustItem}>
             <Shield size={16} color="#4CAF50" strokeWidth={2.5} />
-            <Text style={styles.trustText}>Card required • Won't charge until Day 8</Text>
+            <Text style={styles.trustText}>Card required • Won&apos;t charge until Day 8</Text>
           </View>
           <View style={styles.trustItem}>
             <Lock size={16} color="#2196F3" strokeWidth={2.5} />

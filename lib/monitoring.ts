@@ -113,7 +113,7 @@ export async function getPerformanceStats(
   avgResponseTime: number;
   totalRequests: number;
   errorRate: number;
-  topEndpoints: Array<{ endpoint: string; count: number }>;
+  topEndpoints: { endpoint: string; count: number }[];
 }> {
   try {
     const { data, error } = await supabase
@@ -138,9 +138,9 @@ export async function getPerformanceStats(
       return acc;
     }, {} as Record<string, number>);
 
-    const topEndpoints = Object.entries(endpointCounts)
-      .map(([endpoint, count]) => ({ endpoint, count }))
-      .sort((a, b) => b.count - a.count)
+    const topEndpoints: { endpoint: string; count: number }[] = Object.entries(endpointCounts)
+      .map(([endpoint, count]) => ({ endpoint, count: count as number }))
+      .sort((a, b) => (b.count as number) - (a.count as number))
       .slice(0, 10);
 
     return {
