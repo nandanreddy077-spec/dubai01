@@ -182,10 +182,6 @@ export default function AnalysisResultsScreen() {
     );
   }
 
-  const badge = currentResult.overallScore >= 90 ? '🏆 Elite Glow' : 
-    currentResult.overallScore >= 80 ? '✨ Radiant' : 
-    currentResult.overallScore >= 70 ? '💫 Glowing' : '🌸 Beautiful';
-
   const detailedScoresArray = [
     { name: 'Jawline Sharpness', score: currentResult.detailedScores.jawlineSharpness, color: palette.primary, icon: Crown },
     { name: 'Brightness & Glow', score: currentResult.detailedScores.brightnessGlow, color: palette.blush, icon: Sparkles },

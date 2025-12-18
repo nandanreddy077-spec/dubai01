@@ -49,8 +49,7 @@
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
-        "android.permission.VIBRATE",
-        "INTERNET"
+        "android.permission.VIBRATE"
       ]
     },
     "web": {
