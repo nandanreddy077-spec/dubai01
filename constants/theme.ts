@@ -112,7 +112,6 @@ const darkPalette = {
   error: "#E1959C", // Refined coral
   info: "#8ABACA", // Elegant sky
   danger: "#E85D75", // Elegant danger red
-  disabled: "#363137", // Disabled state
   
   // Dividers and borders - more sophisticated
   divider: "#2D2732", // Elegant divider
@@ -331,98 +330,6 @@ export const getGradient = (theme: ThemeMode) => {
 
 // Default to light theme for the new pastel design
 export const gradient = lightGradient;
-
-// Male-specific color palette - Bold, modern, tech-inspired
-const malePalette = {
-  background: "#0F172A",
-  backgroundStart: "#0F172A",
-  backgroundEnd: "#1E293B",
-  surface: "#1E293B",
-  surfaceAlt: "#334155",
-  surfaceElevated: "#475569",
-  
-  primary: "#3B82F6",
-  secondary: "#1E40AF",
-  tertiary: "#60A5FA",
-  
-  blush: "#60A5FA",
-  lavender: "#818CF8",
-  mint: "#34D399",
-  peach: "#F59E0B",
-  rose: "#EC4899",
-  cream: "#FCD34D",
-  pearl: "#F1F5F9",
-  
-  gold: "#F59E0B",
-  roseGold: "#FB923C",
-  champagne: "#FCD34D",
-  bronze: "#D97706",
-  
-  text: "#F1F5F9",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#CBD5E1",
-  textMuted: "#94A3B8",
-  textAccent: "#3B82F6",
-  textLight: "#FFFFFF",
-  
-  success: "#34D399",
-  warning: "#FBBF24",
-  error: "#EF4444",
-  info: "#60A5FA",
-  danger: "#DC2626",
-  disabled: "#475569",
-  
-  divider: "#334155",
-  border: "#475569",
-  borderLight: "#64748B",
-  
-  overlayDark: "rgba(0,0,0,0.5)",
-  overlayLight: "rgba(241,245,249,0.1)",
-  overlayBlush: "rgba(96,165,250,0.2)",
-  overlayGold: "rgba(245,158,11,0.2)",
-  overlayLavender: "rgba(129,140,248,0.2)",
-  overlaySuccess: "rgba(52,211,153,0.15)",
-  overlayError: "rgba(239,68,68,0.15)",
-  
-  shimmer: "#F1F5F9",
-  glow: "#3B82F6",
-  highlight: "rgba(59,130,246,0.3)",
-  shadow: "rgba(0,0,0,0.3)",
-} as const;
-
-const maleGradient = {
-  primary: ["#3B82F6", "#1E40AF"] as const,
-  secondary: ["#60A5FA", "#3B82F6"] as const,
-  tertiary: ["#34D399", "#10B981"] as const,
-  hero: ["#0F172A", "#1E293B"] as const,
-  surface: ["#1E293B", "#334155"] as const,
-  card: ["#1E293B", "#334155"] as const,
-  gold: ["#F59E0B", "#D97706"] as const,
-  rose: ["#EC4899", "#DB2777"] as const,
-  lavender: ["#818CF8", "#6366F1"] as const,
-  mint: ["#34D399", "#10B981"] as const,
-  shimmer: ["#F1F5F9", "#60A5FA", "#F1F5F9"] as const,
-  glow: ["rgba(59,130,246,0.4)", "rgba(59,130,246,0.2)", "rgba(59,130,246,0.1)"] as const,
-  aurora: ["#60A5FA", "#818CF8", "#34D399", "#F59E0B"] as const,
-  success: ["#34D399", "#10B981"] as const,
-  warning: ["#FBBF24", "#F59E0B"] as const,
-  error: ["#EF4444", "#DC2626"] as const,
-  info: ["#60A5FA", "#3B82F6"] as const,
-  paywall: ["#0F172A", "#1E293B"] as const,
-} as const;
-
-export const getGenderTheme = (gender?: 'male' | 'female', theme: ThemeMode = 'light') => {
-  if (gender === 'male') {
-    return {
-      palette: malePalette,
-      gradient: maleGradient,
-    };
-  }
-  return {
-    palette: getPalette(theme),
-    gradient: getGradient(theme),
-  };
-};
 
 export const rings = {
   // For premium circular meters and avatars

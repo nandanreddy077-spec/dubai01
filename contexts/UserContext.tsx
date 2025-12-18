@@ -225,14 +225,6 @@ export const [UserProvider, useUser] = createContextHook(() => {
     return user?.avatar && user.avatar.trim() !== '';
   }, [user?.avatar]);
 
-  const updateGender = useCallback(async (gender: 'male' | 'female') => {
-    if (user) {
-      const updatedUser = { ...user, gender };
-      setUser(updatedUser);
-      await saveUser(updatedUser);
-    }
-  }, [user]);
-
   return useMemo(() => ({
     user,
     setUser: handleSetUser,
@@ -243,6 +235,5 @@ export const [UserProvider, useUser] = createContextHook(() => {
     updateUserStats,
     refreshUserData,
     hasProfilePicture,
-    updateGender,
-  }), [user, isFirstTime, handleSetUser, updateAvatar, logout, handleSetIsFirstTime, updateUserStats, refreshUserData, hasProfilePicture, updateGender]);
+  }), [user, isFirstTime, handleSetUser, updateAvatar, logout, handleSetIsFirstTime, updateUserStats, refreshUserData, hasProfilePicture]);
 });
