@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,80 +16,42 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
-import { Eye, EyeOff, Mail, Lock, Heart, Sparkles, Star, Wifi } from 'lucide-react-native';
-import { getPalette, getGradient, shadow, spacing, radii } from '@/constants/theme';
-import { testSupabaseConnection } from '@/lib/supabase';
+import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react-native';
+import { getPalette, getGradient, shadow, spacing } from '@/constants/theme';
+import Logo from '@/components/Logo';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'testing' | 'connected' | 'failed'>('unknown');
-  const [sparkleAnim] = useState(new Animated.Value(0));
-  const [floatingAnim] = useState(new Animated.Value(0));
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(50));
   const { signIn, signInWithGoogle } = useAuth();
   const { theme } = useTheme();
   
   const palette = getPalette(theme);
+  const gradient = getGradient(theme);
   
-  React.useEffect(() => {
-    const sparkleAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(sparkleAnim, {
-          toValue: 1,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(sparkleAnim, {
-          toValue: 0,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    
-    const floatingAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatingAnim, {
-          toValue: 1,
-          duration: 4000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatingAnim, {
-          toValue: 0,
-          duration: 4000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    
-    sparkleAnimation.start();
-    floatingAnimation.start();
-    
-    // Test Supabase connection on component mount
-    testConnection();
-    
-    return () => {
-      sparkleAnimation.stop();
-      floatingAnimation.stop();
-    };
-  }, [sparkleAnim, floatingAnim]);
-  
-  const testConnection = async () => {
-    setConnectionStatus('testing');
-    try {
-      const isConnected = await testSupabaseConnection();
-      setConnectionStatus(isConnected ? 'connected' : 'failed');
-    } catch (error) {
-      console.error('Connection test error:', error);
-      setConnectionStatus('failed');
-    }
-  };
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Gentle Reminder', 'Please fill in all fields to continue your beautiful journey.');
+      Alert.alert('Required Fields', 'Please fill in all fields to continue.');
       return;
     }
 
@@ -111,7 +73,7 @@ export default function LoginScreen() {
         errorMessage = error.message;
       }
       
-      Alert.alert('Sign In Issue', errorMessage);
+      Alert.alert('Sign In Failed', errorMessage);
     } else {
       router.replace('/(tabs)');
     }
@@ -132,7 +94,6 @@ export default function LoginScreen() {
 
     if (error) {
       if (error.message === 'Sign-in cancelled' || error.message === 'Sign-in dismissed') {
-        // Don't show alert for user cancellation
         return;
       }
       Alert.alert('Google Sign In', error.message || 'Something went wrong. Please try again.');
@@ -141,62 +102,15 @@ export default function LoginScreen() {
     }
   };
 
-  const styles = createStyles(palette);
+  const styles = createStyles(palette, gradient);
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient
-        colors={getGradient(theme).hero}
-        style={styles.gradient}
-      >
-        {/* Floating decorative elements */}
-        <Animated.View 
-          style={[
-            styles.floatingSparkle1,
-            {
-              opacity: sparkleAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.3, 0.8],
-              }),
-              transform: [{
-                rotate: sparkleAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ['0deg', '360deg'],
-                })
-              }]
-            }
-          ]}
-        >
-          <Sparkles color={palette.blush} size={16} fill={palette.blush} />
-        </Animated.View>
-        
-        <Animated.View 
-          style={[
-            styles.floatingSparkle2,
-            {
-              opacity: sparkleAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.4, 0.9],
-              }),
-            }
-          ]}
-        >
-          <Heart color={palette.lavender} size={14} fill={palette.lavender} />
-        </Animated.View>
-        
-        <Animated.View 
-          style={[
-            styles.floatingSparkle3,
-            {
-              opacity: floatingAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.5, 1],
-              }),
-            }
-          ]}
-        >
-          <Star color={palette.champagne} size={12} fill={palette.champagne} />
-        </Animated.View>
+      <View style={styles.backgroundContainer}>
+        <LinearGradient
+          colors={['#FAFAFA', '#FFFFFF']}
+          style={styles.gradient}
+        />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
@@ -204,59 +118,30 @@ export default function LoginScreen() {
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             <Animated.View 
               style={[
                 styles.header,
                 {
-                  transform: [{
-                    translateY: floatingAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, -8],
-                    })
-                  }]
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }]
                 }
               ]}
             >
-              <View style={styles.titleContainer}>
-                <Heart color={palette.primary} size={32} fill={palette.blush} />
-                <Text style={styles.title}>Welcome Back, Beautiful</Text>
+              <View style={styles.logoWrapper}>
+                <Logo size={100} />
               </View>
-              <Text style={styles.subtitle}>Continue your radiant journey with us</Text>
-              
-              <View style={styles.welcomeBadge}>
-                <Sparkles color={palette.primary} size={16} fill={palette.blush} />
-                <Text style={styles.welcomeBadgeText}>Your glow awaits</Text>
-              </View>
-              
-              {/* Connection Status Indicator */}
-              <TouchableOpacity onPress={testConnection} style={styles.connectionStatus}>
-                <Wifi 
-                  size={16} 
-                  color={connectionStatus === 'connected' ? '#10B981' : connectionStatus === 'failed' ? '#EF4444' : palette.textMuted} 
-                />
-                <Text style={[
-                  styles.connectionText,
-                  { color: connectionStatus === 'connected' ? '#10B981' : connectionStatus === 'failed' ? '#EF4444' : palette.textMuted }
-                ]}>
-                  {connectionStatus === 'testing' ? 'Testing...' : 
-                   connectionStatus === 'connected' ? 'Connected' : 
-                   connectionStatus === 'failed' ? 'Connection Failed' : 'Tap to test'}
-                </Text>
-              </TouchableOpacity>
+              <Text style={styles.title}>Welcome Back</Text>
+              <Text style={styles.subtitle}>Continue your journey to better skin</Text>
             </Animated.View>
 
             <Animated.View 
               style={[
                 styles.form,
-                shadow.elevated,
                 {
-                  transform: [{
-                    translateY: floatingAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, -4],
-                    })
-                  }]
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }]
                 }
               ]}
             >
@@ -266,8 +151,8 @@ export default function LoginScreen() {
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Your beautiful email"
-                  placeholderTextColor={palette.textMuted}
+                  placeholder="Email address"
+                  placeholderTextColor="#9CA3AF"
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -283,8 +168,8 @@ export default function LoginScreen() {
                 </View>
                 <TextInput
                   style={[styles.input, styles.passwordInput]}
-                  placeholder="Your secure password"
-                  placeholderTextColor={palette.textMuted}
+                  placeholder="Password"
+                  placeholderTextColor="#9CA3AF"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -298,9 +183,9 @@ export default function LoginScreen() {
                   testID="toggle-password"
                 >
                   {showPassword ? (
-                    <EyeOff size={20} color={palette.textMuted} />
+                    <EyeOff size={20} color="#9CA3AF" />
                   ) : (
-                    <Eye size={20} color={palette.textMuted} />
+                    <Eye size={20} color="#9CA3AF" />
                   )}
                 </TouchableOpacity>
               </View>
@@ -309,7 +194,7 @@ export default function LoginScreen() {
                 onPress={navigateToForgotPassword}
                 style={styles.forgotPassword}
               >
-                <Text style={styles.forgotPasswordText}>Need help remembering?</Text>
+                <Text style={styles.forgotPasswordText}>Forgot password?</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -319,13 +204,15 @@ export default function LoginScreen() {
                 testID="login-button"
               >
                 <LinearGradient
-                  colors={getGradient(theme).primary}
+                  colors={gradient.primary}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
                   style={styles.loginButtonGradient}
                 >
-                  <Heart color={palette.textLight} size={18} fill={palette.textLight} />
                   <Text style={styles.loginButtonText}>
-                    {isLoading ? 'Welcoming you back...' : 'Continue My Journey'}
+                    {isLoading ? 'Signing in...' : 'Sign In'}
                   </Text>
+                  <ArrowRight color="#FFFFFF" size={20} strokeWidth={2.5} />
                 </LinearGradient>
               </TouchableOpacity>
 
@@ -342,7 +229,9 @@ export default function LoginScreen() {
                 testID="google-signin-button"
               >
                 <View style={styles.googleButtonContent}>
-                  <Text style={styles.googleIcon}>G</Text>
+                  <View style={styles.googleIconContainer}>
+                    <Text style={styles.googleIcon}>G</Text>
+                  </View>
                   <Text style={styles.googleButtonText}>
                     {isLoading ? 'Signing in...' : 'Continue with Google'}
                   </Text>
@@ -350,26 +239,29 @@ export default function LoginScreen() {
               </TouchableOpacity>
 
               <View style={styles.signupContainer}>
-                <Text style={styles.signupText}>New to our beautiful community? </Text>
+                <Text style={styles.signupText}>New here? </Text>
                 <TouchableOpacity onPress={navigateToSignup} testID="signup-link">
-                  <Text style={styles.signupLink}>Join Us</Text>
+                  <Text style={styles.signupLink}>Create Account</Text>
                 </TouchableOpacity>
               </View>
             </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
-      </LinearGradient>
+      </View>
     </SafeAreaView>
   );
 }
 
-const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.create({
+const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnType<typeof getGradient>) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: palette.backgroundStart,
+    backgroundColor: '#FAFAFA',
+  },
+  backgroundContainer: {
+    flex: 1,
   },
   gradient: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
   },
   keyboardView: {
     flex: 1,
@@ -381,71 +273,51 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   header: {
     alignItems: 'center',
-    marginBottom: spacing.xxxxl,
+    marginBottom: spacing.xxxl,
   },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.md,
+  logoWrapper: {
+    marginBottom: spacing.xl,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: palette.textPrimary,
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#1A1A1A',
     textAlign: 'center',
-    letterSpacing: -0.5,
+    letterSpacing: -1,
+    marginBottom: spacing.md,
   },
   subtitle: {
-    fontSize: 17,
-    color: palette.textSecondary,
+    fontSize: 16,
+    color: '#6B7280',
     textAlign: 'center',
     fontWeight: '500',
-    marginBottom: spacing.lg,
-  },
-  welcomeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: palette.overlayLight,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.pill,
-    gap: spacing.sm,
-  },
-  welcomeBadgeText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: palette.primary,
-    letterSpacing: 0.5,
   },
   form: {
-    backgroundColor: palette.surface,
-    borderRadius: radii.xl,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
     padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: palette.border,
+    ...shadow.elevated,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.surfaceElevated,
-    borderRadius: radii.lg,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
     marginBottom: spacing.lg,
     paddingHorizontal: spacing.lg,
-    height: 60,
-    borderWidth: 1,
-    borderColor: palette.borderLight,
+    height: 56,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
   },
   inputIconContainer: {
     marginRight: spacing.md,
   },
   inputIcon: {
-    // Icon styling handled by container
   },
   input: {
     flex: 1,
     fontSize: 16,
-    color: palette.textPrimary,
+    color: '#1A1A1A',
     fontWeight: '500',
   },
   passwordInput: {
@@ -467,26 +339,27 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontWeight: '600',
   },
   loginButton: {
-    borderRadius: radii.lg,
-    height: 60,
+    borderRadius: 16,
+    height: 56,
     marginBottom: spacing.xl,
     overflow: 'hidden',
+    ...shadow.card,
   },
   loginButtonGradient: {
     flex: 1,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   loginButtonDisabled: {
     opacity: 0.6,
   },
   loginButtonText: {
-    color: palette.textLight,
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0.3,
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   signupContainer: {
     flexDirection: 'row',
@@ -494,7 +367,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     alignItems: 'center',
   },
   signupText: {
-    color: palette.textSecondary,
+    color: '#6B7280',
     fontSize: 15,
     fontWeight: '500',
   },
@@ -512,21 +385,20 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: palette.borderLight,
+    backgroundColor: '#E5E7EB',
   },
   dividerText: {
     fontSize: 12,
-    color: palette.textMuted,
+    color: '#9CA3AF',
     fontWeight: '600',
   },
   googleButton: {
-    backgroundColor: palette.surfaceElevated,
-    borderRadius: radii.lg,
-    height: 52,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    height: 56,
     marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: palette.borderLight,
-    ...shadow.card,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
   },
   googleButtonDisabled: {
     opacity: 0.6,
@@ -538,50 +410,20 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     alignItems: 'center',
     gap: spacing.md,
   },
+  googleIconContainer: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   googleIcon: {
     fontSize: 20,
     fontWeight: '900',
     color: '#4285F4',
   },
   googleButtonText: {
-    color: palette.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  
-  // Floating elements
-  floatingSparkle1: {
-    position: 'absolute',
-    top: 100,
-    right: 40,
-    zIndex: 1,
-  },
-  floatingSparkle2: {
-    position: 'absolute',
-    top: 160,
-    left: 30,
-    zIndex: 1,
-  },
-  floatingSparkle3: {
-    position: 'absolute',
-    top: 220,
-    right: 80,
-    zIndex: 1,
-  },
-  
-  // Connection status
-  connectionStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.sm,
-    backgroundColor: palette.overlayLight,
-  },
-  connectionText: {
-    fontSize: 12,
+    color: '#1A1A1A',
+    fontSize: 16,
     fontWeight: '600',
   },
 });

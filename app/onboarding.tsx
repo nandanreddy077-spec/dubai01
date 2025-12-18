@@ -211,14 +211,14 @@ export default function OnboardingScreen() {
       setIndex(next);
       scrollRef.current?.scrollTo({ x: next * width, animated: true });
     } else {
-      setIsFirstTime(false);
-      router.replace('/(tabs)');
+      await setIsFirstTime(false);
+      router.replace('/login');
     }
   }, [index, width, setIsFirstTime]);
 
   const handleSkip = useCallback(async () => {
-    setIsFirstTime(false);
-    router.replace('/(tabs)');
+    await setIsFirstTime(false);
+    router.replace('/login');
   }, [setIsFirstTime]);
 
   const dotPosition = Animated.divide(scrollX, width);
