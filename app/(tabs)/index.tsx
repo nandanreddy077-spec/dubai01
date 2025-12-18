@@ -128,6 +128,14 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Check if user needs to select gender first
+  useEffect(() => {
+    if (user && !user.gender) {
+      router.replace('/gender-selection');
+      return;
+    }
+  }, [user]);
+
   // Handle first time user - just mark as not first time anymore
   // Don't automatically show photo picker as it can cause issues on app startup
   useEffect(() => {

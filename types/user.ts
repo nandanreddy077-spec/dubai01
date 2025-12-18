@@ -4,6 +4,7 @@ export interface User {
   email: string;
   avatar: string;
   isPremium: boolean;
+  gender?: 'male' | 'female';
   stats: {
     analyses: number;
     dayStreak: number;
@@ -136,4 +137,8 @@ export interface UserContextType {
   logout: () => void;
   isFirstTime: boolean;
   setIsFirstTime: (value: boolean) => void;
+  updateUserStats: (updates: Partial<User['stats']>) => Promise<void>;
+  refreshUserData: () => void;
+  hasProfilePicture: boolean;
+  updateGender: (gender: 'male' | 'female') => Promise<void>;
 }
