@@ -35,7 +35,7 @@ export interface SubscriptionContextType {
   setSubscriptionData: (data: Partial<SubscriptionState>) => Promise<void>;
   incrementScanCount: () => Promise<void>;
   reset: () => Promise<void>;
-  processInAppPurchase: (type: 'monthly' | 'yearly') => Promise<{ success: boolean; purchaseToken?: string; originalTransactionId?: string; error?: string }>;
+  processInAppPurchase: (type: 'monthly' | 'yearly') => Promise<{ success: boolean; purchaseToken?: string; originalTransactionId?: string; error?: string; cancelled?: boolean; }>;
 }
 
 const STORAGE_KEY = 'glowcheck_subscription_state';

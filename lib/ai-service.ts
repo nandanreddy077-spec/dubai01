@@ -54,7 +54,7 @@ export async function convertImageToDataURL(imageUri: string): Promise<string> {
         try {
           const FileSystem = await import('expo-file-system');
           const base64 = await FileSystem.readAsStringAsync(imageUri, {
-            encoding: FileSystem.EncodingType.Base64,
+            encoding: 'base64' as any,
           });
           return `data:image/jpeg;base64,${base64}`;
         } catch (fsError) {

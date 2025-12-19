@@ -112,6 +112,7 @@ const darkPalette = {
   error: "#E1959C", // Refined coral
   info: "#8ABACA", // Elegant sky
   danger: "#E85D75", // Elegant danger red
+  disabled: "#4A4650", // Disabled state dark
   
   // Dividers and borders - more sophisticated
   divider: "#2D2732", // Elegant divider

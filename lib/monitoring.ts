@@ -139,7 +139,7 @@ export async function getPerformanceStats(
     }, {} as Record<string, number>);
 
     const topEndpoints = Object.entries(endpointCounts)
-      .map(([endpoint, count]) => ({ endpoint, count }))
+      .map(([endpoint, count]) => ({ endpoint, count: count as number }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 

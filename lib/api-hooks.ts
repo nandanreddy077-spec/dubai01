@@ -39,9 +39,10 @@ export function useAnalysisHistory(params: PaginationParams = {}) {
   return useInfiniteQuery({
     queryKey: ['analyses', userId],
     queryFn: ({ pageParam = 0 }) =>
-      getAnalysisHistory(userId!, { ...params, page: pageParam }),
-    getNextPageParam: (lastPage) =>
+      getAnalysisHistory(userId!, { ...params, page: pageParam as number }),
+    getNextPageParam: (lastPage: any) =>
       lastPage.hasMore ? lastPage.page + 1 : undefined,
+    initialPageParam: 0,
     enabled: !!userId,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes (formerly cacheTime)
@@ -58,9 +59,10 @@ export function useStyleAnalysisHistory(params: PaginationParams = {}) {
   return useInfiniteQuery({
     queryKey: ['styleAnalyses', userId],
     queryFn: ({ pageParam = 0 }) =>
-      getStyleAnalysisHistory(userId!, { ...params, page: pageParam }),
-    getNextPageParam: (lastPage) =>
+      getStyleAnalysisHistory(userId!, { ...params, page: pageParam as number }),
+    getNextPageParam: (lastPage: any) =>
       lastPage.hasMore ? lastPage.page + 1 : undefined,
+    initialPageParam: 0,
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
@@ -77,9 +79,10 @@ export function useSkincarePlans(params: PaginationParams = {}) {
   return useInfiniteQuery({
     queryKey: ['skincarePlans', userId],
     queryFn: ({ pageParam = 0 }) =>
-      getSkincarePlans(userId!, { ...params, page: pageParam }),
-    getNextPageParam: (lastPage) =>
+      getSkincarePlans(userId!, { ...params, page: pageParam as number }),
+    getNextPageParam: (lastPage: any) =>
       lastPage.hasMore ? lastPage.page + 1 : undefined,
+    initialPageParam: 0,
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,

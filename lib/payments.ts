@@ -51,6 +51,7 @@ export interface PurchaseResult {
   productId?: string;
   error?: string;
   cancelled?: boolean;
+  originalTransactionId?: string;
 }
 
 export interface SubscriptionInfo {
@@ -420,7 +421,6 @@ class PaymentService {
         
         if (premiumEntitlement) {
           const transactionIdentifier = purchaseResult.customerInfo.originalPurchaseDate;
-          const latestTransaction = purchaseResult.customerInfo.latestExpirationDate;
           
           return {
             success: true,
