@@ -7,10 +7,11 @@ import {
   TouchableOpacity,
   Image,
   Animated,
+  Dimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Camera, Sparkles, ChevronRight, User, Star, Heart, Flower2, Palette, Crown, Wand2, Sun, Zap, ArrowRight, TrendingUp, Package } from "lucide-react-native";
+import { Camera, Sparkles, ChevronRight, User, Star, Heart, Flower2, Palette, Crown, Wand2, Sun, Zap, ArrowRight, TrendingUp, Package, Navigation } from "lucide-react-native";
 import { router } from "expo-router";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,41 +19,92 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useGamification } from "@/contexts/GamificationContext";
 import { useProducts } from "@/contexts/ProductContext";
 import PhotoPickerModal from "@/components/PhotoPickerModal";
-import { getPalette, getGradient, shadow } from "@/constants/theme";
+import { getPalette, getGradient, shadow, spacing, radii, typography } from "@/constants/theme";
 import { trackAppOpen, scheduleDailyNotifications } from "@/lib/smart-notifications";
 
-
+const { width: screenWidth } = Dimensions.get('window');
 
 const DAILY_AFFIRMATIONS = [
   {
-    text: "You are confident, inside and out",
-    author: "Daily Motivation",
+    text: "You are radiant, inside and out",
+    author: "Daily Glow",
     icon: Heart,
   },
   {
-    text: "Your skin journey is uniquely yours",
-    author: "Self Care",
+    text: "Your beauty is uniquely yours to celebrate",
+    author: "Self Love",
     icon: Flower2,
   },
   {
-    text: "Today is perfect for healthy skin habits",
-    author: "Wellness Wisdom",
+    text: "Today is perfect for embracing your glow",
+    author: "Beauty Wisdom",
     icon: Sun,
   },
   {
-    text: "Confidence comes from consistent care",
-    author: "Self Improvement",
+    text: "Confidence is your most beautiful feature",
+    author: "Inner Beauty",
     icon: Crown,
   },
 ];
 
-
+const BEAUTY_SERVICES = [
+  {
+    id: 'glow-analysis',
+    title: 'Glow Analysis',
+    subtitle: 'Discover your natural radiance',
+    description: 'AI-powered beauty insights tailored just for you',
+    icon: Camera,
+    gradient: ['#F2C2C2', '#E8A87C'],
+    route: '/glow-analysis',
+    badge: 'Gentle',
+  },
+  {
+    id: 'style-guide',
+    title: 'Style Guide',
+    subtitle: 'Find your perfect aesthetic',
+    description: 'Personalized style recommendations',
+    icon: Palette,
+    gradient: ['#E8D5F0', '#D4A574'],
+    route: '/style-check',
+    badge: 'Creative',
+  },
+  {
+    id: 'beauty-coach',
+    title: 'Beauty Coach',
+    subtitle: 'Your personal glow mentor',
+    description: 'Daily guidance for your beauty journey',
+    icon: Wand2,
+    gradient: ['#D4F0E8', '#F5D5C2'],
+    route: '/glow-coach',
+    badge: 'Caring',
+  },
+  {
+    id: 'ai-beauty-advisor',
+    title: 'AI Beauty Advisor',
+    subtitle: 'Real-time beauty consultation',
+    description: 'Chat with AI for instant beauty advice',
+    icon: Sparkles,
+    gradient: ['#E8A87C', '#D4A574'],
+    route: '/ai-advisor',
+    badge: 'Premium',
+  },
+  {
+    id: 'trend-tracker',
+    title: 'Trend Tracker',
+    subtitle: 'Stay ahead of beauty trends',
+    description: 'Weekly trend updates & personalized recommendations',
+    icon: Navigation,
+    gradient: ['#F5D5C2', '#E8D5F0'],
+    route: '/trends',
+    badge: 'Fresh',
+  },
+];
 
 export default function HomeScreen() {
   const { user, isFirstTime, setIsFirstTime } = useUser();
   const { user: authUser } = useAuth();
   const { theme } = useTheme();
-  useGamification();
+  const { dailyCompletions, hasCompletedToday } = useGamification();
   const { products } = useProducts();
   
   const currentStreak = user?.stats.dayStreak || 0;
@@ -62,6 +114,7 @@ export default function HomeScreen() {
   const [currentAffirmationIndex, setCurrentAffirmationIndex] = useState<number>(0);
   
   const palette = getPalette(theme);
+  const gradient = getGradient(theme);
   const currentAffirmation = DAILY_AFFIRMATIONS[currentAffirmationIndex];
 
   // Initialize notifications and tracking once on mount
@@ -238,14 +291,14 @@ export default function HomeScreen() {
         
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <Text style={styles.greeting}>Hello there,</Text>
+            <Text style={styles.greeting}>Hello beautiful,</Text>
             <View style={styles.nameContainer}>
               <Text style={styles.name}>{authUser?.user_metadata && typeof authUser.user_metadata === 'object' ? (authUser.user_metadata as { full_name?: string; name?: string }).full_name ?? (authUser.user_metadata as { full_name?: string; name?: string }).name ?? user.name : user.name}</Text>
               <View style={styles.crownContainer}>
                 <Flower2 color={palette.blush} size={20} fill={palette.blush} />
               </View>
             </View>
-            <Text style={styles.subtitle}>Ready to improve your skin health?</Text>
+            <Text style={styles.subtitle}>Ready to discover your inner glow?</Text>
           </View>
           <TouchableOpacity onPress={handleProfilePress} activeOpacity={0.8} style={styles.avatarContainer}>
             {user.avatar ? (
@@ -271,9 +324,9 @@ export default function HomeScreen() {
                 <Heart color={palette.textPrimary} size={32} strokeWidth={2} fill={palette.blush} />
                 <View style={styles.iconShimmer} />
               </View>
-              <Text style={styles.ctaTitle}>Analyze Your{"\n"}Skin Health</Text>
+              <Text style={styles.ctaTitle}>Discover Your{"\n"}Beautiful Glow</Text>
               <Text style={styles.ctaSubtitle}>
-                Smart AI insights for your{"\n"}unique skincare journey
+                Gentle AI insights for your{"\n"}unique beauty journey
               </Text>
               <View style={styles.ctaBadge}>
                 <Sparkles color={palette.textPrimary} size={14} fill={palette.blush} />
@@ -301,7 +354,7 @@ export default function HomeScreen() {
               <Text style={styles.newBadgeText}>NEW</Text>
             </View>
           </View>
-          <Text style={styles.sectionSubtitle}>Track your skincare journey & product routines</Text>
+          <Text style={styles.sectionSubtitle}>Track your glow journey & product routines</Text>
           
           <View style={styles.progressHubGrid}>
             <TouchableOpacity 
@@ -368,7 +421,7 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Skincare Services</Text>
+            <Text style={styles.sectionTitle}>Beauty Services</Text>
             <View style={styles.sectionDivider} />
           </View>
           
@@ -388,15 +441,15 @@ export default function HomeScreen() {
                 </LinearGradient>
               </View>
               <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Skin Analysis</Text>
-                <Text style={styles.actionSubtitle}>Understand your skin&apos;s health</Text>
+                <Text style={styles.actionTitle}>Glow Analysis</Text>
+                <Text style={styles.actionSubtitle}>Discover your skin's natural beauty</Text>
                 <View style={styles.actionBadge}>
-                  <Sparkles color={palette.primary} size={12} fill={palette.primary} />
-                  <Text style={[styles.actionBadgeText, { color: palette.primary }]}>Smart</Text>
+                  <Heart color={palette.blush} size={12} fill={palette.blush} />
+                  <Text style={[styles.actionBadgeText, { color: palette.blush }]}>Gentle</Text>
                 </View>
               </View>
               <View style={styles.actionArrow}>
-                <ArrowRight color={palette.primary} size={24} strokeWidth={2.5} />
+                <ArrowRight color={palette.blush} size={24} strokeWidth={2.5} />
               </View>
             </View>
           </TouchableOpacity>
@@ -446,15 +499,15 @@ export default function HomeScreen() {
                 </LinearGradient>
               </View>
               <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Skincare Coach</Text>
-                <Text style={styles.actionSubtitle}>Guide your skincare journey</Text>
+                <Text style={styles.actionTitle}>Beauty Coach</Text>
+                <Text style={styles.actionSubtitle}>Nurture your glow journey</Text>
                 <View style={styles.actionBadge}>
-                  <Star color={palette.mint} size={12} fill={palette.mint} />
-                  <Text style={[styles.actionBadgeText, { color: palette.mint }]}>Expert</Text>
+                  <Star color={palette.lavender} size={12} fill={palette.lavender} />
+                  <Text style={[styles.actionBadgeText, { color: palette.lavender }]}>Caring</Text>
                 </View>
               </View>
               <View style={styles.actionArrow}>
-                <ArrowRight color={palette.mint} size={24} strokeWidth={2.5} />
+                <ArrowRight color={palette.lavender} size={24} strokeWidth={2.5} />
               </View>
             </View>
           </TouchableOpacity>
@@ -470,7 +523,7 @@ export default function HomeScreen() {
               <Heart color={palette.blush} size={28} fill={palette.blush} />
               <View style={styles.quoteIconGlow} />
             </View>
-            <Text style={styles.quoteText}>&ldquo;{currentAffirmation.text}&rdquo;</Text>
+            <Text style={styles.quoteText}>"{currentAffirmation.text}"</Text>
             <Text style={styles.quoteAuthor}>— {currentAffirmation.author}</Text>
             <View style={styles.quoteDivider} />
           </View>
@@ -478,7 +531,7 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Your Progress</Text>
+            <Text style={styles.sectionTitle}>Your Glow Journey</Text>
             <View style={styles.sectionDivider} />
           </View>
           <View style={[styles.statsContainer, shadow.card]}>
@@ -503,7 +556,7 @@ export default function HomeScreen() {
                 <Star color={palette.lavender} size={20} fill={palette.lavender} strokeWidth={2.5} />
               </View>
               <Text style={styles.statNumber}>{user.stats.glowScore}</Text>
-              <Text style={styles.statLabel}>SKIN SCORE</Text>
+              <Text style={styles.statLabel}>GLOW SCORE</Text>
             </View>
           </View>
         </View>

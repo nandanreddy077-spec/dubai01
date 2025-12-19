@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Clock, Crown, Sparkles } from 'lucide-react-native';
@@ -49,14 +49,14 @@ export default function TrialStatusBanner() {
     return `${daysLeft} days of trial remaining`;
   };
 
-  const getGradientColors = (): readonly [string, string] => {
+  const getGradientColors = () => {
     switch (urgency) {
       case 'high':
-        return ['#FF6B6B', '#FF8E53'] as const; // Red/Orange - urgent
+        return ['#FF6B6B', '#FF8E53']; // Red/Orange - urgent
       case 'medium':
-        return ['#FFB800', '#FFA000'] as const; // Yellow/Orange - warning
+        return ['#FFB800', '#FFA000']; // Yellow/Orange - warning
       default:
-        return ['#D4A574', '#C8956D'] as const; // Gold - normal
+        return ['#D4A574', '#C8956D']; // Gold - normal
     }
   };
 

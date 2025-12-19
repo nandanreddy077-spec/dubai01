@@ -18,28 +18,28 @@ export interface ProgressPhotoAnalysis {
 }
 
 interface GoogleVisionFaceData {
-  faceAnnotations?: {
+  faceAnnotations?: Array<{
     detectionConfidence?: number;
-    landmarks?: {
+    landmarks?: Array<{
       type: string;
       position: { x: number; y: number; z?: number };
-    }[];
+    }>;
     rollAngle?: number;
     panAngle?: number;
     tiltAngle?: number;
     underExposedLikelihood?: string;
     blurredLikelihood?: string;
     boundingPoly?: {
-      vertices: { x: number; y: number }[];
+      vertices: Array<{ x: number; y: number }>;
     };
-  }[];
+  }>;
   imagePropertiesAnnotation?: {
     dominantColors?: {
-      colors: {
+      colors: Array<{
         color: { red: number; green: number; blue: number };
         pixelFraction: number;
         score: number;
-      }[];
+      }>;
     };
   };
 }
@@ -101,9 +101,10 @@ export async function analyzeWithGoogleVision(base64Image: string): Promise<Goog
 /**
  * Calculate brightness score from image properties
  */
-function calculateBrightnessScore(colors: { color: { red: number; green: number; blue: number }; pixelFraction: number }[]): number {
+function calculateBrightnessScore(colors: Array<{ color: { red: number; green: number; blue: number }; pixelFraction: number }>): number {
   try {
     let totalBrightness = 0;
+    let totalSaturation = 0;
     let totalPixelFraction = 0;
     let skinToneColors = 0;
     
@@ -113,6 +114,11 @@ function calculateBrightnessScore(colors: { color: { red: number; green: number;
       
       // Calculate brightness (luminance)
       const brightness = (rgb.red * 0.299 + rgb.green * 0.587 + rgb.blue * 0.114) / 255;
+      
+      // Calculate saturation
+      const max = Math.max(rgb.red, rgb.green, rgb.blue) / 255;
+      const min = Math.min(rgb.red, rgb.green, rgb.blue) / 255;
+      const saturation = max === 0 ? 0 : (max - min) / max;
       
       // Identify skin-tone colors
       const isSkinTone = (rgb.red > rgb.green && rgb.green > rgb.blue && 
@@ -124,6 +130,7 @@ function calculateBrightnessScore(colors: { color: { red: number; green: number;
       }
       
       totalBrightness += brightness * pixelFraction;
+      totalSaturation += saturation * pixelFraction;
       totalPixelFraction += pixelFraction;
     });
     
@@ -146,7 +153,7 @@ function calculateBrightnessScore(colors: { color: { red: number; green: number;
 /**
  * Calculate facial symmetry from landmarks
  */
-function calculateFacialSymmetry(landmarks: { type: string; position: { x: number; y: number } }[]): number {
+function calculateFacialSymmetry(landmarks: Array<{ type: string; position: { x: number; y: number } }>): number {
   try {
     const leftEye = landmarks.find((l) => l.type === 'LEFT_EYE');
     const rightEye = landmarks.find((l) => l.type === 'RIGHT_EYE');
@@ -190,13 +197,15 @@ function calculateFacialSymmetry(landmarks: { type: string; position: { x: numbe
  * Make AI request using centralized OpenAI service
  */
 async function makeAIRequest(
-  messages: { role: string; content: string | { type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }[] }[], 
+  messages: Array<{ role: string; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }>, 
   maxRetries = 2
 ): Promise<string | null> {
   // Convert to OpenAI format
   const formattedMessages: ChatMessage[] = messages.map(msg => ({
     role: msg.role as 'system' | 'user' | 'assistant',
-    content: msg.content,
+    content: typeof msg.content === 'string' 
+      ? msg.content 
+      : msg.content, // Handle image content if needed
   }));
 
   return makeOpenAIRequest(formattedMessages, {

@@ -22,8 +22,8 @@ interface Slide {
 const slides: Slide[] = [
   {
     id: '1',
-    title: 'Your Confidence\nJourney Starts Here',
-    subtitle: 'Discover your skin\'s potential with AI-powered insights',
+    title: 'Your Glow Journey\nStarts Here',
+    subtitle: 'Discover your unique beauty potential with AI-powered insights',
     image: '',
     features: [
       { 
@@ -42,12 +42,12 @@ const slides: Slide[] = [
         description: 'See your transformation' 
       },
     ],
-    ctaText: 'Start Your Journey',
+    ctaText: 'Discover Your Glow',
     gradientColors: ['#FDF8F5', '#F9F1EC'],
   },
   {
     id: '2',
-    title: 'Skincare That\nEvolves With You',
+    title: 'Beauty That\nEvolves With You',
     subtitle: 'Daily coaching and smart routines that adapt to your lifestyle',
     image: 'https://images.unsplash.com/photo-1616683693504-3ea7e9ad6fec?q=80&w=1080&auto=format&fit=crop',
     features: [
@@ -64,16 +64,16 @@ const slides: Slide[] = [
       { 
         icon: <Star size={20} />, 
         title: 'Pro Tips', 
-        description: 'Expert skincare advice' 
+        description: 'Expert beauty advice' 
       },
     ],
-    ctaText: 'Build Your Routine',
+    ctaText: 'Start Your Routine',
     gradientColors: ['#FFF5F7', '#FDF0F5'],
   },
   {
     id: '3',
-    title: 'Join 100K+\nImproving Together',
-    subtitle: 'Share your journey, inspire others, track real progress',
+    title: 'Join 100K+\nGlowing Together',
+    subtitle: 'Share your journey, inspire others, celebrate authentic beauty',
     image: 'https://images.unsplash.com/photo-1524502397800-2eeaad7c3fe5?q=80&w=1080&auto=format&fit=crop',
     features: [
       { 
@@ -89,10 +89,10 @@ const slides: Slide[] = [
       { 
         icon: <Zap size={20} />, 
         title: 'Transform', 
-        description: 'See real results' 
+        description: 'See results in days' 
       },
     ],
-    ctaText: 'Start Free Trial',
+    ctaText: 'Begin Free Trial',
     gradientColors: ['#F9F0FF', '#FFF5F7'],
   },
 ];
@@ -211,14 +211,14 @@ export default function OnboardingScreen() {
       setIndex(next);
       scrollRef.current?.scrollTo({ x: next * width, animated: true });
     } else {
-      await setIsFirstTime(false);
-      router.replace('/login');
+      setIsFirstTime(false);
+      router.replace('/(tabs)');
     }
   }, [index, width, setIsFirstTime]);
 
   const handleSkip = useCallback(async () => {
-    await setIsFirstTime(false);
-    router.replace('/login');
+    setIsFirstTime(false);
+    router.replace('/(tabs)');
   }, [setIsFirstTime]);
 
   const dotPosition = Animated.divide(scrollX, width);
