@@ -1,0 +1,13 @@
+# Supabase Edge Functions (Deno runtime)
+supabase/functions/**
+
+# Node modules
+node_modules/
+
+# Build outputs
+.expo/
+dist/
+build/
+
+# Generated files
+*.generated.*
