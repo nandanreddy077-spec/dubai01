@@ -219,14 +219,14 @@ export default function LoginScreen() {
               ]}
             >
               <View style={styles.titleContainer}>
-                <Heart color={palette.primary} size={32} fill={palette.blush} />
-                <Text style={styles.title}>Welcome Back, Beautiful</Text>
+                <Sparkles color={palette.primary} size={32} fill={palette.primary} />
+                <Text style={styles.title}>Welcome Back</Text>
               </View>
-              <Text style={styles.subtitle}>Continue your radiant journey with us</Text>
+              <Text style={styles.subtitle}>Continue your skincare journey with us</Text>
               
               <View style={styles.welcomeBadge}>
-                <Sparkles color={palette.primary} size={16} fill={palette.blush} />
-                <Text style={styles.welcomeBadgeText}>Your glow awaits</Text>
+                <Sparkles color={palette.primary} size={16} fill={palette.primary} />
+                <Text style={styles.welcomeBadgeText}>Your progress awaits</Text>
               </View>
               
               {/* Connection Status Indicator */}
@@ -266,7 +266,7 @@ export default function LoginScreen() {
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Your beautiful email"
+                  placeholder="Your email address"
                   placeholderTextColor={palette.textMuted}
                   value={email}
                   onChangeText={setEmail}
@@ -283,7 +283,7 @@ export default function LoginScreen() {
                 </View>
                 <TextInput
                   style={[styles.input, styles.passwordInput]}
-                  placeholder="Your secure password"
+                  placeholder="Your password"
                   placeholderTextColor={palette.textMuted}
                   value={password}
                   onChangeText={setPassword}
@@ -309,7 +309,7 @@ export default function LoginScreen() {
                 onPress={navigateToForgotPassword}
                 style={styles.forgotPassword}
               >
-                <Text style={styles.forgotPasswordText}>Need help remembering?</Text>
+                <Text style={styles.forgotPasswordText}>Forgot password?</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -322,9 +322,9 @@ export default function LoginScreen() {
                   colors={getGradient(theme).primary}
                   style={styles.loginButtonGradient}
                 >
-                  <Heart color={palette.textLight} size={18} fill={palette.textLight} />
+                  <Sparkles color={palette.textLight} size={18} fill={palette.textLight} />
                   <Text style={styles.loginButtonText}>
-                    {isLoading ? 'Welcoming you back...' : 'Continue My Journey'}
+                    {isLoading ? 'Signing in...' : 'Sign In'}
                   </Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -350,9 +350,9 @@ export default function LoginScreen() {
               </TouchableOpacity>
 
               <View style={styles.signupContainer}>
-                <Text style={styles.signupText}>New to our beautiful community? </Text>
+                <Text style={styles.signupText}>New here? </Text>
                 <TouchableOpacity onPress={navigateToSignup} testID="signup-link">
-                  <Text style={styles.signupLink}>Join Us</Text>
+                  <Text style={styles.signupLink}>Create Account</Text>
                 </TouchableOpacity>
               </View>
             </Animated.View>

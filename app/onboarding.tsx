@@ -22,32 +22,32 @@ interface Slide {
 const slides: Slide[] = [
   {
     id: '1',
-    title: 'Your Glow Journey\nStarts Here',
-    subtitle: 'Discover your unique beauty potential with AI-powered insights',
+    title: 'Your Transformation\nStarts Here',
+    subtitle: 'Discover your potential with AI-powered skincare insights',
     image: '',
     features: [
       { 
         icon: <Camera size={20} />, 
         title: 'AI Analysis', 
-        description: 'Instant skin assessment' 
+        description: 'Instant assessment' 
       },
       { 
         icon: <Wand2 size={20} />, 
         title: 'Personalized', 
-        description: 'Plans made for you' 
+        description: 'Tailored plans' 
       },
       { 
         icon: <TrendingUp size={20} />, 
         title: 'Track Progress', 
-        description: 'See your transformation' 
+        description: 'Monitor changes' 
       },
     ],
-    ctaText: 'Discover Your Glow',
-    gradientColors: ['#FDF8F5', '#F9F1EC'],
+    ctaText: 'Get Started',
+    gradientColors: ['#FFFFFF', '#F5F5F7'],
   },
   {
     id: '2',
-    title: 'Beauty That\nEvolves With You',
+    title: 'Skincare That\nEvolves With You',
     subtitle: 'Daily coaching and smart routines that adapt to your lifestyle',
     image: 'https://images.unsplash.com/photo-1616683693504-3ea7e9ad6fec?q=80&w=1080&auto=format&fit=crop',
     features: [
@@ -59,21 +59,21 @@ const slides: Slide[] = [
       { 
         icon: <Award size={20} />, 
         title: 'Rewards', 
-        description: 'Earn points & achievements' 
+        description: 'Earn achievements' 
       },
       { 
         icon: <Star size={20} />, 
-        title: 'Pro Tips', 
-        description: 'Expert beauty advice' 
+        title: 'Expert Tips', 
+        description: 'Professional advice' 
       },
     ],
     ctaText: 'Start Your Routine',
-    gradientColors: ['#FFF5F7', '#FDF0F5'],
+    gradientColors: ['#FFFFFF', '#F5F5F7'],
   },
   {
     id: '3',
-    title: 'Join 100K+\nGlowing Together',
-    subtitle: 'Share your journey, inspire others, celebrate authentic beauty',
+    title: 'Join 100K+\nWho Transformed',
+    subtitle: 'Share your journey, inspire others, achieve your goals',
     image: 'https://images.unsplash.com/photo-1524502397800-2eeaad7c3fe5?q=80&w=1080&auto=format&fit=crop',
     features: [
       { 
@@ -84,16 +84,16 @@ const slides: Slide[] = [
       { 
         icon: <Sparkles size={20} />, 
         title: '7-Day Trial', 
-        description: 'All premium features free' 
+        description: 'All premium features' 
       },
       { 
         icon: <Zap size={20} />, 
         title: 'Transform', 
-        description: 'See results in days' 
+        description: 'Track your results' 
       },
     ],
     ctaText: 'Begin Free Trial',
-    gradientColors: ['#F9F0FF', '#FFF5F7'],
+    gradientColors: ['#FFFFFF', '#F5F5F7'],
   },
 ];
 
