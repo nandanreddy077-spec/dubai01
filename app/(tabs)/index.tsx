@@ -196,7 +196,7 @@ export default function HomeScreen() {
             }
           ]}
         >
-          <Star color={palette.lavender} size={12} fill={palette.lavender} />
+          <Star color={palette.sage} size={12} fill={palette.sage} />
         </Animated.View>
         <Animated.View 
           style={[
@@ -209,7 +209,7 @@ export default function HomeScreen() {
             }
           ]}
         >
-          <Heart color={palette.champagne} size={14} fill={palette.champagne} />
+          <Heart color={palette.gold} size={14} fill={palette.gold} />
         </Animated.View>
         
         {/* Logo and Streak Header */}
@@ -245,7 +245,7 @@ export default function HomeScreen() {
             {user.avatar ? (
               <Image source={{ uri: user.avatar }} style={styles.avatar} />
             ) : (
-              <LinearGradient colors={getGradient(theme).rose} style={styles.avatarPlaceholder}>
+              <LinearGradient colors={getGradient(theme).blush} style={styles.avatarPlaceholder}>
                 <User color={palette.pearl} size={28} strokeWidth={2} />
               </LinearGradient>
             )}
@@ -278,7 +278,7 @@ export default function HomeScreen() {
             <View style={styles.decorativeElements}>
               <View style={[styles.decorativeCircle, { top: 20, right: 30, backgroundColor: palette.overlayBlush }]} />
               <View style={[styles.decorativeCircle, { bottom: 40, right: 60, opacity: 0.6, backgroundColor: palette.overlayGold }]} />
-              <View style={[styles.decorativeCircle, { top: 50, right: 85, opacity: 0.4, width: 10, height: 10, backgroundColor: palette.lavender }]} />
+              <View style={[styles.decorativeCircle, { top: 50, right: 85, opacity: 0.4, width: 10, height: 10, backgroundColor: palette.sage }]} />
             </View>
           </LinearGradient>
         </TouchableOpacity>
@@ -414,12 +414,12 @@ export default function HomeScreen() {
                 <Text style={styles.actionTitle}>Style Guide</Text>
                 <Text style={styles.actionSubtitle}>Find your perfect look</Text>
                 <View style={styles.actionBadge}>
-                  <Sparkles color={palette.lavender} size={12} fill={palette.lavender} />
-                  <Text style={[styles.actionBadgeText, { color: palette.lavender }]}>Creative</Text>
+                  <Sparkles color={palette.sage} size={12} fill={palette.sage} />
+                  <Text style={[styles.actionBadgeText, { color: palette.sage }]}>Creative</Text>
                 </View>
               </View>
               <View style={styles.actionArrow}>
-                <ArrowRight color={palette.lavender} size={24} strokeWidth={2.5} />
+                <ArrowRight color={palette.sage} size={24} strokeWidth={2.5} />
               </View>
             </View>
           </TouchableOpacity>

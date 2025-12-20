@@ -73,7 +73,7 @@ export default function TabLayout() {
               <View style={{ 
                 padding: 8, 
                 borderRadius: 16, 
-                backgroundColor: focused ? palette.overlayBlush : 'transparent' 
+                backgroundColor: focused ? palette.overlayGold : 'transparent' 
               }}>
                 <Heart 
                   color={focused ? palette.primary : color} 
@@ -93,10 +93,10 @@ export default function TabLayout() {
               <View style={{ 
                 padding: 8, 
                 borderRadius: 16, 
-                backgroundColor: focused ? palette.overlayLavender : 'transparent' 
+                backgroundColor: focused ? palette.overlaySage : 'transparent' 
               }}>
                 <Wand2 
-                  color={focused ? palette.lavender : color} 
+                  color={focused ? palette.sage : color} 
                   size={focused ? 22 : 20}
                   strokeWidth={focused ? 2.5 : 2}
                 />
