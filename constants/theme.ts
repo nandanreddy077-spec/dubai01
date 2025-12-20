@@ -2,67 +2,67 @@ import { Platform } from "react-native";
 
 export type ThemeMode = 'light' | 'dark';
 
-// $100K Premium Design System - Gender-Neutral Luxury
-// Inspired by: Apple, Tesla, Rolex, Aesop, The Row, Byredo
+// $200K Ultra-Premium Design System - Gender-Neutral Luxury Excellence
+// Inspired by: Apple Pro, Porsche Design, Bang & Olufsen, Aesop, Arc'teryx
 const lightPalette = {
-  // Luxe backgrounds - Pure & Elevated
-  background: "#FCFCFC", // Ultra clean
+  // Ultra-premium backgrounds - Architectural purity
+  background: "#F8F9FA", // Sophisticated light gray
   backgroundStart: "#FFFFFF", // Pure white
-  backgroundEnd: "#F7F8FA", // Cool subtle gray
+  backgroundEnd: "#F0F2F5", // Cool architectural gray
   surface: "#FFFFFF", // Pure white
-  surfaceAlt: "#FAFBFC", // Elevated white
-  surfaceElevated: "#FFFFFF", // Premium white
-  surfaceGlass: "rgba(255,255,255,0.85)", // Glassmorphism
+  surfaceAlt: "#F8F9FA", // Elevated surface
+  surfaceElevated: "#FFFFFF", // Premium elevation
+  surfaceGlass: "rgba(255,255,255,0.72)", // Advanced glassmorphism
   
-  // Premium accent system - Sophisticated neutrals with luxury metallics
-  primary: "#1A1A1A", // Midnight black - primary action
-  secondary: "#8E8E93", // Premium gray - secondary elements
-  tertiary: "#F5F5F7", // Light surface
+  // Premium accent system - Monochromatic luxury with precise metallics
+  primary: "#0A0A0A", // Pure black - commanding presence
+  secondary: "#6B7280", // Slate gray - sophisticated secondary
+  tertiary: "#E5E7EB", // Light neutral surface
   
-  // Luxury metallics - Strategic accents only
-  gold: "#D4A574", // Refined champagne gold
-  silver: "#C0C0C8", // Platinum silver
-  bronze: "#CD7F32", // Deep bronze
-  copper: "#B87333", // Rich copper
+  // Refined metallics - Ultra-selective accent use
+  gold: "#B8956A", // Muted champagne - subtle luxury
+  silver: "#A8ACB8", // Brushed platinum - tech elegance
+  bronze: "#8B7355", // Deep bronze - grounded warmth
+  copper: "#966B4F", // Oxidized copper - artisan quality
   
-  // Premium color accents - Used sparingly for impact
-  blush: "#E8D5C4", // Warm neutral
-  sage: "#B8C9C5", // Cool neutral
-  slate: "#6B7280", // Premium gray-blue
-  charcoal: "#2D2D2D", // Deep neutral
-  ivory: "#F8F6F3", // Warm white
-  pearl: "#FEFEFE", // Bright white
+  // Architectural color system - Precision neutrals
+  blush: "#D4C4B8", // Warm stone
+  sage: "#A8B5B2", // Cool concrete
+  slate: "#475569", // Architectural slate
+  charcoal: "#1F2937", // Deep charcoal
+  ivory: "#FAFAF9", // Soft white
+  pearl: "#FFFFFF", // Pure white
   
-  // Legacy color aliases for compatibility
-  mint: "#B8C9C5", // Same as sage
-  rose: "#E8D5C4", // Same as blush
+  // Architectural color aliases
+  mint: "#A8B5B2", // Same as sage
+  rose: "#D4C4B8", // Same as blush
   lavender: "#9CA3AF", // Cool gray
-  champagne: "#F5E6D3", // Light gold
-  peach: "#E8D5C4", // Same as blush
+  champagne: "#E8DED2", // Muted gold
+  peach: "#D4C4B8", // Same as blush
   
-  // Text hierarchy - Premium legibility
-  text: "#000000", // True black
-  textPrimary: "#1A1A1A", // Near black
-  textSecondary: "#6B6B6B", // Medium gray
-  textTertiary: "#8E8E93", // Light gray
-  textMuted: "#C7C7CC", // Ultra light
-  textAccent: "#D4A574", // Gold accent
+  // Text hierarchy - Architectural precision
+  text: "#000000", // Pure black
+  textPrimary: "#0A0A0A", // True black
+  textSecondary: "#6B7280", // Slate gray
+  textTertiary: "#9CA3AF", // Light slate
+  textMuted: "#D1D5DB", // Very light
+  textAccent: "#B8956A", // Muted gold accent
   textLight: "#FFFFFF", // Pure white
   textInverse: "#FFFFFF", // White on dark
   
-  // System colors - Refined & professional
-  success: "#34C759", // iOS green
-  warning: "#FF9500", // iOS orange
-  error: "#FF3B30", // iOS red
-  info: "#007AFF", // iOS blue
-  danger: "#FF3B30", // Alert red
-  disabled: "#E5E5EA", // Disabled state
+  // System colors - Premium refinement
+  success: "#10B981", // Emerald green
+  warning: "#F59E0B", // Amber
+  error: "#EF4444", // Modern red
+  info: "#3B82F6", // Blue
+  danger: "#DC2626", // Alert red
+  disabled: "#E5E7EB", // Disabled state
   
-  // Borders & dividers - Ultra subtle
-  divider: "rgba(0,0,0,0.06)", // Minimal divider
-  border: "rgba(0,0,0,0.08)", // Subtle border
-  borderLight: "rgba(0,0,0,0.04)", // Ultra light
-  borderDark: "rgba(0,0,0,0.12)", // Defined border
+  // Borders & dividers - Architectural precision
+  divider: "rgba(0,0,0,0.08)", // Defined divider
+  border: "rgba(0,0,0,0.10)", // Clear border
+  borderLight: "rgba(0,0,0,0.05)", // Subtle
+  borderDark: "rgba(0,0,0,0.15)", // Strong definition
   
   // Advanced overlays - Depth & dimension
   overlayDark: "rgba(0,0,0,0.75)",

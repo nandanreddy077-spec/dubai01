@@ -304,7 +304,7 @@ export default function HomeScreen() {
               style={styles.progressHubCard}
             >
               <LinearGradient
-                colors={['#FFB4A2', '#E8A87C']}
+                colors={['#1F2937', '#0F172A']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={[styles.progressHubCardInner, shadow.card]}
@@ -334,7 +334,7 @@ export default function HomeScreen() {
               style={styles.progressHubCard}
             >
               <LinearGradient
-                colors={['#FFD700', '#FFA500']}
+                colors={['#374151', '#1F2937']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={[styles.progressHubCardInner, shadow.card]}
@@ -370,7 +370,7 @@ export default function HomeScreen() {
             <View style={[styles.actionCard, shadow.card]}>
               <View style={styles.actionIconContainer}>
                 <LinearGradient 
-                  colors={['#E8D5C4', '#C9A063']} 
+                  colors={['#6B7280', '#374151']} 
                   style={styles.actionIconBg}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
@@ -399,7 +399,7 @@ export default function HomeScreen() {
             <View style={[styles.actionCard, shadow.card]}>
               <View style={styles.actionIconContainer}>
                 <LinearGradient 
-                  colors={['#D4D9E0', '#A8B2C1']} 
+                  colors={['#94A3B8', '#64748B']} 
                   style={styles.actionIconBg}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
@@ -428,7 +428,7 @@ export default function HomeScreen() {
             <View style={[styles.actionCard, shadow.card]}>
               <View style={styles.actionIconContainer}>
                 <LinearGradient 
-                  colors={['#D8E2DE', '#B8C9C5']} 
+                  colors={['#475569', '#334155']} 
                   style={styles.actionIconBg}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
@@ -523,9 +523,12 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 28,
+    paddingTop: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.divider,
+    backgroundColor: palette.surface,
   },
   logoContainer: {
     flexDirection: 'row',
@@ -538,10 +541,10 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     borderRadius: 20,
   },
   logoText: {
-    fontSize: 22,
-    fontWeight: '800' as const,
+    fontSize: 24,
+    fontWeight: '700' as const,
     color: palette.textPrimary,
-    letterSpacing: -0.5,
+    letterSpacing: -1,
   },
   streakContainer: {
     alignItems: 'center',
@@ -549,22 +552,18 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E8D9C8',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    backgroundColor: palette.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 30,
+    gap: 10,
+    ...shadow.elevated,
   },
   streakNumber: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800' as const,
-    color: '#C4996A',
-    letterSpacing: -0.5,
+    color: palette.textLight,
+    letterSpacing: -1,
   },
   streakActive: {
     color: '#C4996A',
@@ -583,19 +582,20 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 32,
+    paddingHorizontal: 28,
+    paddingTop: 32,
+    paddingBottom: 40,
   },
   headerContent: {
     flex: 1,
   },
   greeting: {
-    fontSize: 16,
+    fontSize: 15,
     color: palette.textSecondary,
-    marginBottom: 6,
-    letterSpacing: 0.5,
-    fontWeight: "500",
+    marginBottom: 8,
+    letterSpacing: 1.5,
+    fontWeight: "600",
+    textTransform: 'uppercase' as const,
   },
   nameContainer: {
     flexDirection: "row",
@@ -603,48 +603,51 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     marginBottom: 12,
   },
   name: {
-    fontSize: 32,
-    fontWeight: "800",
+    fontSize: 36,
+    fontWeight: "700",
     color: palette.textPrimary,
     marginRight: 12,
-    letterSpacing: -0.5,
+    letterSpacing: -1.5,
   },
   crownContainer: {
     marginTop: 4,
   },
   subtitle: {
-    fontSize: 17,
+    fontSize: 16,
     color: palette.textSecondary,
     fontWeight: "500",
-    letterSpacing: 0.3,
+    letterSpacing: 0,
+    lineHeight: 24,
   },
   avatarContainer: {
     position: "relative",
   },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 3,
-    borderColor: palette.gold,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: palette.border,
   },
   avatarPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: palette.gold,
+    borderWidth: 2,
+    borderColor: palette.border,
+    backgroundColor: palette.tertiary,
   },
   avatarGlow: {
     position: "absolute",
-    top: -5,
-    left: -5,
-    right: -5,
-    bottom: -5,
-    borderRadius: 35,
-    backgroundColor: palette.overlayGold,
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderRadius: 36,
+    backgroundColor: palette.overlayLight,
+    opacity: 0.15,
     zIndex: -1,
   },
   loadingContainer: {
@@ -657,15 +660,17 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     color: palette.textSecondary,
   },
   mainCtaContainer: {
-    marginHorizontal: 24,
-    marginBottom: 40,
+    marginHorizontal: 28,
+    marginBottom: 48,
   },
   mainCta: {
-    borderRadius: 24,
-    padding: 28,
-    minHeight: 160,
+    borderRadius: 28,
+    padding: 32,
+    minHeight: 200,
     position: "relative",
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   ctaContent: {
     flex: 1,
@@ -686,19 +691,20 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     backgroundColor: palette.overlayLight,
   },
   ctaTitle: {
-    fontSize: 28,
-    fontWeight: "900",
+    fontSize: 32,
+    fontWeight: "700",
     color: palette.textLight,
-    marginBottom: 12,
-    lineHeight: 32,
-    letterSpacing: -0.5,
+    marginBottom: 16,
+    lineHeight: 38,
+    letterSpacing: -1.5,
   },
   ctaSubtitle: {
-    fontSize: 16,
-    color: palette.textLight,
-    lineHeight: 22,
-    marginBottom: 16,
-    fontWeight: "500",
+    fontSize: 17,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 26,
+    marginBottom: 20,
+    fontWeight: "400",
+    letterSpacing: 0.2,
   },
   ctaBadge: {
     flexDirection: "row",
@@ -737,8 +743,8 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     backgroundColor: "rgba(248, 246, 240, 0.3)",
   },
   section: {
-    paddingHorizontal: 24,
-    marginBottom: 40,
+    paddingHorizontal: 28,
+    marginBottom: 48,
   },
   sectionHeader: {
     marginBottom: 20,
@@ -747,17 +753,17 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     justifyContent: 'space-between',
   },
   sectionTitle: {
-    fontSize: 22,
-    fontWeight: "800",
+    fontSize: 24,
+    fontWeight: "700",
     color: palette.textPrimary,
     marginBottom: 8,
-    letterSpacing: -0.3,
+    letterSpacing: -1,
   },
   sectionDivider: {
-    height: 2,
-    backgroundColor: palette.gold,
-    width: 40,
-    borderRadius: 1,
+    height: 3,
+    backgroundColor: palette.primary,
+    width: 48,
+    borderRadius: 2,
   },
   sectionTitleRow: {
     flexDirection: 'row',
@@ -773,11 +779,11 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   newBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#D2A372',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    gap: 4,
+    backgroundColor: palette.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 5,
   },
   newBadgeText: {
     color: palette.textLight,
@@ -791,16 +797,18 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   progressHubCard: {
     flex: 1,
-    height: 200,
-    borderRadius: 20,
+    height: 240,
+    borderRadius: 24,
     overflow: 'hidden',
   },
   progressHubCardInner: {
     flex: 1,
-    padding: 20,
+    padding: 24,
     justifyContent: 'space-between',
     position: 'relative',
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   progressHubIcon: {
     width: 48,
@@ -852,12 +860,12 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   actionCard: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 24,
-    borderRadius: 20,
-    marginBottom: 16,
+    padding: 28,
+    borderRadius: 24,
+    marginBottom: 20,
     backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.divider,
+    borderWidth: 1.5,
+    borderColor: palette.border,
   },
   actionIconContainer: {
     position: "relative",
@@ -876,17 +884,18 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     flex: 1,
   },
   actionTitle: {
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 19,
+    fontWeight: "700",
     color: palette.textPrimary,
     marginBottom: 6,
-    letterSpacing: -0.2,
+    letterSpacing: -0.5,
   },
   actionSubtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: palette.textSecondary,
-    marginBottom: 8,
-    fontWeight: "500",
+    marginBottom: 10,
+    fontWeight: "400",
+    letterSpacing: 0,
   },
   actionBadge: {
     flexDirection: "row",
@@ -905,12 +914,12 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     letterSpacing: 0.5,
   },
   quoteCard: {
-    padding: 28,
-    borderRadius: 20,
+    padding: 36,
+    borderRadius: 28,
     alignItems: "center",
     backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.divider,
+    borderWidth: 1.5,
+    borderColor: palette.border,
   },
   quoteIconContainer: {
     position: "relative",
@@ -926,61 +935,64 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     backgroundColor: palette.overlayGold,
   },
   quoteText: {
-    fontSize: 18,
+    fontSize: 19,
     fontStyle: "italic",
     color: palette.textPrimary,
     textAlign: "center",
-    marginBottom: 16,
-    lineHeight: 26,
-    fontWeight: "500",
+    marginBottom: 20,
+    lineHeight: 30,
+    fontWeight: "400",
+    letterSpacing: 0.2,
   },
   quoteAuthor: {
-    fontSize: 14,
-    color: palette.gold,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-    marginBottom: 12,
+    fontSize: 13,
+    color: palette.textSecondary,
+    fontWeight: "600",
+    letterSpacing: 1,
+    marginBottom: 16,
+    textTransform: 'uppercase' as const,
   },
   quoteDivider: {
-    height: 1,
-    backgroundColor: palette.gold,
-    width: 60,
-    borderRadius: 0.5,
+    height: 2,
+    backgroundColor: palette.primary,
+    width: 80,
+    borderRadius: 1,
   },
   statsContainer: {
     flexDirection: "row",
-    borderRadius: 20,
-    padding: 28,
+    borderRadius: 28,
+    padding: 32,
     alignItems: "center",
     justifyContent: "space-around",
     backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.divider,
+    borderWidth: 1.5,
+    borderColor: palette.border,
   },
   statItem: {
     alignItems: "center",
     flex: 1,
   },
   statIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
+    backgroundColor: palette.tertiary,
   },
   statNumber: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: palette.gold,
-    marginBottom: 6,
-    letterSpacing: -0.5,
+    fontSize: 36,
+    fontWeight: "700",
+    color: palette.primary,
+    marginBottom: 8,
+    letterSpacing: -1.5,
   },
   statLabel: {
     fontSize: 11,
     color: palette.textSecondary,
-    fontWeight: "800",
-    letterSpacing: 1,
+    fontWeight: "700",
+    letterSpacing: 1.5,
   },
   statDivider: {
     width: 2,
