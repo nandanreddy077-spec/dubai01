@@ -20,7 +20,7 @@ export interface VisionAnalysisResult {
  */
 export async function analyzeImageWithVision(
   base64Image: string,
-  features?: Array<{ type: string; maxResults?: number }>
+  features?: { type: string; maxResults?: number }[]
 ): Promise<VisionAnalysisResult> {
   try {
     // Validate image first
@@ -36,18 +36,17 @@ export async function analyzeImageWithVision(
       throw new Error(validation.error || 'Image validation failed');
     }
 
-    // Get current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      throw new Error('User not authenticated');
-    }
+    // Get current user (optional - allow guest analysis)
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    console.log('Vision analysis - User ID:', user?.id || 'guest');
 
-    // Call Edge Function
+    // Call Edge Function (works with or without authentication)
     const { data, error } = await supabase.functions.invoke('vision-analyze', {
       body: {
         imageData: base64Image,
         features,
-        userId: user.id,
+        userId: user?.id || 'guest',
       },
     });
 

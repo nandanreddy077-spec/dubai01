@@ -18,28 +18,28 @@ export interface ProgressPhotoAnalysis {
 }
 
 interface GoogleVisionFaceData {
-  faceAnnotations?: Array<{
+  faceAnnotations?: {
     detectionConfidence?: number;
-    landmarks?: Array<{
+    landmarks?: {
       type: string;
       position: { x: number; y: number; z?: number };
-    }>;
+    }[];
     rollAngle?: number;
     panAngle?: number;
     tiltAngle?: number;
     underExposedLikelihood?: string;
     blurredLikelihood?: string;
     boundingPoly?: {
-      vertices: Array<{ x: number; y: number }>;
+      vertices: { x: number; y: number }[];
     };
-  }>;
+  }[];
   imagePropertiesAnnotation?: {
     dominantColors?: {
-      colors: Array<{
+      colors: {
         color: { red: number; green: number; blue: number };
         pixelFraction: number;
         score: number;
-      }>;
+      }[];
     };
   };
 }
@@ -49,20 +49,52 @@ interface GoogleVisionFaceData {
  */
 export async function convertImageToBase64(imageUri: string): Promise<string> {
   try {
+    console.log('Converting image to base64, URI type:', imageUri.substring(0, 50));
+    
+    // If already base64, return it
+    if (imageUri.startsWith('data:')) {
+      const base64Data = imageUri.split(',')[1];
+      if (base64Data) {
+        console.log('Image already in base64 format');
+        return base64Data;
+      }
+    }
+    
+    // For blob URIs or file URIs, fetch and convert
     const response = await fetch(imageUri);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+    }
+    
     const blob = await response.blob();
+    console.log('Image fetched, blob size:', blob.size, 'type:', blob.type);
+    
     return new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        resolve(result.split(',')[1]); // Remove data:image/jpeg;base64, prefix
+        if (!result) {
+          reject(new Error('Failed to read image data'));
+          return;
+        }
+        // Remove data:image/jpeg;base64, prefix
+        const base64Data = result.split(',')[1];
+        if (!base64Data) {
+          reject(new Error('Invalid base64 data'));
+          return;
+        }
+        console.log('Image converted to base64, length:', base64Data.length);
+        resolve(base64Data);
       };
-      reader.onerror = reject;
+      reader.onerror = (error) => {
+        console.error('FileReader error:', error);
+        reject(new Error('Failed to read image file'));
+      };
       reader.readAsDataURL(blob);
     });
   } catch (error) {
     console.error('Error converting image to base64:', error);
-    throw error;
+    throw new Error('Failed to convert image to base64');
   }
 }
 
@@ -101,10 +133,9 @@ export async function analyzeWithGoogleVision(base64Image: string): Promise<Goog
 /**
  * Calculate brightness score from image properties
  */
-function calculateBrightnessScore(colors: Array<{ color: { red: number; green: number; blue: number }; pixelFraction: number }>): number {
+function calculateBrightnessScore(colors: { color: { red: number; green: number; blue: number }; pixelFraction: number }[]): number {
   try {
     let totalBrightness = 0;
-    let totalSaturation = 0;
     let totalPixelFraction = 0;
     let skinToneColors = 0;
     
@@ -114,11 +145,6 @@ function calculateBrightnessScore(colors: Array<{ color: { red: number; green: n
       
       // Calculate brightness (luminance)
       const brightness = (rgb.red * 0.299 + rgb.green * 0.587 + rgb.blue * 0.114) / 255;
-      
-      // Calculate saturation
-      const max = Math.max(rgb.red, rgb.green, rgb.blue) / 255;
-      const min = Math.min(rgb.red, rgb.green, rgb.blue) / 255;
-      const saturation = max === 0 ? 0 : (max - min) / max;
       
       // Identify skin-tone colors
       const isSkinTone = (rgb.red > rgb.green && rgb.green > rgb.blue && 
@@ -130,7 +156,6 @@ function calculateBrightnessScore(colors: Array<{ color: { red: number; green: n
       }
       
       totalBrightness += brightness * pixelFraction;
-      totalSaturation += saturation * pixelFraction;
       totalPixelFraction += pixelFraction;
     });
     
@@ -153,7 +178,7 @@ function calculateBrightnessScore(colors: Array<{ color: { red: number; green: n
 /**
  * Calculate facial symmetry from landmarks
  */
-function calculateFacialSymmetry(landmarks: Array<{ type: string; position: { x: number; y: number } }>): number {
+function calculateFacialSymmetry(landmarks: { type: string; position: { x: number; y: number } }[]): number {
   try {
     const leftEye = landmarks.find((l) => l.type === 'LEFT_EYE');
     const rightEye = landmarks.find((l) => l.type === 'RIGHT_EYE');
@@ -197,7 +222,7 @@ function calculateFacialSymmetry(landmarks: Array<{ type: string; position: { x:
  * Make AI request using centralized OpenAI service
  */
 async function makeAIRequest(
-  messages: Array<{ role: string; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }>, 
+  messages: { role: string; content: string | { type: string; text?: string; image_url?: { url: string } }[] }[], 
   maxRetries = 2
 ): Promise<string | null> {
   // Convert to OpenAI format
