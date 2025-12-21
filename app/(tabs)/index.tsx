@@ -18,29 +18,29 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useProducts } from "@/contexts/ProductContext";
 import PhotoPickerModal from "@/components/PhotoPickerModal";
-import { getPalette, getGradient, shadow } from "@/constants/theme";
+import { getPalette, getGradient, shadow, typography } from "@/constants/theme";
 import { trackAppOpen, scheduleDailyNotifications } from "@/lib/smart-notifications";
 import PressableScale from "@/components/PressableScale";
 
 const DAILY_AFFIRMATIONS = [
   {
-    text: "Invest in yourself, every day counts",
-    author: "Daily Growth",
+    text: "Small rituals. Real results.",
+    author: "GlowCheck",
     icon: Heart,
   },
   {
-    text: "Progress is personal, celebrate your journey",
-    author: "Self Care",
+    text: "Consistency is a luxury you can afford.",
+    author: "Daily Practice",
     icon: Flower2,
   },
   {
-    text: "Today is perfect for positive change",
-    author: "Daily Wisdom",
+    text: "Your skin loves a plan — keep the promise.",
+    author: "Routine",
     icon: Sun,
   },
   {
-    text: "Consistency creates transformation",
-    author: "Daily Focus",
+    text: "Track the glow. Trust the process.",
+    author: "Momentum",
     icon: Crown,
   },
 ];
@@ -59,6 +59,13 @@ export default function HomeScreen() {
   
   const palette = getPalette(theme);
   const currentAffirmation = DAILY_AFFIRMATIONS[currentAffirmationIndex];
+
+  const timeGreeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning,";
+    if (hour < 17) return "Good afternoon,";
+    return "Good evening,";
+  }, []);
 
   // Initialize notifications and tracking once on mount
   useEffect(() => {
@@ -237,14 +244,14 @@ export default function HomeScreen() {
         
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <Text style={styles.greeting}>Welcome back,</Text>
+            <Text style={styles.greeting} testID="home-greeting">{timeGreeting}</Text>
             <View style={styles.nameContainer}>
-              <Text style={styles.name}>{authUser?.user_metadata && typeof authUser.user_metadata === 'object' ? (authUser.user_metadata as { full_name?: string; name?: string }).full_name ?? (authUser.user_metadata as { full_name?: string; name?: string }).name ?? user.name : user.name}</Text>
+              <Text style={styles.name} testID="home-name">{authUser?.user_metadata && typeof authUser.user_metadata === 'object' ? (authUser.user_metadata as { full_name?: string; name?: string }).full_name ?? (authUser.user_metadata as { full_name?: string; name?: string }).name ?? user.name : user.name}</Text>
               <View style={styles.crownContainer}>
                 <Sparkles color={palette.gold} size={20} fill={palette.gold} />
               </View>
             </View>
-            <Text style={styles.subtitle}>Ready to optimize your skincare?</Text>
+            <Text style={styles.subtitle} testID="home-subtitle">Your glow, engineered — one check-in at a time.</Text>
           </View>
           <TouchableOpacity onPress={handleProfilePress} activeOpacity={0.8} style={styles.avatarContainer}>
             {user.avatar ? (
@@ -277,13 +284,14 @@ export default function HomeScreen() {
                 <Camera color={palette.textLight} size={32} strokeWidth={2} />
                 <View style={styles.iconShimmer} />
               </View>
-              <Text style={styles.ctaTitle}>Analyze Your Skin{"\n"}With AI</Text>
-              <Text style={styles.ctaSubtitle}>
-                Professional insights for{"\n"}optimal skincare results
+              <Text style={styles.ctaTitle} testID="home-cta-title">AI Skin Scan{"\n"}In 30 Seconds</Text>
+              <Text style={styles.ctaSubtitle} testID="home-cta-subtitle">
+                Get a clean, actionable plan —
+                not a wall of advice.
               </Text>
               <View style={styles.ctaBadge}>
                 <Sparkles color={palette.textLight} size={14} fill={palette.textLight} />
-                <Text style={[styles.ctaBadgeText, {color: palette.textLight}]}>Personalized</Text>
+                <Text style={[styles.ctaBadgeText, {color: palette.textLight}]}>Tailored to you</Text>
               </View>
             </View>
             <ChevronRight color={palette.textLight} size={24} style={styles.ctaArrow} strokeWidth={2.5} />
@@ -307,7 +315,7 @@ export default function HomeScreen() {
               <Text style={styles.newBadgeText}>NEW</Text>
             </View>
           </View>
-          <Text style={styles.sectionSubtitle}>Track your glow journey & product routines</Text>
+          <Text style={styles.sectionSubtitle}>Photos, routines, and momentum — in one place.</Text>
           
           <View style={styles.progressHubGrid}>
             <TouchableOpacity 
@@ -324,13 +332,13 @@ export default function HomeScreen() {
                 <View style={styles.progressHubIcon}>
                   <TrendingUp color={palette.textLight} size={28} strokeWidth={2.5} />
                 </View>
-                <Text style={styles.progressHubTitle}>Progress Photos</Text>
+                <Text style={styles.progressHubTitle}>Progress Studio</Text>
                 <View style={styles.progressHubStats}>
                   <Text style={styles.progressHubNumber}>{user.stats.analyses || 0}</Text>
                   <Text style={styles.progressHubLabel}>snapshots</Text>
                 </View>
                 <View style={styles.progressHubButton}>
-                  <Text style={styles.progressHubButtonText}>TRACK CHANGES</Text>
+                  <Text style={styles.progressHubButtonText}>VIEW TIMELINE</Text>
                   <ArrowRight color={palette.textLight} size={16} strokeWidth={3} />
                 </View>
                 
@@ -354,13 +362,13 @@ export default function HomeScreen() {
                 <View style={styles.progressHubIcon}>
                   <Package color={palette.textLight} size={28} strokeWidth={2.5} />
                 </View>
-                <Text style={styles.progressHubTitle}>Product Tracker</Text>
+                <Text style={styles.progressHubTitle}>Routine Shelf</Text>
                 <View style={styles.progressHubStats}>
                   <Text style={styles.progressHubNumber}>{products.length}</Text>
                   <Text style={styles.progressHubLabel}>products</Text>
                 </View>
                 <View style={styles.progressHubButton}>
-                  <Text style={styles.progressHubButtonText}>ADD PRODUCT</Text>
+                  <Text style={styles.progressHubButtonText}>ADD TO SHELF</Text>
                   <ArrowRight color={palette.textLight} size={16} strokeWidth={3} />
                 </View>
                 
@@ -374,7 +382,7 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Skincare Services</Text>
+            <Text style={styles.sectionTitle}>What are we doing today?</Text>
             <View style={styles.sectionDivider} />
           </View>
           
@@ -401,7 +409,7 @@ export default function HomeScreen() {
               </View>
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>Skin Analysis</Text>
-                <Text style={styles.actionSubtitle}>Understand your skin&apos;s condition</Text>
+                <Text style={styles.actionSubtitle}>Pinpoint what to do next (and why)</Text>
                 <View style={styles.actionBadge}>
                   <Star color={palette.gold} size={12} fill={palette.gold} />
                   <Text style={[styles.actionBadgeText, { color: palette.gold }]}>Professional</Text>
@@ -435,8 +443,8 @@ export default function HomeScreen() {
                 </LinearGradient>
               </View>
               <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Style Guide</Text>
-                <Text style={styles.actionSubtitle}>Find your perfect look</Text>
+                <Text style={styles.actionTitle}>Style Check</Text>
+                <Text style={styles.actionSubtitle}>Build a look that actually suits you</Text>
                 <View style={styles.actionBadge}>
                   <Sparkles color={palette.sage} size={12} fill={palette.sage} />
                   <Text style={[styles.actionBadgeText, { color: palette.sage }]}>Creative</Text>
@@ -470,8 +478,8 @@ export default function HomeScreen() {
                 </LinearGradient>
               </View>
               <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Skincare Coach</Text>
-                <Text style={styles.actionSubtitle}>Optimize your routine</Text>
+                <Text style={styles.actionTitle}>Glow Coach</Text>
+                <Text style={styles.actionSubtitle}>A routine that fits your life</Text>
                 <View style={styles.actionBadge}>
                   <Star color={palette.mint} size={12} fill={palette.mint} />
                   <Text style={[styles.actionBadgeText, { color: palette.mint }]}>Expert</Text>
@@ -486,7 +494,7 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Daily Motivation</Text>
+            <Text style={styles.sectionTitle}>Today&apos;s Focus</Text>
             <View style={styles.sectionDivider} />
           </View>
           <View style={[styles.quoteCard, shadow.card]}>
@@ -502,7 +510,7 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Your Progress</Text>
+            <Text style={styles.sectionTitle}>Your Numbers</Text>
             <View style={styles.sectionDivider} />
           </View>
           <View style={[styles.statsContainer, shadow.card]}>
@@ -591,10 +599,10 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     borderRadius: 20,
   },
   logoText: {
-    fontSize: 24,
-    fontWeight: '700' as const,
+    fontSize: 22,
+    fontWeight: typography.bold,
     color: palette.textPrimary,
-    letterSpacing: -1,
+    letterSpacing: -0.6,
   },
   streakContainer: {
     alignItems: 'center',
@@ -611,7 +619,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   streakNumber: {
     fontSize: 22,
-    fontWeight: '800' as const,
+    fontWeight: typography.black,
     color: palette.textLight,
     letterSpacing: -1,
   },
@@ -640,12 +648,12 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     flex: 1,
   },
   greeting: {
-    fontSize: 15,
+    fontSize: typography.overline,
     color: palette.textSecondary,
-    marginBottom: 8,
-    letterSpacing: 1.5,
-    fontWeight: "600",
-    textTransform: 'uppercase' as const,
+    marginBottom: 10,
+    letterSpacing: 2.2,
+    fontWeight: typography.semibold,
+    textTransform: "uppercase" as const,
   },
   nameContainer: {
     flexDirection: "row",
@@ -653,21 +661,23 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     marginBottom: 12,
   },
   name: {
-    fontSize: 36,
-    fontWeight: "700",
+    fontSize: 38,
+    fontWeight: typography.black,
     color: palette.textPrimary,
     marginRight: 12,
-    letterSpacing: -1.5,
+    letterSpacing: -1.8,
+    lineHeight: 42,
   },
   crownContainer: {
     marginTop: 4,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: typography.body,
     color: palette.textSecondary,
-    fontWeight: "500",
-    letterSpacing: 0,
+    fontWeight: typography.medium,
+    letterSpacing: 0.1,
     lineHeight: 24,
+    maxWidth: 260,
   },
   avatarContainer: {
     position: "relative",
@@ -708,6 +718,8 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   loadingText: {
     fontSize: 16,
     color: palette.textSecondary,
+    fontWeight: typography.medium,
+    letterSpacing: 0.2,
   },
   mainCtaContainer: {
     marginHorizontal: 20,
@@ -742,19 +754,19 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   ctaTitle: {
     fontSize: 32,
-    fontWeight: "700",
+    fontWeight: typography.black,
     color: palette.textLight,
-    marginBottom: 16,
-    lineHeight: 38,
-    letterSpacing: -1.5,
+    marginBottom: 14,
+    lineHeight: 36,
+    letterSpacing: -1.6,
   },
   ctaSubtitle: {
-    fontSize: 17,
-    color: 'rgba(255,255,255,0.85)',
-    lineHeight: 26,
+    fontSize: 16,
+    color: "rgba(255,255,255,0.86)",
+    lineHeight: 24,
     marginBottom: 20,
-    fontWeight: "400",
-    letterSpacing: 0.2,
+    fontWeight: typography.medium,
+    letterSpacing: 0.15,
   },
   ctaBadge: {
     flexDirection: "row",
@@ -768,9 +780,9 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   ctaBadgeText: {
     color: palette.textPrimary,
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: typography.extrabold,
     marginLeft: 6,
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   ctaArrow: {
     position: "absolute",
@@ -803,11 +815,11 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     justifyContent: 'space-between',
   },
   sectionTitle: {
-    fontSize: 24,
-    fontWeight: "700",
+    fontSize: 22,
+    fontWeight: typography.extrabold,
     color: palette.textPrimary,
-    marginBottom: 8,
-    letterSpacing: -1,
+    marginBottom: 6,
+    letterSpacing: -0.8,
   },
   sectionDivider: {
     height: 3,
@@ -824,7 +836,9 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontSize: 14,
     color: palette.textSecondary,
     marginBottom: 20,
-    fontWeight: '500',
+    fontWeight: typography.medium,
+    letterSpacing: 0.1,
+    lineHeight: 20,
   },
   newBadge: {
     flexDirection: 'row',
@@ -838,8 +852,8 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   newBadgeText: {
     color: palette.textLight,
     fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontWeight: typography.extrabold,
+    letterSpacing: 0.55,
   },
   progressHubGrid: {
     flexDirection: 'row',
@@ -870,22 +884,22 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   progressHubTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: typography.black,
     color: palette.textLight,
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
   progressHubStats: {
     marginTop: -8,
   },
   progressHubNumber: {
     fontSize: 36,
-    fontWeight: '900',
+    fontWeight: typography.black,
     color: palette.textLight,
     letterSpacing: -1,
   },
   progressHubLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: typography.medium,
     color: 'rgba(255, 255, 255, 0.85)',
     letterSpacing: 0.3,
   },
@@ -897,9 +911,9 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   progressHubButtonText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: typography.extrabold,
     color: palette.textLight,
-    letterSpacing: 0.8,
+    letterSpacing: 0.85,
   },
   progressDecorCircle: {
     position: 'absolute',
@@ -935,17 +949,18 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   actionTitle: {
     fontSize: 19,
-    fontWeight: "700",
+    fontWeight: typography.extrabold,
     color: palette.textPrimary,
     marginBottom: 6,
-    letterSpacing: -0.5,
+    letterSpacing: -0.6,
   },
   actionSubtitle: {
     fontSize: 15,
     color: palette.textSecondary,
     marginBottom: 10,
-    fontWeight: "400",
-    letterSpacing: 0,
+    fontWeight: typography.medium,
+    letterSpacing: 0.1,
+    lineHeight: 20,
   },
   actionBadge: {
     flexDirection: "row",
@@ -959,9 +974,9 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   actionBadgeText: {
     color: palette.gold,
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: typography.extrabold,
     marginLeft: 4,
-    letterSpacing: 0.5,
+    letterSpacing: 0.55,
   },
   quoteCard: {
     padding: 36,
@@ -985,22 +1000,22 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     backgroundColor: palette.overlayGold,
   },
   quoteText: {
-    fontSize: 19,
+    fontSize: 18,
     fontStyle: "italic",
     color: palette.textPrimary,
     textAlign: "center",
-    marginBottom: 20,
-    lineHeight: 30,
-    fontWeight: "400",
-    letterSpacing: 0.2,
+    marginBottom: 18,
+    lineHeight: 28,
+    fontWeight: typography.regular,
+    letterSpacing: 0.15,
   },
   quoteAuthor: {
-    fontSize: 13,
+    fontSize: 12,
     color: palette.textSecondary,
-    fontWeight: "600",
-    letterSpacing: 1,
+    fontWeight: typography.semibold,
+    letterSpacing: 1.7,
     marginBottom: 16,
-    textTransform: 'uppercase' as const,
+    textTransform: "uppercase" as const,
   },
   quoteDivider: {
     height: 2,
@@ -1033,16 +1048,16 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   statNumber: {
     fontSize: 36,
-    fontWeight: "700",
+    fontWeight: typography.black,
     color: palette.primary,
     marginBottom: 8,
-    letterSpacing: -1.5,
+    letterSpacing: -1.6,
   },
   statLabel: {
     fontSize: 11,
     color: palette.textSecondary,
-    fontWeight: "700",
-    letterSpacing: 1.5,
+    fontWeight: typography.extrabold,
+    letterSpacing: 1.6,
   },
   statDivider: {
     width: 2,
