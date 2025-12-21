@@ -22,23 +22,23 @@ import { trackAppOpen, scheduleDailyNotifications } from "@/lib/smart-notificati
 
 const DAILY_AFFIRMATIONS = [
   {
-    text: "Invest in yourself, every day counts",
-    author: "Daily Growth",
+    text: "Excellence compounds through consistent refinement",
+    author: "PRECISION PROTOCOL",
     icon: Heart,
   },
   {
-    text: "Progress is personal, celebrate your journey",
-    author: "Self Care",
+    text: "Data-driven decisions optimize outcomes",
+    author: "INTELLIGENT SYSTEMS",
     icon: Flower2,
   },
   {
-    text: "Today is perfect for positive change",
-    author: "Daily Wisdom",
+    text: "Measured progress reveals transformation",
+    author: "QUANTIFIED SELF",
     icon: Sun,
   },
   {
-    text: "Consistency creates transformation",
-    author: "Daily Focus",
+    text: "Systematic optimization achieves mastery",
+    author: "CONTINUOUS EVOLUTION",
     icon: Crown,
   },
 ];
@@ -232,14 +232,11 @@ export default function HomeScreen() {
         
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <Text style={styles.greeting}>Welcome back,</Text>
+            <Text style={styles.greeting}>WELCOME BACK</Text>
             <View style={styles.nameContainer}>
               <Text style={styles.name}>{authUser?.user_metadata && typeof authUser.user_metadata === 'object' ? (authUser.user_metadata as { full_name?: string; name?: string }).full_name ?? (authUser.user_metadata as { full_name?: string; name?: string }).name ?? user.name : user.name}</Text>
-              <View style={styles.crownContainer}>
-                <Sparkles color={palette.gold} size={20} fill={palette.gold} />
-              </View>
             </View>
-            <Text style={styles.subtitle}>Ready to optimize your skincare?</Text>
+            <Text style={styles.subtitle}>Protocol dashboard — {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
           </View>
           <TouchableOpacity onPress={handleProfilePress} activeOpacity={0.8} style={styles.avatarContainer}>
             {user.avatar ? (
@@ -262,16 +259,15 @@ export default function HomeScreen() {
           >
             <View style={styles.ctaContent}>
               <View style={styles.ctaIconContainer}>
-                <Camera color={palette.textLight} size={32} strokeWidth={2} />
-                <View style={styles.iconShimmer} />
+                <Camera color={palette.textLight} size={28} strokeWidth={2} />
               </View>
-              <Text style={styles.ctaTitle}>Analyze Your Skin{"\n"}With AI</Text>
+              <Text style={styles.ctaTitle}>Precision Skin Analysis</Text>
               <Text style={styles.ctaSubtitle}>
-                Professional insights for{"\n"}optimal skincare results
+                AI-powered assessment with clinical-grade accuracy
               </Text>
               <View style={styles.ctaBadge}>
-                <Sparkles color={palette.textLight} size={14} fill={palette.textLight} />
-                <Text style={[styles.ctaBadgeText, {color: palette.textLight}]}>Personalized</Text>
+                <View style={styles.ctaBadgeDot} />
+                <Text style={[styles.ctaBadgeText, {color: palette.textLight}]}>ADVANCED IMAGING</Text>
               </View>
             </View>
             <ChevronRight color={palette.textLight} size={24} style={styles.ctaArrow} strokeWidth={2.5} />
@@ -287,15 +283,11 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <TrendingUp color={palette.gold} size={24} strokeWidth={2.5} />
-              <Text style={styles.sectionTitle}>Your Progress Hub</Text>
-            </View>
-            <View style={styles.newBadge}>
-              <Sparkles color={palette.textLight} size={10} fill={palette.textLight} />
-              <Text style={styles.newBadgeText}>NEW</Text>
+              <View style={styles.sectionIndicator} />
+              <Text style={styles.sectionTitle}>Progress Intelligence</Text>
             </View>
           </View>
-          <Text style={styles.sectionSubtitle}>Track your glow journey & product routines</Text>
+          <Text style={styles.sectionSubtitle}>Quantified tracking with advanced analytics</Text>
           
           <View style={styles.progressHubGrid}>
             <TouchableOpacity 
@@ -590,10 +582,10 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     flex: 1,
   },
   greeting: {
-    fontSize: 15,
-    color: palette.textSecondary,
+    fontSize: 11,
+    color: palette.textTertiary,
     marginBottom: 8,
-    letterSpacing: 1.5,
+    letterSpacing: 2,
     fontWeight: "600",
     textTransform: 'uppercase' as const,
   },
@@ -603,21 +595,20 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     marginBottom: 12,
   },
   name: {
-    fontSize: 36,
-    fontWeight: "700",
+    fontSize: 32,
+    fontWeight: "600",
     color: palette.textPrimary,
-    marginRight: 12,
-    letterSpacing: -1.5,
+    letterSpacing: -1.2,
   },
   crownContainer: {
     marginTop: 4,
   },
   subtitle: {
-    fontSize: 16,
-    color: palette.textSecondary,
-    fontWeight: "500",
-    letterSpacing: 0,
-    lineHeight: 24,
+    fontSize: 13,
+    color: palette.textTertiary,
+    fontWeight: "400",
+    letterSpacing: 0.3,
+    lineHeight: 20,
   },
   avatarContainer: {
     position: "relative",
@@ -691,36 +682,44 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     backgroundColor: palette.overlayLight,
   },
   ctaTitle: {
-    fontSize: 32,
-    fontWeight: "700",
+    fontSize: 28,
+    fontWeight: "600",
     color: palette.textLight,
-    marginBottom: 16,
-    lineHeight: 38,
-    letterSpacing: -1.5,
+    marginBottom: 12,
+    lineHeight: 34,
+    letterSpacing: -1.2,
   },
   ctaSubtitle: {
-    fontSize: 17,
+    fontSize: 14,
     color: 'rgba(255,255,255,0.85)',
-    lineHeight: 26,
-    marginBottom: 20,
+    lineHeight: 22,
+    marginBottom: 18,
     fontWeight: "400",
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
   ctaBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: palette.overlayLight,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
     alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  ctaBadgeDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: palette.textLight,
+    marginRight: 6,
   },
   ctaBadgeText: {
     color: palette.textPrimary,
-    fontSize: 12,
-    fontWeight: "700",
-    marginLeft: 6,
-    letterSpacing: 0.5,
+    fontSize: 9,
+    fontWeight: "600",
+    letterSpacing: 1,
   },
   ctaArrow: {
     position: "absolute",
@@ -753,11 +752,16 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     justifyContent: 'space-between',
   },
   sectionTitle: {
-    fontSize: 24,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "600",
     color: palette.textPrimary,
-    marginBottom: 8,
-    letterSpacing: -1,
+    letterSpacing: -0.5,
+  },
+  sectionIndicator: {
+    width: 3,
+    height: 20,
+    backgroundColor: palette.primary,
+    borderRadius: 2,
   },
   sectionDivider: {
     height: 3,
@@ -771,10 +775,11 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     gap: 10,
   },
   sectionSubtitle: {
-    fontSize: 14,
-    color: palette.textSecondary,
+    fontSize: 13,
+    color: palette.textTertiary,
     marginBottom: 20,
-    fontWeight: '500',
+    fontWeight: '400',
+    letterSpacing: 0.2,
   },
   newBadge: {
     flexDirection: 'row',
@@ -884,18 +889,18 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     flex: 1,
   },
   actionTitle: {
-    fontSize: 19,
-    fontWeight: "700",
+    fontSize: 17,
+    fontWeight: "600",
     color: palette.textPrimary,
     marginBottom: 6,
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   actionSubtitle: {
-    fontSize: 15,
-    color: palette.textSecondary,
+    fontSize: 14,
+    color: palette.textTertiary,
     marginBottom: 10,
     fontWeight: "400",
-    letterSpacing: 0,
+    letterSpacing: 0.2,
   },
   actionBadge: {
     flexDirection: "row",
@@ -935,20 +940,20 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     backgroundColor: palette.overlayGold,
   },
   quoteText: {
-    fontSize: 19,
-    fontStyle: "italic",
+    fontSize: 16,
+    fontStyle: "normal",
     color: palette.textPrimary,
     textAlign: "center",
-    marginBottom: 20,
-    lineHeight: 30,
+    marginBottom: 16,
+    lineHeight: 26,
     fontWeight: "400",
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
   quoteAuthor: {
-    fontSize: 13,
-    color: palette.textSecondary,
+    fontSize: 10,
+    color: palette.textTertiary,
     fontWeight: "600",
-    letterSpacing: 1,
+    letterSpacing: 1.5,
     marginBottom: 16,
     textTransform: 'uppercase' as const,
   },

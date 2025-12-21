@@ -2,93 +2,94 @@ import { Platform } from "react-native";
 
 export type ThemeMode = 'light' | 'dark';
 
-// $200K Ultra-Premium Design System - Gender-Neutral Luxury Excellence
-// Inspired by: Apple Pro, Porsche Design, Bang & Olufsen, Aesop, Arc'teryx
+// $500K Ultra-Premium Design System - Universal Luxury Excellence
+// Inspired by: Porsche Design, Bang & Olufsen, Leica, Vertu, Aston Martin
+// Philosophy: Architectural minimalism meets emotional sophistication
 const lightPalette = {
-  // Ultra-premium backgrounds - Architectural purity
-  background: "#FAFBFC", // Sophisticated light gray
-  backgroundStart: "#FFFFFF", // Pure white
-  backgroundEnd: "#F5F7FA", // Cool architectural gray
-  surface: "#FFFFFF", // Pure white
-  surfaceAlt: "#F8F9FA", // Elevated surface
-  surfaceElevated: "#FFFFFF", // Premium elevation
-  surfaceGlass: "rgba(255,255,255,0.72)", // Advanced glassmorphism
+  // Ultra-premium backgrounds - Museum-grade purity
+  background: "#FCFCFD", // Hyper-refined white with cool undertone
+  backgroundStart: "#FFFFFF", // Absolute zero white
+  backgroundEnd: "#F7F8FA", // Sophisticated pearl gray
+  surface: "#FFFFFF", // Pure white canvas
+  surfaceAlt: "#FAFBFC", // Elevated whisper
+  surfaceElevated: "#FFFFFF", // Premium elevation plane
+  surfaceGlass: "rgba(255,255,255,0.88)", // Next-gen glassmorphism
   
-  // Premium accent system - Monochromatic luxury with precise metallics
-  primary: "#0A0A0A", // Pure black - commanding presence
-  secondary: "#6B7280", // Slate gray - sophisticated secondary
-  tertiary: "#E5E7EB", // Light neutral surface
+  // Premium accent system - Intelligent monochrome with surgical metallics
+  primary: "#000000", // True black - absolute authority
+  secondary: "#525252", // Refined charcoal - confident secondary
+  tertiary: "#E8EAED", // Sophisticated neutral surface
   
-  // Refined metallics - Ultra-selective accent use
-  gold: "#C9A961", // Rich gold - luxury accent
-  silver: "#B8BCC8", // Brushed platinum - tech elegance
-  bronze: "#CD7F32", // Classic bronze - premium warmth
-  copper: "#B87333", // Refined copper - artisan quality
-  emerald: "#059669", // Deep emerald - premium green
-  sapphire: "#2563EB", // Rich sapphire - premium blue
+  // Refined metallics - Museum-quality accents
+  gold: "#B8956A", // Muted champagne gold - understated luxury
+  silver: "#A8B2BC", // Brushed titanium - aerospace elegance
+  bronze: "#A67C52", // Antiqued bronze - heritage warmth
+  copper: "#996644", // Oxidized copper - artisan craft
+  emerald: "#047857", // Deep forest - premium vitality
+  sapphire: "#1E40AF", // Royal sapphire - premium intelligence
   
-  // Architectural color system - Precision neutrals
-  blush: "#E8DDD5", // Warm stone
-  sage: "#B8C5C2", // Cool concrete
-  slate: "#475569", // Architectural slate
-  charcoal: "#1F2937", // Deep charcoal
-  ivory: "#FAFAF9", // Soft white
-  pearl: "#FFFFFF", // Pure white
-  obsidian: "#0A0A0A", // Deep black - premium depth
+  // Architectural color system - Precision neutrals with emotional intelligence
+  blush: "#E6DCD4", // Refined warm stone - subtle warmth
+  sage: "#B0BDB9", // Cool mineral - natural calm
+  slate: "#3D4451", // Architectural slate - structural confidence
+  charcoal: "#171717", // Deep charcoal - premium depth
+  ivory: "#FFFCF8", // Warm ivory - organic luxury
+  pearl: "#FFFFFF", // Absolute white - pure canvas
+  obsidian: "#000000", // True obsidian - ultimate depth
   
-  // Architectural color aliases
-  mint: "#A8B5B2", // Same as sage
-  rose: "#D4C4B8", // Same as blush
-  lavender: "#9CA3AF", // Cool gray
-  champagne: "#E8DED2", // Muted gold
-  peach: "#D4C4B8", // Same as blush
+  // Architectural color aliases - Emotional resonance
+  mint: "#B0BDB9", // Natural mineral calm
+  rose: "#E6DCD4", // Gentle warmth
+  lavender: "#9099A3", // Cool intelligence
+  champagne: "#E8E0D5", // Refined celebration
+  peach: "#E6DCD4", // Soft warmth
   
-  // Text hierarchy - Architectural precision
-  text: "#000000", // Pure black
-  textPrimary: "#0A0A0A", // True black
-  textSecondary: "#6B7280", // Slate gray
-  textTertiary: "#9CA3AF", // Light slate
-  textMuted: "#D1D5DB", // Very light
-  textAccent: "#B8956A", // Muted gold accent
-  textLight: "#FFFFFF", // Pure white
-  textInverse: "#FFFFFF", // White on dark
+  // Text hierarchy - Professional typography system
+  text: "#000000", // Absolute black - maximum contrast
+  textPrimary: "#000000", // True black - primary hierarchy
+  textSecondary: "#525252", // Refined gray - secondary hierarchy
+  textTertiary: "#878787", // Light gray - tertiary hierarchy
+  textMuted: "#C2C2C2", // Subtle gray - muted elements
+  textAccent: "#B8956A", // Champagne gold - premium accent
+  textLight: "#FFFFFF", // Pure white - dark mode
+  textInverse: "#FFFFFF", // White on dark surfaces
   
-  // System colors - Premium refinement
-  success: "#10B981", // Emerald green
-  warning: "#F59E0B", // Amber
-  error: "#EF4444", // Modern red
-  info: "#3B82F6", // Blue
-  danger: "#DC2626", // Alert red
-  disabled: "#E5E7EB", // Disabled state
+  // System colors - Professional feedback system
+  success: "#059669", // Deep emerald - confident positive
+  warning: "#D97706", // Deep amber - important caution
+  error: "#DC2626", // Confident red - clear error
+  info: "#2563EB", // Sapphire - intelligent information
+  danger: "#B91C1C", // Deep red - critical alert
+  disabled: "#E8EAED", // Subtle disabled state
   
-  // Borders & dividers - Architectural precision
-  divider: "rgba(0,0,0,0.08)", // Defined divider
-  border: "rgba(0,0,0,0.10)", // Clear border
-  borderLight: "rgba(0,0,0,0.05)", // Subtle
-  borderDark: "rgba(0,0,0,0.15)", // Strong definition
+  // Borders & dividers - Surgical precision
+  divider: "rgba(0,0,0,0.06)", // Whisper divider
+  border: "rgba(0,0,0,0.08)", // Refined border
+  borderLight: "rgba(0,0,0,0.03)", // Ultra-subtle
+  borderDark: "rgba(0,0,0,0.12)", // Confident definition
   
-  // Advanced overlays - Depth & dimension
-  overlayDark: "rgba(0,0,0,0.75)",
-  overlayMedium: "rgba(0,0,0,0.5)",
-  overlayLight: "rgba(0,0,0,0.25)",
-  overlayWhite: "rgba(255,255,255,0.95)",
-  overlayGlass: "rgba(255,255,255,0.72)",
-  overlayGold: "rgba(212,165,116,0.12)",
-  overlaySage: "rgba(184,201,197,0.12)",
-  overlaySuccess: "rgba(52,199,89,0.12)",
-  overlayError: "rgba(255,59,48,0.12)",
+  // Advanced overlays - Dimensional depth system
+  overlayDark: "rgba(0,0,0,0.88)",
+  overlayMedium: "rgba(0,0,0,0.60)",
+  overlayLight: "rgba(0,0,0,0.20)",
+  overlayWhite: "rgba(255,255,255,0.97)",
+  overlayGlass: "rgba(255,255,255,0.85)",
+  overlayGold: "rgba(184,149,106,0.10)",
+  overlaySage: "rgba(176,189,185,0.10)",
+  overlaySuccess: "rgba(5,150,105,0.10)",
+  overlayError: "rgba(220,38,38,0.10)",
   
   // Legacy overlay aliases
-  overlayBlush: "rgba(232,213,196,0.12)", // Warm overlay
-  overlayLavender: "rgba(156,163,175,0.12)", // Cool overlay
+  overlayBlush: "rgba(230,220,212,0.10)", // Refined warm overlay
+  overlayLavender: "rgba(144,153,163,0.10)", // Refined cool overlay
   
-  // Premium effects - Subtle luxury
-  shimmer: "rgba(255,255,255,0.9)",
-  glow: "rgba(212,165,116,0.4)",
-  highlight: "rgba(255,255,255,0.8)",
-  shadow: "rgba(0,0,0,0.04)",
-  shadowMedium: "rgba(0,0,0,0.08)",
-  shadowStrong: "rgba(0,0,0,0.15)",
+  // Premium effects - Museum-grade lighting
+  shimmer: "rgba(255,255,255,0.95)",
+  glow: "rgba(184,149,106,0.35)",
+  highlight: "rgba(255,255,255,0.88)",
+  shadow: "rgba(0,0,0,0.03)",
+  shadowMedium: "rgba(0,0,0,0.06)",
+  shadowStrong: "rgba(0,0,0,0.12)",
   
   // Blur & glass - Modern depth
   blur: "rgba(255,255,255,0.8)",

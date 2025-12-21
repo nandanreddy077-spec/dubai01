@@ -22,78 +22,78 @@ interface Slide {
 const slides: Slide[] = [
   {
     id: '1',
-    title: 'Your Transformation\nStarts Here',
-    subtitle: 'Discover your potential with AI-powered skincare insights',
+    title: 'Transform Your\nSkincare Journey',
+    subtitle: 'AI-powered insights meet professional-grade analysis',
     image: '',
     features: [
       { 
         icon: <Camera size={20} />, 
-        title: 'AI Analysis', 
-        description: 'Instant assessment' 
+        title: 'Precision Analysis', 
+        description: 'Museum-grade accuracy' 
       },
       { 
         icon: <Wand2 size={20} />, 
-        title: 'Personalized', 
-        description: 'Tailored plans' 
+        title: 'Intelligent Plans', 
+        description: 'Surgical precision' 
       },
       { 
         icon: <TrendingUp size={20} />, 
-        title: 'Track Progress', 
-        description: 'Monitor changes' 
+        title: 'Visual Progress', 
+        description: 'Quantified results' 
       },
     ],
-    ctaText: 'Get Started',
-    gradientColors: ['#FFFFFF', '#F5F5F7'],
+    ctaText: 'Begin Experience',
+    gradientColors: ['#FFFFFF', '#F7F8FA'],
   },
   {
     id: '2',
-    title: 'Skincare That\nEvolves With You',
-    subtitle: 'Daily coaching and smart routines that adapt to your lifestyle',
+    title: 'Intelligent Care\nThat Adapts',
+    subtitle: 'Your personalized coach powered by advanced algorithms',
     image: 'https://images.unsplash.com/photo-1616683693504-3ea7e9ad6fec?q=80&w=1080&auto=format&fit=crop',
     features: [
       { 
         icon: <Heart size={20} />, 
-        title: 'Daily Care', 
-        description: 'Morning & evening routines' 
+        title: 'Adaptive Protocols', 
+        description: 'Dynamic optimization' 
       },
       { 
         icon: <Award size={20} />, 
-        title: 'Rewards', 
-        description: 'Earn achievements' 
+        title: 'Progress Tracking', 
+        description: 'Measurable outcomes' 
       },
       { 
         icon: <Star size={20} />, 
-        title: 'Expert Tips', 
-        description: 'Professional advice' 
+        title: 'Expert System', 
+        description: 'Clinical precision' 
       },
     ],
-    ctaText: 'Start Your Routine',
-    gradientColors: ['#FFFFFF', '#F5F5F7'],
+    ctaText: 'Activate Intelligence',
+    gradientColors: ['#FFFFFF', '#F7F8FA'],
   },
   {
     id: '3',
-    title: 'Join 100K+\nWho Transformed',
-    subtitle: 'Share your journey, inspire others, achieve your goals',
+    title: 'Join A Movement\nOf Excellence',
+    subtitle: 'Precision results backed by sophisticated technology',
     image: 'https://images.unsplash.com/photo-1524502397800-2eeaad7c3fe5?q=80&w=1080&auto=format&fit=crop',
     features: [
       { 
         icon: <Users size={20} />, 
-        title: 'Community', 
-        description: 'Connect & share tips' 
+        title: 'Elite Network', 
+        description: 'Curated excellence' 
       },
       { 
         icon: <Sparkles size={20} />, 
-        title: '7-Day Trial', 
-        description: 'All premium features' 
+        title: 'Full Access', 
+        description: 'Premium suite' 
       },
       { 
         icon: <Zap size={20} />, 
-        title: 'Transform', 
-        description: 'Track your results' 
+        title: 'Quantified Data', 
+        description: 'Scientific tracking' 
       },
     ],
-    ctaText: 'Begin Free Trial',
-    gradientColors: ['#FFFFFF', '#F5F5F7'],
+    ctaText: 'Access Platform',
+    gradientColors: ['#FFFFFF', '#F7F8FA'],
   },
 ];
 
@@ -641,21 +641,22 @@ const createStyles = (palette: ReturnType<typeof getPalette>, height: number) =>
     marginBottom: spacing.xl,
   },
   title: {
-    fontSize: 34,
-    fontWeight: '900',
+    fontSize: 38,
+    fontWeight: '800',
     color: palette.textPrimary,
     textAlign: 'center',
     marginBottom: spacing.md,
-    letterSpacing: -1.2,
-    lineHeight: 40,
+    letterSpacing: -1.8,
+    lineHeight: 44,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 16,
     color: palette.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
-    fontWeight: '500',
+    lineHeight: 24,
+    fontWeight: '400',
     paddingHorizontal: spacing.lg,
+    letterSpacing: 0.2,
   },
   
   featuresGrid: {
@@ -691,19 +692,20 @@ const createStyles = (palette: ReturnType<typeof getPalette>, height: number) =>
   },
   featureCardTitle: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     color: palette.textPrimary,
     textAlign: 'center',
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
     lineHeight: 14,
     marginBottom: 2,
   },
   featureCardDescription: {
     fontSize: 9,
-    fontWeight: '500',
-    color: palette.textSecondary,
+    fontWeight: '400',
+    color: palette.textTertiary,
     textAlign: 'center',
     lineHeight: 12,
+    letterSpacing: 0.1,
   },
   
   bottomNav: {

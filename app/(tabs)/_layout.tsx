@@ -42,23 +42,22 @@ export default function TabLayout() {
           tabBarInactiveTintColor: palette.textMuted,
           tabBarStyle: {
             backgroundColor: palette.surface,
-            borderTopWidth: 0,
+            borderTopWidth: 0.5,
+            borderTopColor: palette.divider,
             paddingTop: 12,
             paddingBottom: Platform.OS === 'ios' ? 24 : 16,
             height: Platform.OS === 'ios' ? 88 : 72,
             shadowColor: palette.shadow,
-            shadowOpacity: 0.1,
-            shadowRadius: 20,
-            shadowOffset: { width: 0, height: -4 },
-            elevation: 8,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
+            shadowOpacity: 0.08,
+            shadowRadius: 24,
+            shadowOffset: { width: 0, height: -8 },
+            elevation: 12,
           },
           tabBarLabelStyle: {
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: "600",
             marginTop: 4,
-            letterSpacing: 0.5,
+            letterSpacing: 0.8,
           },
           tabBarIconStyle: {
             marginBottom: 2,
@@ -68,18 +67,18 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: "Glow",
+            title: "Home",
             tabBarIcon: ({ color, size, focused }) => (
               <View style={{ 
-                padding: 8, 
-                borderRadius: 16, 
+                padding: 6, 
+                borderRadius: 12, 
                 backgroundColor: focused ? palette.overlayGold : 'transparent' 
               }}>
                 <Heart 
                   color={focused ? palette.primary : color} 
-                  size={focused ? 22 : 20}
-                  strokeWidth={focused ? 2.5 : 2}
-                  fill={focused ? palette.blush : "transparent"}
+                  size={focused ? 24 : 22}
+                  strokeWidth={focused ? 2 : 1.5}
+                  fill={focused ? palette.overlayGold : "transparent"}
                 />
               </View>
             ),
@@ -91,14 +90,14 @@ export default function TabLayout() {
             title: "Coach",
             tabBarIcon: ({ color, size, focused }) => (
               <View style={{ 
-                padding: 8, 
-                borderRadius: 16, 
+                padding: 6, 
+                borderRadius: 12, 
                 backgroundColor: focused ? palette.overlaySage : 'transparent' 
               }}>
                 <Wand2 
-                  color={focused ? palette.sage : color} 
-                  size={focused ? 22 : 20}
-                  strokeWidth={focused ? 2.5 : 2}
+                  color={focused ? palette.primary : color} 
+                  size={focused ? 24 : 22}
+                  strokeWidth={focused ? 2 : 1.5}
                 />
               </View>
             ),
@@ -107,17 +106,17 @@ export default function TabLayout() {
         <Tabs.Screen
           name="community"
           options={{
-            title: "Circle",
+            title: "Community",
             tabBarIcon: ({ color, size, focused }) => (
               <View style={{ 
-                padding: 8, 
-                borderRadius: 16, 
+                padding: 6, 
+                borderRadius: 12, 
                 backgroundColor: focused ? palette.overlayGold : 'transparent' 
               }}>
                 <Users 
-                  color={focused ? palette.gold : color} 
-                  size={focused ? 22 : 20}
-                  strokeWidth={focused ? 2.5 : 2}
+                  color={focused ? palette.primary : color} 
+                  size={focused ? 24 : 22}
+                  strokeWidth={focused ? 2 : 1.5}
                 />
               </View>
             ),
@@ -126,17 +125,17 @@ export default function TabLayout() {
         <Tabs.Screen
           name="profile"
           options={{
-            title: "You",
+            title: "Profile",
             tabBarIcon: ({ color, size, focused }) => (
               <View style={{ 
-                padding: 8, 
-                borderRadius: 16, 
+                padding: 6, 
+                borderRadius: 12, 
                 backgroundColor: focused ? palette.overlayGold : 'transparent' 
               }}>
                 <User 
-                  color={focused ? palette.secondary : color} 
-                  size={focused ? 22 : 20}
-                  strokeWidth={focused ? 2.5 : 2}
+                  color={focused ? palette.primary : color} 
+                  size={focused ? 24 : 22}
+                  strokeWidth={focused ? 2 : 1.5}
                 />
               </View>
             ),
