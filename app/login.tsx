@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
-import { Eye, EyeOff, Mail, Lock, Heart, Sparkles, Star, Wifi, ChevronRight } from 'lucide-react-native';
+import { Eye, EyeOff, Mail, Lock, Heart, Sparkles, Star, Wifi } from 'lucide-react-native';
 import { getPalette, getGradient, shadow, spacing, radii } from '@/constants/theme';
 import { testSupabaseConnection } from '@/lib/supabase';
 
@@ -219,13 +219,14 @@ export default function LoginScreen() {
               ]}
             >
               <View style={styles.titleContainer}>
+                <Sparkles color={palette.primary} size={32} fill={palette.primary} />
                 <Text style={styles.title}>Welcome Back</Text>
               </View>
-              <Text style={styles.subtitle}>Resume your precision skincare protocol</Text>
+              <Text style={styles.subtitle}>Continue your skincare journey with us</Text>
               
               <View style={styles.welcomeBadge}>
-                <View style={styles.welcomeBadgeDot} />
-                <Text style={styles.welcomeBadgeText}>Secure Access</Text>
+                <Sparkles color={palette.primary} size={16} fill={palette.primary} />
+                <Text style={styles.welcomeBadgeText}>Your progress awaits</Text>
               </View>
               
               {/* Connection Status Indicator */}
@@ -321,10 +322,10 @@ export default function LoginScreen() {
                   colors={getGradient(theme).primary}
                   style={styles.loginButtonGradient}
                 >
+                  <Sparkles color={palette.textLight} size={18} fill={palette.textLight} />
                   <Text style={styles.loginButtonText}>
-                    {isLoading ? 'Authenticating...' : 'Sign In'}
+                    {isLoading ? 'Signing in...' : 'Sign In'}
                   </Text>
-                  <ChevronRight color={palette.textLight} size={20} strokeWidth={2.5} />
                 </LinearGradient>
               </TouchableOpacity>
 
@@ -389,43 +390,33 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     marginBottom: spacing.md,
   },
   title: {
-    fontSize: 32,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '900',
     color: palette.textPrimary,
     textAlign: 'center',
-    letterSpacing: -1.2,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 17,
     color: palette.textSecondary,
     textAlign: 'center',
-    fontWeight: '400',
+    fontWeight: '500',
     marginBottom: spacing.lg,
-    letterSpacing: 0.2,
   },
   welcomeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.surface,
+    backgroundColor: palette.overlayLight,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: radii.pill,
     gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  welcomeBadgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: palette.success,
   },
   welcomeBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: palette.textSecondary,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase' as const,
+    fontSize: 14,
+    fontWeight: '700',
+    color: palette.primary,
+    letterSpacing: 0.5,
   },
   form: {
     backgroundColor: palette.surface,
@@ -437,13 +428,13 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.surface,
+    backgroundColor: palette.surfaceElevated,
     borderRadius: radii.lg,
     marginBottom: spacing.lg,
     paddingHorizontal: spacing.lg,
-    height: 56,
-    borderWidth: 1.5,
-    borderColor: palette.border,
+    height: 60,
+    borderWidth: 1,
+    borderColor: palette.borderLight,
   },
   inputIconContainer: {
     marginRight: spacing.md,
@@ -453,9 +444,9 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   input: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     color: palette.textPrimary,
-    fontWeight: '400',
+    fontWeight: '500',
   },
   passwordInput: {
     paddingRight: spacing.xxxxl,
@@ -494,8 +485,8 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   loginButtonText: {
     color: palette.textLight,
     fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: 0.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   signupContainer: {
     flexDirection: 'row',

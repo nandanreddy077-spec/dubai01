@@ -17,6 +17,7 @@ import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from 'expo-linear-gradient';
 // All features free - SubscriptionGuard removed
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { getPalette, getGradient, shadow } from '@/constants/theme';
 import BiometricConsent from '@/components/BiometricConsent';
 import MedicalDisclaimer from '@/components/MedicalDisclaimer';
@@ -498,21 +499,19 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     paddingHorizontal: 16,
   },
   progressTitle: {
-    fontSize: 24,
-    fontWeight: '600',
+    fontSize: 28,
+    fontWeight: '800',
     color: palette.textPrimary,
     marginBottom: 8,
     textAlign: 'center',
-    letterSpacing: -0.8,
+    letterSpacing: 0.5,
   },
   progressSubtitle: {
-    fontSize: 14,
+    fontSize: 17,
     color: palette.textSecondary,
     marginBottom: 24,
     textAlign: 'center',
-    lineHeight: 22,
-    fontWeight: '400',
-    letterSpacing: 0.2,
+    lineHeight: 24,
   },
   progressBar: {
     width: '100%',
@@ -543,19 +542,17 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     justifyContent: 'center',
   },
   instructionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     color: palette.textPrimary,
     marginLeft: 12,
-    letterSpacing: -0.3,
+    letterSpacing: 0.3,
   },
   instructionText: {
-    fontSize: 14,
+    fontSize: 16,
     color: palette.textSecondary,
-    lineHeight: 22,
+    lineHeight: 26,
     textAlign: 'center',
-    fontWeight: '400',
-    letterSpacing: 0.2,
   },
   capturedSection: {
     width: '100%',
@@ -669,23 +666,21 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     left: 15,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '600',
+    fontSize: 32,
+    fontWeight: '800',
     color: palette.textPrimary,
     marginBottom: 16,
     textAlign: 'center',
-    letterSpacing: -1,
+    letterSpacing: 0.5,
   },
   description: {
-    fontSize: 15,
+    fontSize: 17,
     color: palette.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 26,
     marginBottom: 48,
     paddingHorizontal: 24,
     maxWidth: width - 48,
-    fontWeight: '400',
-    letterSpacing: 0.2,
   },
   buttonContainer: {
     width: '100%',
@@ -705,8 +700,8 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   primaryButtonText: {
     color: palette.textLight,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     letterSpacing: 0.3,
   },
   secondaryButton: {
@@ -723,8 +718,8 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   secondaryButtonText: {
     color: palette.primary,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     letterSpacing: 0.3,
   },
   linkButton: {
@@ -795,20 +790,17 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     borderColor: palette.divider,
   },
   noteTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: palette.textPrimary,
     marginBottom: 12,
     textAlign: 'center',
-    letterSpacing: -0.3,
   },
   noteText: {
-    fontSize: 13,
+    fontSize: 15,
     color: palette.textSecondary,
-    lineHeight: 20,
+    lineHeight: 22,
     textAlign: 'center',
-    fontWeight: '400',
-    letterSpacing: 0.2,
   },
 });
 
