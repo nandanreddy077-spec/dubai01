@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   Animated,
+  StatusBar,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,6 +20,7 @@ import { useProducts } from "@/contexts/ProductContext";
 import PhotoPickerModal from "@/components/PhotoPickerModal";
 import { getPalette, getGradient, shadow } from "@/constants/theme";
 import { trackAppOpen, scheduleDailyNotifications } from "@/lib/smart-notifications";
+import PressableScale from "@/components/PressableScale";
 
 const DAILY_AFFIRMATIONS = [
   {
@@ -135,7 +137,7 @@ export default function HomeScreen() {
     setShowPhotoPicker(false);
   };
 
-  const styles = createStyles(palette);
+  const styles = useMemo(() => createStyles(palette), [palette]);
 
   if (!user) {
     return (
@@ -166,7 +168,10 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       <LinearGradient colors={getGradient(theme).hero} style={StyleSheet.absoluteFillObject} />
+      <View style={styles.ambientTop} pointerEvents="none" />
+      <View style={styles.ambientBottom} pointerEvents="none" />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Floating sparkles */}
         <Animated.View 
@@ -253,7 +258,14 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity onPress={handleGlowAnalysis} activeOpacity={0.95} style={styles.mainCtaContainer}>
+        <PressableScale
+          onPress={handleGlowAnalysis}
+          pressedScale={0.985}
+          haptics="medium"
+          style={styles.mainCtaContainer}
+          testID="home-main-cta"
+          accessibilityRole="button"
+        >
           <LinearGradient
             colors={getGradient(theme).primary}
             start={{ x: 0, y: 0 }}
@@ -281,7 +293,7 @@ export default function HomeScreen() {
               <View style={[styles.decorativeCircle, { top: 50, right: 85, opacity: 0.4, width: 10, height: 10, backgroundColor: palette.sage }]} />
             </View>
           </LinearGradient>
-        </TouchableOpacity>
+        </PressableScale>
 
         {/* Progress Hub Section */}
         <View style={styles.section}>
@@ -366,7 +378,13 @@ export default function HomeScreen() {
             <View style={styles.sectionDivider} />
           </View>
           
-          <TouchableOpacity onPress={handleGlowAnalysis} activeOpacity={0.9}>
+          <PressableScale
+            onPress={handleGlowAnalysis}
+            pressedScale={0.985}
+            haptics="light"
+            testID="home-action-skin-analysis"
+            accessibilityRole="button"
+          >
             <View style={[styles.actionCard, shadow.card]}>
               <View style={styles.actionIconContainer}>
                 <LinearGradient 
@@ -393,9 +411,15 @@ export default function HomeScreen() {
                 <ArrowRight color={palette.gold} size={24} strokeWidth={2.5} />
               </View>
             </View>
-          </TouchableOpacity>
+          </PressableScale>
 
-          <TouchableOpacity onPress={handleStyleCheck} activeOpacity={0.9}>
+          <PressableScale
+            onPress={handleStyleCheck}
+            pressedScale={0.985}
+            haptics="light"
+            testID="home-action-style-guide"
+            accessibilityRole="button"
+          >
             <View style={[styles.actionCard, shadow.card]}>
               <View style={styles.actionIconContainer}>
                 <LinearGradient 
@@ -422,9 +446,15 @@ export default function HomeScreen() {
                 <ArrowRight color={palette.sage} size={24} strokeWidth={2.5} />
               </View>
             </View>
-          </TouchableOpacity>
+          </PressableScale>
 
-          <TouchableOpacity onPress={handleGlowCoach} activeOpacity={0.9}>
+          <PressableScale
+            onPress={handleGlowCoach}
+            pressedScale={0.985}
+            haptics="light"
+            testID="home-action-glow-coach"
+            accessibilityRole="button"
+          >
             <View style={[styles.actionCard, shadow.card]}>
               <View style={styles.actionIconContainer}>
                 <LinearGradient 
@@ -451,7 +481,7 @@ export default function HomeScreen() {
                 <ArrowRight color={palette.mint} size={24} strokeWidth={2.5} />
               </View>
             </View>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
 
         <View style={styles.section}>
@@ -517,18 +547,38 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     backgroundColor: palette.backgroundStart,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 120,
+  },
+  ambientTop: {
+    position: "absolute",
+    top: -180,
+    left: -120,
+    width: 380,
+    height: 380,
+    borderRadius: 999,
+    backgroundColor: palette.overlayGold,
+    opacity: 0.55,
+  },
+  ambientBottom: {
+    position: "absolute",
+    bottom: -220,
+    right: -140,
+    width: 440,
+    height: 440,
+    borderRadius: 999,
+    backgroundColor: palette.overlaySage,
+    opacity: 0.5,
   },
   topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 28,
-    paddingTop: 20,
-    paddingBottom: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: palette.divider,
-    backgroundColor: palette.surface,
+    backgroundColor: "rgba(255,255,255,0.72)",
   },
   logoContainer: {
     flexDirection: 'row',
@@ -582,9 +632,9 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    paddingHorizontal: 28,
-    paddingTop: 32,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 28,
   },
   headerContent: {
     flex: 1,
@@ -660,8 +710,8 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     color: palette.textSecondary,
   },
   mainCtaContainer: {
-    marginHorizontal: 28,
-    marginBottom: 48,
+    marginHorizontal: 20,
+    marginBottom: 28,
   },
   mainCta: {
     borderRadius: 28,
@@ -743,8 +793,8 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     backgroundColor: "rgba(248, 246, 240, 0.3)",
   },
   section: {
-    paddingHorizontal: 28,
-    marginBottom: 48,
+    paddingHorizontal: 20,
+    marginBottom: 28,
   },
   sectionHeader: {
     marginBottom: 20,

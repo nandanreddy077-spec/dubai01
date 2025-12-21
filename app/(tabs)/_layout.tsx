@@ -1,12 +1,12 @@
 import { Tabs } from "expo-router";
 import { Heart, Wand2, Users, User } from "lucide-react-native";
 import React, { useState, useEffect } from "react";
-import { View, Platform } from "react-native";
 import AuthGuard from "@/components/AuthGuard";
 import { palette } from "@/constants/theme";
 import ProfilePicturePopup from "@/components/ProfilePicturePopup";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
+import GlassTabBar from "@/components/GlassTabBar";
 
 export default function TabLayout() {
   const { user, hasProfilePicture } = useUser();
@@ -36,33 +36,11 @@ export default function TabLayout() {
         onClose={handleCloseProfilePopup} 
       />
       <Tabs
+        tabBar={(props) => <GlassTabBar {...props} />}
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: palette.primary,
           tabBarInactiveTintColor: palette.textMuted,
-          tabBarStyle: {
-            backgroundColor: palette.surface,
-            borderTopWidth: 0,
-            paddingTop: 12,
-            paddingBottom: Platform.OS === 'ios' ? 24 : 16,
-            height: Platform.OS === 'ios' ? 88 : 72,
-            shadowColor: palette.shadow,
-            shadowOpacity: 0.1,
-            shadowRadius: 20,
-            shadowOffset: { width: 0, height: -4 },
-            elevation: 8,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-          },
-          tabBarLabelStyle: {
-            fontSize: 11,
-            fontWeight: "600",
-            marginTop: 4,
-            letterSpacing: 0.5,
-          },
-          tabBarIconStyle: {
-            marginBottom: 2,
-          },
         }}
       >
         <Tabs.Screen
@@ -70,18 +48,12 @@ export default function TabLayout() {
           options={{
             title: "Glow",
             tabBarIcon: ({ color, size, focused }) => (
-              <View style={{ 
-                padding: 8, 
-                borderRadius: 16, 
-                backgroundColor: focused ? palette.overlayGold : 'transparent' 
-              }}>
-                <Heart 
-                  color={focused ? palette.primary : color} 
-                  size={focused ? 22 : 20}
-                  strokeWidth={focused ? 2.5 : 2}
-                  fill={focused ? palette.blush : "transparent"}
-                />
-              </View>
+              <Heart
+                color={focused ? palette.primary : color}
+                size={size}
+                strokeWidth={focused ? 2.5 : 2}
+                fill={focused ? palette.blush : "transparent"}
+              />
             ),
           }}
         />
@@ -90,17 +62,11 @@ export default function TabLayout() {
           options={{
             title: "Coach",
             tabBarIcon: ({ color, size, focused }) => (
-              <View style={{ 
-                padding: 8, 
-                borderRadius: 16, 
-                backgroundColor: focused ? palette.overlaySage : 'transparent' 
-              }}>
-                <Wand2 
-                  color={focused ? palette.sage : color} 
-                  size={focused ? 22 : 20}
-                  strokeWidth={focused ? 2.5 : 2}
-                />
-              </View>
+              <Wand2
+                color={focused ? palette.sage : color}
+                size={size}
+                strokeWidth={focused ? 2.5 : 2}
+              />
             ),
           }}
         />
@@ -109,17 +75,11 @@ export default function TabLayout() {
           options={{
             title: "Circle",
             tabBarIcon: ({ color, size, focused }) => (
-              <View style={{ 
-                padding: 8, 
-                borderRadius: 16, 
-                backgroundColor: focused ? palette.overlayGold : 'transparent' 
-              }}>
-                <Users 
-                  color={focused ? palette.gold : color} 
-                  size={focused ? 22 : 20}
-                  strokeWidth={focused ? 2.5 : 2}
-                />
-              </View>
+              <Users
+                color={focused ? palette.gold : color}
+                size={size}
+                strokeWidth={focused ? 2.5 : 2}
+              />
             ),
           }}
         />
@@ -128,17 +88,11 @@ export default function TabLayout() {
           options={{
             title: "You",
             tabBarIcon: ({ color, size, focused }) => (
-              <View style={{ 
-                padding: 8, 
-                borderRadius: 16, 
-                backgroundColor: focused ? palette.overlayGold : 'transparent' 
-              }}>
-                <User 
-                  color={focused ? palette.secondary : color} 
-                  size={focused ? 22 : 20}
-                  strokeWidth={focused ? 2.5 : 2}
-                />
-              </View>
+              <User
+                color={focused ? palette.secondary : color}
+                size={size}
+                strokeWidth={focused ? 2.5 : 2}
+              />
             ),
           }}
         />
