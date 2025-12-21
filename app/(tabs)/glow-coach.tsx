@@ -5,14 +5,16 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Image,
   Alert,
   Modal,
   TextInput,
+  FlatList,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getPalette, getGradient, shadow, typography, spacing } from '@/constants/theme';
-import { useTheme } from '@/contexts/ThemeContext';
+import { palette, gradient, shadow, typography, spacing } from '@/constants/theme';
 import { 
   Calendar,
   CheckCircle,
@@ -20,10 +22,15 @@ import {
   Camera,
   Plus,
   Target,
+  TrendingUp,
+  Award,
+  Clock,
   Droplets,
   Sun,
   Moon,
   X,
+  Settings,
+  Trash2,
   Play,
   Pause,
   Crown,
@@ -34,6 +41,8 @@ import {
   ArrowRight,
   ShoppingBag
 } from 'lucide-react-native';
+
+const { width } = Dimensions.get('window');
 import { useSkincare } from '@/contexts/SkincareContext';
 import { useGamification } from '@/contexts/GamificationContext';
 import { SkincareStep, WeeklyPlan, SkincarePlan } from '@/types/skincare';
@@ -41,6 +50,8 @@ import { router } from 'expo-router';
 import DailyRewardsModal from '@/components/DailyRewardsModal';
 import AnimatedProgressBar from '@/components/AnimatedProgressBar';
 import { useProducts } from '@/contexts/ProductContext';
+// All features free - SubscriptionGuard removed
+import { Linking } from 'react-native';
 
 interface DailyReward {
   id: string;
@@ -53,10 +64,6 @@ interface DailyReward {
 }
 
 export default function GlowCoachScreen() {
-  const { theme } = useTheme();
-  const palette = getPalette(theme);
-  const gradient = getGradient(theme);
-  
   const { 
     currentPlan, 
     activePlans, 
@@ -66,15 +73,14 @@ export default function GlowCoachScreen() {
     canAddMorePlans 
   } = useSkincare();
   const { completeDailyRoutine, hasCompletedToday, hasCompletedForPlanDay } = useGamification();
-  const { recommendations, generateRecommendations } = useProducts();
+  const { recommendations, generateRecommendations, trackAffiliateTap } = useProducts();
+  // All features free - no subscription checks needed
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [selectedMood, setSelectedMood] = useState<'great' | 'good' | 'okay' | 'bad' | null>(null);
   const [showPlansModal, setShowPlansModal] = useState(false);
   const [showRewardsModal, setShowRewardsModal] = useState(false);
   const [dailyRewards, setDailyRewards] = useState<DailyReward[]>([]);
-
-  const styles = React.useMemo(() => createStyles(palette), [palette]);
 
   useEffect(() => {
     if (!currentPlan && activePlans.length > 0) {
@@ -88,29 +94,35 @@ export default function GlowCoachScreen() {
     }
   }, [currentPlan, generateRecommendations]);
 
+  // Auto-advance day progression based on time
   useEffect(() => {
     const checkDayProgression = async () => {
       if (!currentPlan) return;
       
       const now = new Date();
+      const today = now.toISOString().split('T')[0];
       const currentHour = now.getHours();
       
+      // Check if we should auto-advance to next day
+      // Auto-advance at midnight if user hasn't completed routine
       if (currentHour === 0 && !hasCompletedToday()) {
         console.log('🕛 Auto-advancing to next day at midnight');
         
+        // Only advance if not at the end of the plan
         if (currentPlan.progress.currentDay < currentPlan.duration) {
           const nextDay = currentPlan.progress.currentDay + 1;
           await updatePlanProgress(currentPlan.id, {
             currentDay: nextDay,
-            completedSteps: []
+            completedSteps: [] // Reset for new day
           });
           console.log(`📅 Auto-advanced to day ${nextDay}`);
         }
       }
     };
 
+    // Check immediately and then every hour
     checkDayProgression();
-    const interval = setInterval(checkDayProgression, 60 * 60 * 1000);
+    const interval = setInterval(checkDayProgression, 60 * 60 * 1000); // Every hour
     
     return () => clearInterval(interval);
   }, [currentPlan, hasCompletedToday, updatePlanProgress]);
@@ -133,8 +145,7 @@ export default function GlowCoachScreen() {
             try {
               await deactivatePlan(planId);
               setShowPlansModal(false);
-            } catch (err) {
-              console.error('Error deactivating plan:', err);
+            } catch (error) {
               Alert.alert('Error', 'Failed to deactivate plan');
             }
           }
@@ -142,6 +153,8 @@ export default function GlowCoachScreen() {
       ]
     );
   };
+
+
 
   if (activePlans.length === 0) {
     return (
@@ -153,7 +166,7 @@ export default function GlowCoachScreen() {
           </LinearGradient>
           <Text style={styles.emptyTitle}>Your Glow Journey Awaits</Text>
           <Text style={styles.emptySubtitle}>
-            Discover your skin&apos;s potential with our AI-powered analysis. Create up to 3 personalized beauty plans and watch your radiance transform.
+            Discover your skin's potential with our AI-powered analysis. Create up to 3 personalized beauty plans and watch your radiance transform.
           </Text>
           <TouchableOpacity 
             style={styles.startButton}
@@ -187,6 +200,7 @@ export default function GlowCoachScreen() {
         .filter((step: SkincareStep) => step.timeOfDay === 'morning' || step.timeOfDay === 'both')
         .map((step: SkincareStep) => ({
           ...step,
+          // Create unique IDs for steps that appear in both routines
           id: step.timeOfDay === 'both' ? `${step.id}_morning` : step.id
         }))
         .sort((a: SkincareStep, b: SkincareStep) => a.order - b.order),
@@ -194,6 +208,7 @@ export default function GlowCoachScreen() {
         .filter((step: SkincareStep) => step.timeOfDay === 'evening' || step.timeOfDay === 'both')
         .map((step: SkincareStep) => ({
           ...step,
+          // Create unique IDs for steps that appear in both routines
           id: step.timeOfDay === 'both' ? `${step.id}_evening` : step.id
         }))
         .sort((a: SkincareStep, b: SkincareStep) => a.order - b.order)
@@ -242,6 +257,7 @@ export default function GlowCoachScreen() {
     console.log('📊 Current plan:', { id: currentPlan.id, title: currentPlan.title, currentDay: currentPlan.progress.currentDay });
     
     try {
+      // Check if already completed today
       if (hasCompletedToday()) {
         console.log('✅ Already completed today');
         Alert.alert(
@@ -252,6 +268,7 @@ export default function GlowCoachScreen() {
         return;
       }
       
+      // Check if all steps are completed
       const allSteps = [...todaySteps.morning, ...todaySteps.evening];
       const completedSteps = currentPlan.progress.completedSteps;
       
@@ -275,26 +292,29 @@ export default function GlowCoachScreen() {
       
       console.log('✨ All steps completed, proceeding with daily routine completion...');
       
+      // Complete the daily routine and get rewards
       console.log('🎁 Calling completeDailyRoutine...');
       const rewards = await completeDailyRoutine(currentPlan.id, currentPlan.progress.currentDay);
       console.log('🎉 Rewards received:', rewards);
       
+      // Update plan progress - advance to next day ONLY if not at the end
       console.log('📈 Updating plan progress...');
       const isLastDay = currentPlan.progress.currentDay >= currentPlan.duration;
       const nextDay = isLastDay 
-        ? currentPlan.progress.currentDay
+        ? currentPlan.progress.currentDay // Don't advance past the end
         : currentPlan.progress.currentDay + 1;
       
       if (!isLastDay) {
         await updatePlanProgress(currentPlan.id, {
           currentDay: nextDay,
-          completedSteps: []
+          completedSteps: [] // Reset for new day
         });
         console.log('✅ Plan progress updated to day', nextDay);
       } else {
         console.log('🏁 Plan completed! Not advancing day.');
       }
       
+      // Show rewards with day progression message
       if (rewards && rewards.length > 0) {
         console.log('🎊 Showing rewards modal with', rewards.length, 'rewards');
         setDailyRewards(rewards);
@@ -304,13 +324,13 @@ export default function GlowCoachScreen() {
         Alert.alert(
           isLastDay ? 'Plan Complete! 🎉' : 'Day Complete! ✨',
           isLastDay 
-            ? 'Congratulations! You&apos;ve completed your entire skincare plan. Your dedication to glowing skin is inspiring!' 
+            ? 'Congratulations! You\'ve completed your entire skincare plan. Your dedication to glowing skin is inspiring!' 
             : `Great job completing Day ${currentPlan.progress.currentDay}! Ready for Day ${nextDay}? Keep up the consistency.`,
           [{ text: 'Continue', style: 'default' }]
         );
       }
-    } catch (err) {
-      console.error('❌ Error completing daily routine:', err);
+    } catch (error) {
+      console.error('❌ Error completing daily routine:', error);
       Alert.alert('Error', 'Failed to complete daily routine. Please try again.');
     }
   };
@@ -363,6 +383,7 @@ export default function GlowCoachScreen() {
     <SafeAreaView style={styles.container}>
       <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Luxurious Header */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.titleContainer}>
@@ -417,6 +438,7 @@ export default function GlowCoachScreen() {
           )}
         </View>
 
+        {/* Elegant Progress Section */}
         <View style={styles.progressSection}>
           <LinearGradient colors={gradient.card} style={styles.progressCard}>
             <View style={styles.progressHeader}>
@@ -456,6 +478,7 @@ export default function GlowCoachScreen() {
           </LinearGradient>
         </View>
 
+        {/* Elegant Week Focus */}
         {currentWeekPlan && (
           <View style={styles.weekFocusSection}>
             <LinearGradient colors={gradient.lavender} style={styles.weekFocusCard}>
@@ -471,12 +494,14 @@ export default function GlowCoachScreen() {
           </View>
         )}
 
+        {/* Beautiful Routine Section */}
         <View style={styles.routineSection}>
           <View style={styles.routineSectionHeader}>
             <Sparkles color={palette.primary} size={20} />
             <Text style={styles.routineTitle}>Today&apos;s Ritual</Text>
           </View>
           
+          {/* Morning Routine */}
           {todaySteps.morning.length > 0 && (
             <View style={styles.routineTimeSection}>
               <LinearGradient colors={gradient.mint} style={styles.routineTimeCard}>
@@ -494,6 +519,7 @@ export default function GlowCoachScreen() {
             </View>
           )}
 
+          {/* Evening Routine */}
           {todaySteps.evening.length > 0 && (
             <View style={styles.routineTimeSection}>
               <LinearGradient colors={gradient.rose} style={styles.routineTimeCard}>
@@ -512,6 +538,7 @@ export default function GlowCoachScreen() {
           )}
         </View>
 
+        {/* Product Recommendations Button */}
         {recommendations.length > 0 && (
           <View style={styles.recommendationsSection}>
             <TouchableOpacity 
@@ -539,12 +566,13 @@ export default function GlowCoachScreen() {
           </View>
         )}
 
+        {/* Progress Actions */}
         <View style={styles.actionsSection}>
           <TouchableOpacity 
             style={styles.actionButton}
             onPress={() => setShowNoteModal(true)}
           >
-            <Plus color={palette.gold} size={20} />
+            <Plus color="#D4A574" size={20} />
             <Text style={styles.actionButtonText}>Add Note</Text>
           </TouchableOpacity>
           
@@ -552,7 +580,7 @@ export default function GlowCoachScreen() {
             style={styles.actionButton}
             onPress={() => Alert.alert('Photo Feature', 'Progress photo feature coming soon!')}
           >
-            <Camera color={palette.gold} size={20} />
+            <Camera color="#D4A574" size={20} />
             <Text style={styles.actionButtonText}>Progress Photo</Text>
           </TouchableOpacity>
           
@@ -561,12 +589,13 @@ export default function GlowCoachScreen() {
               style={[styles.actionButton, styles.addPlanButton]}
               onPress={() => router.push('/glow-analysis')}
             >
-              <Plus color={palette.textLight} size={20} />
+              <Plus color="white" size={20} />
               <Text style={styles.addPlanButtonText}>Add Plan</Text>
             </TouchableOpacity>
           )}
         </View>
 
+        {/* Recent Notes */}
         {currentPlan.progress.notes.length > 0 && (
           <View style={styles.notesSection}>
             <Text style={styles.notesTitle}>Recent Notes</Text>
@@ -588,6 +617,9 @@ export default function GlowCoachScreen() {
           </View>
         )}
 
+
+
+        {/* Complete Day Button */}
         <View style={styles.completeDaySection}>
           {hasCompletedForPlanDay(currentPlan.id, currentPlan.progress.currentDay) ? (
             <View style={[styles.completeDayButton, styles.completedDayButton]}>
@@ -620,6 +652,7 @@ export default function GlowCoachScreen() {
         </View>
       </ScrollView>
 
+      {/* Plans Management Modal */}
       <Modal
         visible={showPlansModal}
         animationType="slide"
@@ -629,7 +662,7 @@ export default function GlowCoachScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Manage Plans ({activePlans.length}/3)</Text>
             <TouchableOpacity onPress={() => setShowPlansModal(false)}>
-              <X color={palette.textSecondary} size={24} />
+              <X color="#6B7280" size={24} />
             </TouchableOpacity>
           </View>
           
@@ -657,7 +690,7 @@ export default function GlowCoachScreen() {
                   
                   {currentPlan.id === plan.id && (
                     <View style={styles.activePlanIndicator}>
-                      <Play color={palette.success} size={16} fill={palette.success} />
+                      <Play color="#10B981" size={16} fill="#10B981" />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -666,7 +699,7 @@ export default function GlowCoachScreen() {
                   style={styles.deactivateButton}
                   onPress={() => handleDeactivatePlan(plan.id)}
                 >
-                  <Pause color={palette.error} size={16} />
+                  <Pause color="#EF4444" size={16} />
                 </TouchableOpacity>
               </View>
             ))}
@@ -679,7 +712,7 @@ export default function GlowCoachScreen() {
                   router.push('/glow-analysis');
                 }}
               >
-                <Plus color={palette.gold} size={20} />
+                <Plus color="#D4A574" size={20} />
                 <Text style={styles.addNewPlanButtonText}>Create New Plan</Text>
               </TouchableOpacity>
             )}
@@ -695,6 +728,7 @@ export default function GlowCoachScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* Add Note Modal */}
       <Modal
         visible={showNoteModal}
         animationType="slide"
@@ -704,7 +738,7 @@ export default function GlowCoachScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Daily Note</Text>
             <TouchableOpacity onPress={() => setShowNoteModal(false)}>
-              <X color={palette.textSecondary} size={24} />
+              <X color="#6B7280" size={24} />
             </TouchableOpacity>
           </View>
           
@@ -726,7 +760,6 @@ export default function GlowCoachScreen() {
             <TextInput
               style={styles.noteInput}
               placeholder="How did your routine go? Any observations about your skin?"
-              placeholderTextColor={palette.textMuted}
               value={noteText}
               onChangeText={setNoteText}
               multiline
@@ -745,6 +778,7 @@ export default function GlowCoachScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* Daily Rewards Modal */}
       <DailyRewardsModal
         visible={showRewardsModal}
         rewards={dailyRewards}
@@ -754,7 +788,7 @@ export default function GlowCoachScreen() {
   );
 }
 
-const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: palette.backgroundStart,
@@ -814,19 +848,16 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     paddingRight: 20,
   },
   planTab: {
-    backgroundColor: palette.surfaceElevated,
+    backgroundColor: '#1C1820',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
     marginRight: 12,
     minWidth: 120,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: palette.border,
   },
   activePlanTab: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
+    backgroundColor: '#D4A574',
   },
   planTabText: {
     fontSize: 14,
@@ -836,15 +867,14 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     marginBottom: 2,
   },
   activePlanTabText: {
-    color: palette.textLight,
+    color: '#FFFFFF',
   },
   planTabDay: {
     fontSize: 12,
     color: palette.textSecondary,
   },
   activePlanTabDay: {
-    color: palette.textLight,
-    opacity: 0.8,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   emptyState: {
     flex: 1,
@@ -1185,7 +1215,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   actionButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: palette.surfaceElevated,
+    backgroundColor: '#1C1820',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -1193,22 +1223,22 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     justifyContent: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: '#2B2530',
     minWidth: 100,
   },
   addPlanButton: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
+    backgroundColor: '#D4A574',
+    borderColor: '#D4A574',
   },
   addPlanButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: palette.textLight,
+    color: 'white',
   },
   actionButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: palette.gold,
+    color: '#D4A574',
   },
   notesSection: {
     paddingHorizontal: 20,
@@ -1221,12 +1251,10 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     marginBottom: 12,
   },
   noteItem: {
-    backgroundColor: palette.surface,
+    backgroundColor: '#1C1820',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
   },
   noteHeader: {
     flexDirection: 'row',
@@ -1237,7 +1265,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   noteDay: {
     fontSize: 14,
     fontWeight: '600',
-    color: palette.gold,
+    color: '#D4A574',
   },
   noteMood: {
     fontSize: 16,
@@ -1289,7 +1317,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: palette.background,
+    backgroundColor: '#0F0D10',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1298,7 +1326,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: palette.divider,
+    borderBottomColor: '#2B2530',
   },
   modalTitle: {
     fontSize: 18,
@@ -1313,7 +1341,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   modalLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: palette.textPrimary,
+    color: '#1F2937',
     marginBottom: 12,
   },
   moodSelector: {
@@ -1325,50 +1353,48 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: palette.surfaceElevated,
+    backgroundColor: '#1C1820',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: palette.border,
+    borderColor: '#2B2530',
   },
   selectedMood: {
-    borderColor: palette.gold,
-    backgroundColor: palette.surface,
+    borderColor: '#D4A574',
+    backgroundColor: '#141216',
   },
   moodEmoji: {
     fontSize: 24,
   },
   noteInput: {
-    backgroundColor: palette.surfaceElevated,
+    backgroundColor: '#1C1820',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: palette.textPrimary,
+    color: '#FFFFFF',
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: '#2B2530',
     minHeight: 100,
     marginBottom: 24,
   },
   saveButton: {
-    backgroundColor: palette.primary,
+    backgroundColor: '#D4A574',
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 12,
     alignItems: 'center',
   },
   saveButtonText: {
-    color: palette.textLight,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
   planItem: {
     flexDirection: 'row',
-    backgroundColor: palette.surface,
+    backgroundColor: '#1C1820',
     borderRadius: 12,
     marginBottom: 12,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: palette.border,
   },
   planItemContent: {
     flex: 1,
@@ -1382,7 +1408,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   planItemTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: palette.textPrimary,
+    color: '#FFFFFF',
     marginBottom: 4,
   },
   planItemProgress: {
@@ -1392,12 +1418,12 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   planItemProgressBar: {
     height: 4,
-    backgroundColor: palette.surfaceElevated,
+    backgroundColor: '#2B2530',
     borderRadius: 2,
   },
   planItemProgressFill: {
     height: '100%',
-    backgroundColor: palette.gold,
+    backgroundColor: '#D4A574',
     borderRadius: 2,
   },
   activePlanIndicator: {
@@ -1406,11 +1432,11 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   deactivateButton: {
     padding: 16,
     borderLeftWidth: 1,
-    borderLeftColor: palette.divider,
+    borderLeftColor: '#2B2530',
   },
   addNewPlanButton: {
     flexDirection: 'row',
-    backgroundColor: palette.surface,
+    backgroundColor: '#141216',
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 12,
@@ -1418,22 +1444,20 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     justifyContent: 'center',
     gap: 8,
     borderWidth: 2,
-    borderColor: palette.gold,
+    borderColor: '#D4A574',
     borderStyle: 'dashed',
     marginTop: 8,
   },
   addNewPlanButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: palette.gold,
+    color: '#D4A574',
   },
   maxPlansNotice: {
-    backgroundColor: palette.surface,
+    backgroundColor: '#1C1820',
     padding: 16,
     borderRadius: 12,
     marginTop: 8,
-    borderWidth: 1,
-    borderColor: palette.border,
   },
   maxPlansNoticeText: {
     fontSize: 14,
@@ -1441,4 +1465,5 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     textAlign: 'center',
     lineHeight: 20,
   },
+
 });
