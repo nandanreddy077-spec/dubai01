@@ -24,8 +24,6 @@ import {
   User as UserIcon,
   Star,
   Sparkles,
-  Sun,
-  Moon,
   Heart,
   Flower2,
   Gift,
@@ -62,7 +60,7 @@ const formatAnalysisTime = (timestamp: number) => {
 export default function ProfileScreen() {
   const { user } = useUser();
   const { user: authUser, signOut } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const { analysisHistory } = useAnalysis();
   const { state: subscriptionState, inTrial, daysLeft, scansLeft, setSubscriptionData } = useSubscription();
   const [showPhotoPicker, setShowPhotoPicker] = useState<boolean>(false);
@@ -332,11 +330,11 @@ export default function ProfileScreen() {
             <Text style={styles.sectionTitle}>Beauty Membership</Text>
             <View style={styles.sectionDivider} />
           </View>
-          <LinearGradient colors={getGradient(theme).primary} style={[styles.premiumCard, shadow.glow]}>
+          <LinearGradient colors={['#FFFFFF', '#FFF9F5']} style={[styles.premiumCard, shadow.glow]}>
             <View style={styles.premiumCardHeader}>
-              <Heart color={palette.textPrimary} size={28} fill={palette.blush} />
+              <Heart color={palette.blush} size={28} fill={palette.blush} />
               <View style={styles.premiumCardBadge}>
-                <Flower2 color={palette.textPrimary} size={16} fill={palette.lavender} />
+                <Flower2 color={palette.lavender} size={16} fill={palette.lavender} />
                 <Text style={styles.premiumCardBadgeText}>GLOW ACCESS</Text>
               </View>
             </View>
@@ -345,11 +343,11 @@ export default function ProfileScreen() {
             </Text>
             <View style={styles.premiumFeatures}>
               <View style={styles.premiumFeature}>
-                <Sparkles color={palette.textPrimary} size={16} fill={palette.blush} />
+                <Sparkles color={palette.gold} size={16} fill={palette.gold} />
                 <Text style={styles.premiumFeatureText}>Unlimited Glow Analysis</Text>
               </View>
               <View style={styles.premiumFeature}>
-                <Star color={palette.textPrimary} size={16} fill={palette.lavender} />
+                <Star color={palette.gold} size={16} fill={palette.gold} />
                 <Text style={styles.premiumFeatureText}>Personal Beauty Guide</Text>
               </View>
             </View>
@@ -469,23 +467,6 @@ export default function ProfileScreen() {
               ) : (
                 <ChevronRight color={palette.gold} size={22} strokeWidth={2.5} />
               )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.settingItem}
-              onPress={toggleTheme}
-              activeOpacity={0.7}
-              testID="themeToggleBtn"
-            >
-              <View style={styles.settingIconContainer}>
-                {theme === 'dark' ? (
-                  <Sun color={palette.champagne} size={22} strokeWidth={2} />
-                ) : (
-                  <Moon color={palette.lavender} size={22} strokeWidth={2} />
-                )}
-              </View>
-              <Text style={styles.settingText}>{theme === 'dark' ? 'Light Glow' : 'Soft Glow'}</Text>
-              <ChevronRight color={palette.gold} size={22} strokeWidth={2.5} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -651,6 +632,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     paddingVertical: 8,
     borderRadius: 25,
     gap: 8,
+    backgroundColor: palette.surface,
   },
   premiumText: {
     fontSize: 14,
@@ -733,7 +715,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   premiumCardBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: palette.overlayLight,
+    backgroundColor: palette.surfaceElevated,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -747,7 +729,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   premiumDescription: {
     fontSize: 16,
-    color: palette.textSecondary,
+    color: palette.textPrimary,
     lineHeight: 24,
     marginBottom: 20,
     fontWeight: "500",
