@@ -20,8 +20,6 @@ import { supabase } from '@/lib/supabase';
 
 import * as Notifications from 'expo-notifications';
 import { initializeNotifications, startDailyNotifications, type GlowNotificationData } from "@/lib/notifications";
-import { initializeSmartNotifications } from "@/lib/smart-notifications";
-import { initializeEngagementNotifications, trackUserActivity } from "@/lib/engagement-notifications";
 import { StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -78,6 +76,7 @@ function RootLayoutNav() {
       <Stack.Screen name="product-tracking" options={{ headerShown: true, headerBackTitle: "Back" }} />
       <Stack.Screen name="user-profile" options={{ headerShown: false }} />
       <Stack.Screen name="post-detail" options={{ headerShown: false }} />
+      <Stack.Screen name="notification-settings" options={{ headerShown: true, title: 'Notification Settings', headerBackTitle: 'Back' }} />
     </Stack>
   );
 }
@@ -116,9 +115,6 @@ export default function RootLayout() {
         console.error('❌ Storage cleanup failed:', error);
       } finally {
         await initializeNotifications();
-        await initializeSmartNotifications();
-        await initializeEngagementNotifications();
-        await trackUserActivity('app_open');
         await startDailyNotifications();
         SplashScreen.hideAsync();
       }
