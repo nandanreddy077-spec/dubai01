@@ -21,6 +21,8 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<{ error: any }>;
 }
 
+WebBrowser.maybeCompleteAuthSession();
+
 export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -342,27 +344,29 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
     try {
       setLoading(true);
 
-      WebBrowser.maybeCompleteAuthSession();
-
       if (!process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL.includes('placeholder')) {
         return { error: { message: 'Supabase is not configured. Please set up your Supabase credentials.' } };
       }
 
       const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-      const redirectTo = isExpoGo
-        ? makeRedirectUri({ path: 'auth/callback' })
-        : Linking.createURL('auth/callback');
+      const redirectTo = makeRedirectUri({
+        scheme: 'glowcheck',
+        path: 'auth/callback',
+      });
 
       console.log('[Auth] Starting Google OAuth');
+      console.log('[Auth] Platform:', Platform.OS);
       console.log('[Auth] Environment:', isExpoGo ? 'Expo Go' : 'Dev/Standalone');
       console.log('[Auth] redirectTo:', redirectTo);
+
+      const skipBrowserRedirect = Platform.OS !== 'web';
 
       const { data, error: urlError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo,
-          skipBrowserRedirect: true,
+          skipBrowserRedirect,
           queryParams: {
             prompt: 'select_account',
           },
@@ -379,6 +383,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         return { error: { message: 'Failed to start Google sign-in (missing OAuth URL).' } };
       }
 
+      if (Platform.OS === 'web') {
+        console.log('[Auth] Web: letting browser redirect to complete OAuth');
+        return { error: null };
+      }
+
       console.log('[Auth] Opening OAuth URL...');
       console.log('[Auth] OAuth URL preview:', oAuthUrl.substring(0, 120) + '...');
 
@@ -390,25 +399,55 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
 
         const parsedUrl = Linking.parse(callbackUrl);
 
-        const errorParam = (parsedUrl.queryParams?.error as string | undefined) ?? undefined;
-        const errorDescription = (parsedUrl.queryParams?.error_description as string | undefined) ?? undefined;
+        const queryParams = (parsedUrl.queryParams ?? {}) as Record<string, string | string[] | undefined>;
+
+        const hashIndex = callbackUrl.indexOf('#');
+        const hashParams: Record<string, string> = {};
+        if (hashIndex >= 0) {
+          const hash = callbackUrl.slice(hashIndex + 1);
+          const pairs = hash.split('&').map((p) => p.trim()).filter(Boolean);
+          for (const pair of pairs) {
+            const [k, v] = pair.split('=');
+            if (k) hashParams[decodeURIComponent(k)] = decodeURIComponent(v ?? '');
+          }
+        }
+
+        const errorParam = (queryParams.error as string | undefined) ?? hashParams.error;
+        const errorDescription =
+          (queryParams.error_description as string | undefined) ??
+          hashParams.error_description ??
+          hashParams.error_description;
+
         if (errorParam) {
           console.error('[Auth] OAuth error:', errorParam, errorDescription);
           return { error: { message: errorDescription || errorParam } };
         }
 
-        let code = (parsedUrl.queryParams?.code as string | undefined) ?? undefined;
-        if (!code && callbackUrl.includes('code=')) {
-          const codeMatch = callbackUrl.match(/[?&#]code=([^&?#]+)/);
-          code = codeMatch ? decodeURIComponent(codeMatch[1]) : undefined;
+        const code = (queryParams.code as string | undefined) ?? hashParams.code;
+        const accessToken = (queryParams.access_token as string | undefined) ?? hashParams.access_token;
+        const refreshToken = (queryParams.refresh_token as string | undefined) ?? hashParams.refresh_token;
+
+        if (accessToken) {
+          console.log('[Auth] Setting session from access_token (implicit grant)...');
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken ?? '',
+          });
+          if (sessionError) {
+            console.error('[Auth] setSession error:', sessionError);
+            return { error: sessionError };
+          }
+
+          console.log('[Auth] ✅ Google sign-in successful');
+          return { error: null };
         }
 
         if (!code) {
-          console.error('[Auth] No code found in callback URL');
+          console.error('[Auth] No code or access_token found in callback URL');
           return {
             error: {
               message:
-                'Google sign-in completed, but no authorization code was returned. Please double-check your Supabase Redirect URLs and Google authorized redirect URIs.',
+                'Google sign-in completed, but no authorization code was returned. Please verify your Supabase Redirect URLs and Google authorized redirect URIs.',
             },
           };
         }
