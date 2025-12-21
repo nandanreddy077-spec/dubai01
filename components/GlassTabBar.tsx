@@ -48,14 +48,22 @@ function GlassTabBarImpl({ state, descriptors, navigation }: GlassTabBarProps) {
     []
   );
 
+  const visibleRoutes = useMemo(() => {
+    return routes.filter((route) => {
+      const options = descriptors[route.key]?.options;
+      const href = (options as { href?: unknown } | undefined)?.href;
+      return href !== null;
+    });
+  }, [descriptors, routes]);
+
   return (
     <View style={containerStyle} pointerEvents="box-none" testID="glass-tabbar">
       <BlurView intensity={Platform.OS === "web" ? 22 : 35} tint="light" style={styles.blur} />
       <View style={styles.chrome} />
 
       <View style={styles.row}>
-        {routes.map((route, index) => {
-          const isFocused = state.index === index;
+        {visibleRoutes.map((route, index) => {
+          const isFocused = state.routes[state.index]?.key === route.key;
           const { options } = descriptors[route.key];
 
           const rawLabel =
@@ -107,7 +115,7 @@ function GlassTabBarImpl({ state, descriptors, navigation }: GlassTabBarProps) {
                   {typeof renderIcon === "function"
                     ? renderIcon({
                         focused: isFocused,
-                        color: isFocused ? palette.primary : palette.textMuted,
+                        color: isFocused ? palette.primary : palette.textSecondary,
                         size: 22,
                       })
                     : null}
@@ -178,7 +186,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600" as const,
     letterSpacing: 0.2,
-    color: palette.textMuted,
+    color: palette.textSecondary,
   },
   labelFocused: {
     color: palette.textPrimary,
