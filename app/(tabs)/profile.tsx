@@ -15,7 +15,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  Crown,
   Camera,
   Bell,
   Shield,
@@ -72,7 +71,6 @@ export default function ProfileScreen() {
   const [isRestoringPurchases, setIsRestoringPurchases] = useState<boolean>(false);
   
   const palette = getPalette(theme);
-  const gradient = getGradient(theme);
 
   useEffect(() => {
     const load = async () => {
@@ -136,7 +134,10 @@ export default function ProfileScreen() {
       {
         text: "Logout",
         style: "destructive",
-        onPress: signOut,
+        onPress: async () => {
+          await signOut();
+          router.replace('/login');
+        },
       },
     ]);
   };

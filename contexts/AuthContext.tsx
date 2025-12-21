@@ -285,12 +285,36 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
   const signOut = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('Starting sign out process...');
+      
+      setUser(null);
+      setSession(null);
+      
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Sign out error:', error);
       } else {
-        console.log('Sign out successful');
+        console.log('Supabase sign out successful');
       }
+      
+      try {
+        const allKeys = await AsyncStorage.getAllKeys();
+        const supabaseKeys = allKeys.filter(key => 
+          key.includes('supabase') || 
+          key.includes('auth') ||
+          key.includes('sb-') ||
+          key.startsWith('@supabase')
+        );
+        
+        if (supabaseKeys.length > 0) {
+          await AsyncStorage.multiRemove(supabaseKeys);
+          console.log('Cleared AsyncStorage session data');
+        }
+      } catch (storageError) {
+        console.warn('Error clearing AsyncStorage:', storageError);
+      }
+      
+      console.log('✅ Sign out completed successfully');
     } catch (error) {
       console.error('Sign out exception:', error);
     } finally {
@@ -394,7 +418,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
             const errorMatch = callbackUrl.match(/"msg":\s*"([^"]+)"/);
             const errorMsg = errorMatch ? errorMatch[1] : 'Supabase server error (500)';
             return { error: { message: `Authentication failed: ${errorMsg}. Please check your Supabase configuration.` } };
-          } catch (e) {
+          } catch {
             return { error: { message: 'Supabase server error (500). Please check your Supabase Google OAuth configuration.' } };
           }
         }
@@ -597,7 +621,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
               }
             } else if (accessToken) {
               // If we have an access token directly, set the session
-              const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              const { error: sessionError } = await supabase.auth.setSession({
                 access_token: accessToken,
                 refresh_token: parsedUrl.queryParams?.refresh_token as string || '',
               });
