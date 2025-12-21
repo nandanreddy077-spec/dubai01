@@ -5,6 +5,7 @@
  */
 
 import { supabase } from './supabase';
+import * as FileSystem from 'expo-file-system';
 
 export interface AIAnalysisRequest {
   imageUri: string; // Can be base64 data URL or file URI
@@ -50,15 +51,15 @@ export async function convertImageToDataURL(imageUri: string): Promise<string> {
           reader.readAsDataURL(blob);
         });
       } catch (fetchError) {
-        // Fallback: try using expo-file-system if available
+        // Fallback: try using expo-file-system
+        console.log('Fetch failed, trying FileSystem...');
         try {
-          const FileSystem = await import('expo-file-system');
           const base64 = await FileSystem.readAsStringAsync(imageUri, {
-            encoding: 'base64' as any,
+            encoding: 'base64',
           });
           return `data:image/jpeg;base64,${base64}`;
         } catch (fsError) {
-          console.error('Both fetch and FileSystem failed:', fsError);
+          console.error('Both fetch and FileSystem failed:', fetchError, fsError);
           throw new Error('Failed to read image file');
         }
       }
@@ -117,7 +118,6 @@ export async function analyzeImageWithAI(
     // Try Edge Function with retries (90% success rate target)
     // Retry up to 3 times before falling back to direct API
     const MAX_EDGE_RETRIES = 3;
-    let lastEdgeError: any = null;
     
     for (let attempt = 0; attempt < MAX_EDGE_RETRIES; attempt++) {
       try {
@@ -137,7 +137,6 @@ export async function analyzeImageWithAI(
         });
 
         if (error) {
-          lastEdgeError = error;
           // Retry on network errors, rate limits, or temporary failures
           if (attempt < MAX_EDGE_RETRIES - 1 && (
             error.message?.includes('network') ||
@@ -155,7 +154,6 @@ export async function analyzeImageWithAI(
         }
 
         if (data?.error) {
-          lastEdgeError = data.error;
           // Retry on certain errors
           if (attempt < MAX_EDGE_RETRIES - 1 && (
             data.error.includes('rate limit') ||
@@ -173,7 +171,7 @@ export async function analyzeImageWithAI(
         console.log(`✅ AI analysis completed via Edge Function (attempt ${attempt + 1})`);
         return data;
       } catch (edgeError: any) {
-        lastEdgeError = edgeError;
+        console.warn(`⚠️ Edge Function error (attempt ${attempt + 1}):`, edgeError?.message || edgeError);
         // If it's the last attempt, break to fallback
         if (attempt === MAX_EDGE_RETRIES - 1) {
           console.warn(`⚠️ Edge Function failed after ${MAX_EDGE_RETRIES} attempts, falling back to direct API`);
