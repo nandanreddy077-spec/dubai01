@@ -348,24 +348,26 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         return { error: { message: 'Supabase is not configured. Please set up your Supabase credentials.' } };
       }
 
-      const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+      const executionEnv = Constants.executionEnvironment;
+      const isStandalone = executionEnv === ExecutionEnvironment.Standalone;
 
       const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 
       const nativeRedirectTo = 'glowcheck://auth/callback';
-      const expoGoRedirectTo = makeRedirectUri({
+      const expoRedirectTo = makeRedirectUri({
         scheme: 'glowcheck',
         path: 'auth/callback',
       });
 
-      const redirectTo = isExpoGo ? expoGoRedirectTo : nativeRedirectTo;
+      const redirectTo = isStandalone ? nativeRedirectTo : expoRedirectTo;
 
       console.log('[Auth] Starting Google OAuth');
       console.log('[Auth] Platform:', Platform.OS);
-      console.log('[Auth] Environment:', isExpoGo ? 'Expo Go' : 'Dev/Standalone');
+      console.log('[Auth] ExecutionEnvironment:', executionEnv);
       console.log('[Auth] Supabase URL:', supabaseUrl);
       console.log('[Auth] redirectTo:', redirectTo);
-      console.log('[Auth] Expected Google Console Redirect URI (Web client):', `${supabaseUrl.replace(/\/$/, '')}/auth/v1/callback`);
+      console.log('[Auth] IMPORTANT: Supabase Auth → URL Configuration → Redirect URLs must include redirectTo above');
+      console.log('[Auth] Google Cloud Console (Web client) Authorized redirect URI must be:', `${supabaseUrl.replace(/\/$/, '')}/auth/v1/callback`);
 
       const skipBrowserRedirect = Platform.OS !== 'web';
 
