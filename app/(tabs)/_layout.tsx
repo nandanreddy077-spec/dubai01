@@ -40,7 +40,7 @@ export default function TabLayout() {
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: palette.primary,
-          tabBarInactiveTintColor: palette.textMuted,
+          tabBarInactiveTintColor: palette.textSecondary,
         }}
       >
         <Tabs.Screen
@@ -94,13 +94,6 @@ export default function TabLayout() {
                 strokeWidth={focused ? 2.5 : 2}
               />
             ),
-          }}
-        />
-
-        <Tabs.Screen
-          name="progress"
-          options={{
-            href: null,
           }}
         />
       </Tabs>

@@ -1,6 +1,7 @@
 import React, { memo, useMemo } from "react";
 import { View, Text, StyleSheet, Platform } from "react-native";
 import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { palette, radii, shadow } from "@/constants/theme";
 import PressableScale from "@/components/PressableScale";
 
@@ -58,8 +59,14 @@ function GlassTabBarImpl({ state, descriptors, navigation }: GlassTabBarProps) {
 
   return (
     <View style={containerStyle} pointerEvents="box-none" testID="glass-tabbar">
-      <BlurView intensity={Platform.OS === "web" ? 22 : 35} tint="light" style={styles.blur} />
-      <View style={styles.chrome} />
+      <BlurView intensity={Platform.OS === "web" ? 18 : 28} tint="light" style={styles.blur} />
+      <LinearGradient
+        colors={["rgba(255,255,255,0.92)", "rgba(255,255,255,0.68)"]}
+        start={{ x: 0.15, y: 0 }}
+        end={{ x: 0.85, y: 1 }}
+        style={styles.chrome}
+      />
+      <View style={styles.hairline} />
 
       <View style={styles.row}>
         {visibleRoutes.map((route, index) => {
@@ -127,6 +134,8 @@ function GlassTabBarImpl({ state, descriptors, navigation }: GlassTabBarProps) {
                 >
                   {typeof label === "string" ? label : route.name}
                 </Text>
+
+                {isFocused ? <View style={styles.activeDot} /> : <View style={styles.activeDotSpacer} />}
               </View>
             </PressableScale>
           );
@@ -139,9 +148,9 @@ function GlassTabBarImpl({ state, descriptors, navigation }: GlassTabBarProps) {
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: Platform.OS === "ios" ? 20 : 16,
+    left: 14,
+    right: 14,
+    bottom: Platform.OS === "ios" ? 18 : 14,
     borderRadius: radii.xxl,
     overflow: "hidden",
   },
@@ -150,14 +159,22 @@ const styles = StyleSheet.create({
   },
   chrome: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.72)",
     borderWidth: 1,
     borderColor: "rgba(10,10,10,0.08)",
     borderRadius: radii.xxl,
   },
+  hairline: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    opacity: 0.75,
+  },
   row: {
     flexDirection: "row",
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingTop: 10,
     paddingBottom: Platform.OS === "ios" ? 16 : 12,
   },
@@ -166,7 +183,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.xl,
   },
   itemFocused: {
-    backgroundColor: "rgba(10,10,10,0.06)",
+    backgroundColor: "rgba(10,10,10,0.055)",
   },
   itemInner: {
     alignItems: "center",
@@ -179,17 +196,32 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   iconWrapFocused: {
-    backgroundColor: palette.overlayGold,
+    backgroundColor: "rgba(212,165,116,0.14)",
   },
   label: {
     marginTop: 4,
-    fontSize: 11,
-    fontWeight: "600" as const,
-    letterSpacing: 0.2,
+    fontSize: 12,
+    fontWeight: "700" as const,
+    letterSpacing: 0.15,
     color: palette.textSecondary,
   },
   labelFocused: {
     color: palette.textPrimary,
+  },
+  activeDot: {
+    marginTop: 4,
+    width: 14,
+    height: 3,
+    borderRadius: 99,
+    backgroundColor: palette.primary,
+    opacity: 0.22,
+  },
+  activeDotSpacer: {
+    marginTop: 4,
+    width: 14,
+    height: 3,
+    borderRadius: 99,
+    backgroundColor: "transparent",
   },
 });
 

@@ -32,13 +32,13 @@ const ANALYSIS_STEPS: AnalysisStep[] = [
 ];
 
 const ENGAGEMENT_TIPS = [
-  "💡 Did you know? Your skin regenerates every 28 days!",
-  "✨ Professional tip: Consistency is key to healthy skin",
-  "🌟 Fun fact: Your face has over 40 muscles!",
-  "💎 Beauty secret: Hydration affects your glow score",
-  "🔬 Science: We analyze 50+ facial features for accuracy",
-  "🌸 Pro tip: Natural lighting enhances your beauty score",
-  "💫 Amazing: Your unique features make you beautiful!",
+  "Did you know? Skin renews itself roughly every 28 days.",
+  "Pro tip: Consistency beats intensity.",
+  "Fun fact: Your face uses 40+ muscles every day.",
+  "Hydration can visibly improve radiance and texture.",
+  "We evaluate 50+ facial markers to improve precision.",
+  "Natural, even lighting helps capture the most accurate scan.",
+  "Your best results come from small rituals done daily.",
 ];
 
 export default function AnalysisLoadingScreen() {
@@ -359,26 +359,6 @@ export default function AnalysisLoadingScreen() {
     }
   };
 
-  // Note: AI requests now go through Edge Functions via ai-service.ts
-  // This function is kept for backward compatibility but should not be used
-  const makeAIRequest = async (messages: any[], maxRetries = 2): Promise<any> => {
-    console.warn('⚠️ makeAIRequest is deprecated. Use analyzeImageWithAI from ai-service.ts instead.');
-    const { makeOpenAIRequest, formatMessages } = await import('../lib/openai-service');
-    
-    const formattedMessages = formatMessages(messages);
-    const result = await makeOpenAIRequest(formattedMessages, {
-      model: 'gpt-4o-mini',
-      temperature: 0.7,
-      maxTokens: 2000,
-    }, maxRetries);
-    
-    if (!result) {
-      throw new Error('AI API request failed after all retries');
-    }
-    
-    return result;
-  };
-
   const analyzeWithAdvancedAI = async (images: {
     front: string;
     left: string | null;
@@ -391,8 +371,7 @@ export default function AnalysisLoadingScreen() {
   }) => {
     // Try Edge Function with retries (90% success target)
     const MAX_RETRIES = 3;
-    let lastError: any = null;
-    
+
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         console.log(`🤖 Starting AI analysis via Edge Function (attempt ${attempt + 1}/${MAX_RETRIES})...`);
@@ -419,7 +398,6 @@ export default function AnalysisLoadingScreen() {
         console.log(`✅ AI analysis completed via Edge Function (attempt ${attempt + 1})`);
         return aiResult;
       } catch (error: any) {
-        lastError = error;
         console.warn(`⚠️ AI analysis attempt ${attempt + 1} failed:`, error?.message || error);
         
         // Retry on network/temporary errors
@@ -588,36 +566,6 @@ export default function AnalysisLoadingScreen() {
       confidence: Math.min(0.95, 0.80 + (baseScore - 75) * 0.006), // Higher confidence for higher scores
       analysisAccuracy: visionData?.front ? 'Enhanced (feature-based analysis)' : 'Standard (consistent analysis)'
     };
-  };
-
-  const sanitizeJson = (input: string): string => {
-    let s = input;
-    // Replace smart quotes
-    s = s.replace(/[\u2018\u2019\u201C\u201D]/g, (m) => {
-      const map: Record<string, string> = {
-        '\u2018': '\'',
-        '\u2019': '\'',
-        '\u201C': '"',
-        '\u201D': '"',
-      };
-      return map[m] ?? m;
-    });
-    // Fix newlines
-    s = s.replace(/\r?\n/g, ' ');
-    // Remove trailing commas
-    s = s.replace(/,\s*([}\]])/g, '$1');
-    // Fix multiple spaces
-    s = s.replace(/\s+/g, ' ');
-    // Fix escaped apostrophes in JSON strings
-    s = s.replace(/don't/g, 'do not');
-    s = s.replace(/doesn't/g, 'does not');
-    s = s.replace(/won't/g, 'will not');
-    s = s.replace(/can't/g, 'cannot');
-    s = s.replace(/it's/g, 'it is');
-    // Fix common JSON issues
-    s = s.replace(/:\s*'([^']*)'/g, ':"$1"');
-    s = s.replace(/\&apos;/g, '');
-    return s;
   };
 
   const calculateAdvancedScores = (visionData: {
@@ -1071,9 +1019,16 @@ export default function AnalysisLoadingScreen() {
           </View>
 
           {/* Bottom tip */}
-          <View style={styles.bottomTip}>
-            <Text style={styles.tipText}>✨ This may take a few moments</Text>
-          </View>
+          <LinearGradient
+            colors={["rgba(10,10,10,0.06)", "rgba(10,10,10,0.02)"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.bottomTip}
+          >
+            <Text style={styles.tipText} testID="analysis-loading-wait-tip">
+              This may take a few moments
+            </Text>
+          </LinearGradient>
 
         </View>
       </View>
@@ -1198,10 +1153,10 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     width: '100%',
   },
   progressText: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: palette.primary,
-    letterSpacing: -0.5,
+    fontSize: 38,
+    fontWeight: '900',
+    color: palette.textPrimary,
+    letterSpacing: -0.6,
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -1213,28 +1168,29 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     marginTop: 4,
   },
   engagementTip: {
-    fontSize: 15,
-    color: palette.primary,
+    fontSize: 14,
+    color: palette.textSecondary,
     textAlign: 'center',
     fontWeight: '600',
-    marginTop: 4,
+    marginTop: 6,
     minHeight: 22,
     paddingHorizontal: 16,
+    lineHeight: 20,
   },
   bottomTip: {
     marginTop: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: `${palette.primary}10`,
-    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: `${palette.primary}20`,
+    borderColor: "rgba(10,10,10,0.06)",
+    ...shadow.card,
   },
   tipText: {
-    fontSize: 14,
-    color: palette.primary,
+    fontSize: 13,
+    color: palette.textSecondary,
     textAlign: 'center',
-    fontWeight: '600',
-    opacity: 0.8,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });
