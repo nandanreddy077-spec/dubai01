@@ -350,15 +350,22 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
 
       const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-      const redirectTo = makeRedirectUri({
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+
+      const nativeRedirectTo = 'glowcheck://auth/callback';
+      const expoGoRedirectTo = makeRedirectUri({
         scheme: 'glowcheck',
         path: 'auth/callback',
       });
 
+      const redirectTo = isExpoGo ? expoGoRedirectTo : nativeRedirectTo;
+
       console.log('[Auth] Starting Google OAuth');
       console.log('[Auth] Platform:', Platform.OS);
       console.log('[Auth] Environment:', isExpoGo ? 'Expo Go' : 'Dev/Standalone');
+      console.log('[Auth] Supabase URL:', supabaseUrl);
       console.log('[Auth] redirectTo:', redirectTo);
+      console.log('[Auth] Expected Google Console Redirect URI (Web client):', `${supabaseUrl.replace(/\/$/, '')}/auth/v1/callback`);
 
       const skipBrowserRedirect = Platform.OS !== 'web';
 
