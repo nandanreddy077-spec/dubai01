@@ -96,6 +96,13 @@ export default function TabLayout() {
             ),
           }}
         />
+
+        <Tabs.Screen
+          name="progress"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
     </AuthGuard>
   );
