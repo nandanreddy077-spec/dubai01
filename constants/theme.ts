@@ -6,9 +6,9 @@ export type ThemeMode = 'light' | 'dark';
 // Inspired by: Apple Pro, Porsche Design, Bang & Olufsen, Aesop, Arc'teryx
 const lightPalette = {
   // Ultra-premium backgrounds - Architectural purity
-  background: "#F8F9FA", // Sophisticated light gray
+  background: "#FAFBFC", // Sophisticated light gray
   backgroundStart: "#FFFFFF", // Pure white
-  backgroundEnd: "#F0F2F5", // Cool architectural gray
+  backgroundEnd: "#F5F7FA", // Cool architectural gray
   surface: "#FFFFFF", // Pure white
   surfaceAlt: "#F8F9FA", // Elevated surface
   surfaceElevated: "#FFFFFF", // Premium elevation
@@ -20,18 +20,21 @@ const lightPalette = {
   tertiary: "#E5E7EB", // Light neutral surface
   
   // Refined metallics - Ultra-selective accent use
-  gold: "#B8956A", // Muted champagne - subtle luxury
-  silver: "#A8ACB8", // Brushed platinum - tech elegance
-  bronze: "#8B7355", // Deep bronze - grounded warmth
-  copper: "#966B4F", // Oxidized copper - artisan quality
+  gold: "#C9A961", // Rich gold - luxury accent
+  silver: "#B8BCC8", // Brushed platinum - tech elegance
+  bronze: "#CD7F32", // Classic bronze - premium warmth
+  copper: "#B87333", // Refined copper - artisan quality
+  emerald: "#059669", // Deep emerald - premium green
+  sapphire: "#2563EB", // Rich sapphire - premium blue
   
   // Architectural color system - Precision neutrals
-  blush: "#D4C4B8", // Warm stone
-  sage: "#A8B5B2", // Cool concrete
+  blush: "#E8DDD5", // Warm stone
+  sage: "#B8C5C2", // Cool concrete
   slate: "#475569", // Architectural slate
   charcoal: "#1F2937", // Deep charcoal
   ivory: "#FAFAF9", // Soft white
   pearl: "#FFFFFF", // Pure white
+  obsidian: "#0A0A0A", // Deep black - premium depth
   
   // Architectural color aliases
   mint: "#A8B5B2", // Same as sage
@@ -396,14 +399,17 @@ const lightGradient = {
   glass: ["rgba(255,255,255,0.9)", "rgba(255,255,255,0.6)"] as const, // Glassmorphism
   
   // Luxury metallic gradients - Strategic accents
-  gold: ["#F5E6D3", "#D4A574", "#B8956A"] as const, // Champagne gold
-  silver: ["#F0F0F5", "#C0C0C8", "#A8A8B0"] as const, // Platinum silver
-  bronze: ["#E5D5C0", "#CD7F32", "#A86F2A"] as const, // Rich bronze
+  gold: ["#FFF9E6", "#FFD700", "#C9A961"] as const, // Rich gold
+  silver: ["#F8F9FA", "#D1D5DB", "#B8BCC8"] as const, // Platinum silver
+  bronze: ["#F5E8DC", "#CD7F32", "#B87333"] as const, // Classic bronze
+  emerald: ["#ECFDF5", "#10B981", "#059669"] as const, // Premium emerald
+  sapphire: ["#EFF6FF", "#3B82F6", "#2563EB"] as const, // Premium sapphire
   
   // Ambient gradients - Subtle atmosphere
-  sage: ["#F5F8F7", "#E8EEEC", "#B8C9C5"] as const, // Cool ambient
-  blush: ["#F8F5F2", "#F0E8E0", "#E8D5C4"] as const, // Warm ambient
-  slate: ["#F5F6F7", "#E8EAED", "#9CA3AF"] as const, // Neutral ambient
+  sage: ["#F0FDF9", "#E8F5F0", "#B8C5C2"] as const, // Cool ambient
+  blush: ["#FFF9F5", "#F5EDE7", "#E8DDD5"] as const, // Warm ambient
+  slate: ["#F8FAFC", "#E8EAED", "#9CA3AF"] as const, // Neutral ambient
+  luxury: ["#1F2937", "#111827", "#0A0A0A"] as const, // Premium dark
   
   // Legacy gradient aliases
   mint: ["#F5F8F7", "#E8EEEC", "#B8C9C5"] as const, // Same as sage
