@@ -341,6 +341,10 @@ export default function HomeScreen() {
                   <Text style={styles.progressHubButtonText}>VIEW TIMELINE</Text>
                   <ArrowRight color={palette.textLight} size={16} strokeWidth={3} />
                 </View>
+                
+                {/* Decorative circles */}
+                <View style={[styles.progressDecorCircle, { top: 20, right: 20, width: 40, height: 40, opacity: 0.15 }]} />
+                <View style={[styles.progressDecorCircle, { bottom: 30, right: 30, width: 60, height: 60, opacity: 0.1 }]} />
               </LinearGradient>
             </TouchableOpacity>
 
@@ -367,6 +371,10 @@ export default function HomeScreen() {
                   <Text style={styles.progressHubButtonText}>ADD TO SHELF</Text>
                   <ArrowRight color={palette.textLight} size={16} strokeWidth={3} />
                 </View>
+                
+                {/* Decorative circles */}
+                <View style={[styles.progressDecorCircle, { top: 20, right: 20, width: 40, height: 40, opacity: 0.15 }]} />
+                <View style={[styles.progressDecorCircle, { bottom: 30, right: 30, width: 60, height: 60, opacity: 0.1 }]} />
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -907,6 +915,12 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     color: palette.textLight,
     letterSpacing: 0.85,
   },
+  progressDecorCircle: {
+    position: 'absolute',
+    borderRadius: 1000,
+    backgroundColor: palette.textLight,
+  },
+
   actionCard: {
     flexDirection: "row",
     alignItems: "center",
