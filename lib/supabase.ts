@@ -2,11 +2,19 @@ import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPERBASE_ANON_KEY || 'placeholder-key';
 
-if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
-  console.warn('Supabase environment variables not configured. Please set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your .env file.');
+const hasCorrectVars = process.env.EXPO_PUBLIC_SUPABASE_URL && process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const hasLegacyVars = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPERBASE_ANON_KEY;
+
+if (!hasCorrectVars && hasLegacyVars) {
+  console.warn('⚠️ TYPO DETECTED in environment variables!');
+  console.warn('Found: EXPO_PUBLIC_SUPERBASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_URL');
+  console.warn('Should be: EXPO_PUBLIC_SUPABASE_ANON_KEY and EXPO_PUBLIC_SUPABASE_URL');
+  console.warn('Please fix the typos in your .env file!');
+} else if (!hasCorrectVars && !hasLegacyVars) {
+  console.warn('Supabase environment variables not configured.');
 }
 
 console.log('Supabase URL:', supabaseUrl);
