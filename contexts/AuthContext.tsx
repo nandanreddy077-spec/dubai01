@@ -6,6 +6,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
+import { makeRedirectUri } from 'expo-auth-session';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AuthContextType {
@@ -340,223 +341,103 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
   const signInWithGoogle = useCallback(async (): Promise<{ error: any }> => {
     try {
       setLoading(true);
-      
-      // Check if Supabase is properly configured
+
+      WebBrowser.maybeCompleteAuthSession();
+
       if (!process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL.includes('placeholder')) {
         return { error: { message: 'Supabase is not configured. Please set up your Supabase credentials.' } };
       }
 
-      // Detect if running in Expo Go
       const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-      
-      // Determine the appropriate redirect URL based on environment
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      let redirectUrl: string;
-      
-      if (isExpoGo) {
-        // In Expo Go: Use web callback URL
-        // We'll extract the code from the callback URL before Supabase processes it
-        redirectUrl = `${supabaseUrl}/auth/v1/callback`;
-      } else {
-        // In production: use glowcheck:// scheme for deep linking
-        redirectUrl = 'glowcheck://auth/callback';
-      }
-      
-      console.log('Starting Google OAuth');
-      console.log('Environment:', isExpoGo ? 'Expo Go' : 'Production');
-      console.log('Redirect URL:', redirectUrl);
-      console.log('Supabase URL:', supabaseUrl);
-      
-      // Get the OAuth URL from Supabase
+
+      const redirectTo = isExpoGo
+        ? makeRedirectUri({ path: 'auth/callback' })
+        : Linking.createURL('auth/callback');
+
+      console.log('[Auth] Starting Google OAuth');
+      console.log('[Auth] Environment:', isExpoGo ? 'Expo Go' : 'Dev/Standalone');
+      console.log('[Auth] redirectTo:', redirectTo);
+
       const { data, error: urlError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectUrl,
-          skipBrowserRedirect: true, // We handle the browser redirect manually
+          redirectTo,
+          skipBrowserRedirect: true,
+          queryParams: {
+            prompt: 'select_account',
+          },
         },
       });
 
       if (urlError) {
-        console.error('Error getting OAuth URL:', urlError);
+        console.error('[Auth] Error getting Google OAuth URL:', urlError);
         return { error: urlError };
       }
 
-      if (!data?.url) {
-        return { error: { message: 'Failed to get OAuth URL' } };
+      const oAuthUrl = data?.url;
+      if (!oAuthUrl) {
+        return { error: { message: 'Failed to start Google sign-in (missing OAuth URL).' } };
       }
 
-      console.log('Opening OAuth URL in browser...');
-      console.log('OAuth URL:', data.url.substring(0, 100) + '...');
-      
-      // For Expo Go, we need to intercept the callback URL that Google redirects to
-      // This will be the Supabase callback URL with the code parameter
-      // We'll extract the code before Supabase processes it and tries to redirect
-      const expectedCallbackPattern = isExpoGo 
-        ? `${supabaseUrl}/auth/v1/callback`  // Match the web callback URL
-        : 'glowcheck://auth/callback';        // Match the app scheme
-      
-      // Open browser and wait for OAuth callback
-      const result = await WebBrowser.openAuthSessionAsync(
-        data.url,
-        expectedCallbackPattern
-      );
+      console.log('[Auth] Opening OAuth URL...');
+      console.log('[Auth] OAuth URL preview:', oAuthUrl.substring(0, 120) + '...');
 
-      // Handle the OAuth callback result
+      const result = await WebBrowser.openAuthSessionAsync(oAuthUrl, redirectTo);
+
       if (result.type === 'success') {
-        // TypeScript type narrowing: when type is 'success', url is guaranteed to exist
         const callbackUrl = (result as { type: 'success'; url: string }).url;
-        console.log('OAuth callback received:', callbackUrl);
-        console.log('Callback URL length:', callbackUrl.length);
-        console.log('Callback URL starts with http:', callbackUrl.startsWith('http'));
-        console.log('Callback URL starts with glowcheck:', callbackUrl.startsWith('glowcheck'));
-        
-        // Check if this is an error page from Supabase
-        if (callbackUrl.includes('error_code') || callbackUrl.includes('unexpected_failure')) {
-          console.error('Supabase returned an error page');
-          try {
-            // Try to parse the error from the page
-            const errorMatch = callbackUrl.match(/"msg":\s*"([^"]+)"/);
-            const errorMsg = errorMatch ? errorMatch[1] : 'Supabase server error (500)';
-            return { error: { message: `Authentication failed: ${errorMsg}. Please check your Supabase configuration.` } };
-          } catch {
-            return { error: { message: 'Supabase server error (500). Please check your Supabase Google OAuth configuration.' } };
-          }
+        console.log('[Auth] OAuth callback received:', callbackUrl);
+
+        const parsedUrl = Linking.parse(callbackUrl);
+
+        const errorParam = (parsedUrl.queryParams?.error as string | undefined) ?? undefined;
+        const errorDescription = (parsedUrl.queryParams?.error_description as string | undefined) ?? undefined;
+        if (errorParam) {
+          console.error('[Auth] OAuth error:', errorParam, errorDescription);
+          return { error: { message: errorDescription || errorParam } };
         }
-        
-        // Parse the callback URL to extract authentication data
-        try {
-          // For web callback URLs, we need to parse as URL, not as deep link
-          let code: string | null = null;
-          let accessToken: string | null = null;
-          let refreshToken: string | null = null;
-          let error: string | null = null;
-          let errorDescription: string | null = null;
-          
-          if (isExpoGo && callbackUrl.startsWith('http')) {
-            // Parse as web URL for Expo Go
-            // The callback URL should be: https://...supabase.co/auth/v1/callback?code=...
-            // We need to extract the code before Supabase processes it
-            try {
-              const urlObj = new URL(callbackUrl);
-              code = urlObj.searchParams.get('code');
-              accessToken = urlObj.searchParams.get('access_token');
-              refreshToken = urlObj.searchParams.get('refresh_token');
-              error = urlObj.searchParams.get('error');
-              errorDescription = urlObj.searchParams.get('error_description');
-              
-              console.log('Extracted from web URL:', { 
-                hasCode: !!code, 
-                hasToken: !!accessToken, 
-                hasError: !!error 
-              });
-            } catch (urlParseError) {
-              console.error('Error parsing web URL:', urlParseError);
-              // Try to extract code manually from the URL string
-              const codeMatch = callbackUrl.match(/[?&]code=([^&?#]+)/);
-              if (codeMatch) {
-                code = decodeURIComponent(codeMatch[1]);
-                console.log('Extracted code manually from URL');
-              }
-            }
-          } else {
-            // Parse as deep link for production
-            const parsedUrl = Linking.parse(callbackUrl);
-            code = parsedUrl.queryParams?.code as string || null;
-            accessToken = parsedUrl.queryParams?.access_token as string || null;
-            refreshToken = parsedUrl.queryParams?.refresh_token as string || null;
-            error = parsedUrl.queryParams?.error as string || null;
-            errorDescription = parsedUrl.queryParams?.error_description as string || null;
-            
-            console.log('Extracted from deep link:', { 
-              hasCode: !!code, 
-              hasToken: !!accessToken, 
-              hasError: !!error 
-            });
-          }
-          
-          // Check for OAuth errors
-          if (error) {
-            console.error('OAuth error:', error, errorDescription);
-            return { error: { message: errorDescription || error } };
-          }
-          
-          // Exchange authorization code for session (preferred method)
-          if (code) {
-            console.log('Exchanging authorization code for session...');
-            const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-            
-            if (exchangeError) {
-              console.error('Error exchanging code for session:', exchangeError);
-              return { error: exchangeError };
-            }
-            
-            console.log('✅ Google sign-in successful (via code exchange)');
-            return { error: null };
-          }
-          
-          // Fallback: Use access token and refresh token directly
-          if (accessToken && refreshToken) {
-            console.log('Setting session with tokens...');
-            const { error: sessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            
-            if (sessionError) {
-              console.error('Error setting session:', sessionError);
-              return { error: sessionError };
-            }
-            
-            console.log('✅ Google sign-in successful (via tokens)');
-            return { error: null };
-          }
-          
-          // Try to extract tokens from URL hash fragment (some OAuth flows use this)
-          const hashMatch = callbackUrl.match(/#access_token=([^&]+).*refresh_token=([^&]+)/);
-          if (hashMatch) {
-            const [, token, refresh] = hashMatch;
-            console.log('Setting session from hash fragment...');
-            const { error: sessionError } = await supabase.auth.setSession({
-              access_token: decodeURIComponent(token),
-              refresh_token: decodeURIComponent(refresh),
-            });
-            
-            if (sessionError) {
-              console.error('Error setting session from hash:', sessionError);
-              return { error: sessionError };
-            }
-            
-            console.log('✅ Google sign-in successful (via hash fragment)');
-            return { error: null };
-          }
-          
-          // If we reach here, no authentication data was found
-          console.error('No authentication data found in callback URL');
-          return { error: { message: 'No authentication code or token found in callback URL. Please try again.' } };
-          
-        } catch (parseError: any) {
-          console.error('Error parsing callback URL:', parseError);
-          return { error: { message: `Failed to parse OAuth callback: ${parseError.message || 'Unknown error'}` } };
+
+        let code = (parsedUrl.queryParams?.code as string | undefined) ?? undefined;
+        if (!code && callbackUrl.includes('code=')) {
+          const codeMatch = callbackUrl.match(/[?&#]code=([^&?#]+)/);
+          code = codeMatch ? decodeURIComponent(codeMatch[1]) : undefined;
         }
-      } 
-      
-      // Handle user cancellation
-      else if (result.type === 'cancel') {
-        console.log('User cancelled Google sign-in');
+
+        if (!code) {
+          console.error('[Auth] No code found in callback URL');
+          return {
+            error: {
+              message:
+                'Google sign-in completed, but no authorization code was returned. Please double-check your Supabase Redirect URLs and Google authorized redirect URIs.',
+            },
+          };
+        }
+
+        console.log('[Auth] Exchanging code for Supabase session...');
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeError) {
+          console.error('[Auth] exchangeCodeForSession error:', exchangeError);
+          return { error: exchangeError };
+        }
+
+        console.log('[Auth] ✅ Google sign-in successful');
+        return { error: null };
+      }
+
+      if (result.type === 'cancel') {
+        console.log('[Auth] User cancelled Google sign-in');
         return { error: { message: 'Sign-in cancelled' } };
-      } 
-      
-      // Handle browser dismissal
-      else if (result.type === 'dismiss') {
-        console.log('Google sign-in dismissed');
+      }
+
+      if (result.type === 'dismiss') {
+        console.log('[Auth] Google sign-in dismissed');
         return { error: { message: 'Sign-in dismissed' } };
       }
-      
-      // Unknown result type
-      console.error('Unknown OAuth result type:', result.type);
+
+      console.error('[Auth] Unknown OAuth result type:', result.type);
       return { error: { message: 'Authentication failed. Please try again.' } };
     } catch (error: any) {
-      console.error('Google sign-in exception:', error);
+      console.error('[Auth] Google sign-in exception:', error);
       return { error: { message: error.message || 'Failed to sign in with Google' } };
     } finally {
       setLoading(false);
