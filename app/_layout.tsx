@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -18,7 +18,8 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
 
-import { initializeNotifications } from "@/lib/notifications";
+import * as Notifications from 'expo-notifications';
+import { initializeNotifications, startDailyNotifications, type GlowNotificationData } from "@/lib/notifications";
 import { initializeSmartNotifications } from "@/lib/smart-notifications";
 import { initializeEngagementNotifications, trackUserActivity } from "@/lib/engagement-notifications";
 import { StyleSheet } from 'react-native';
@@ -118,6 +119,7 @@ export default function RootLayout() {
         await initializeSmartNotifications();
         await initializeEngagementNotifications();
         await trackUserActivity('app_open');
+        await startDailyNotifications();
         SplashScreen.hideAsync();
       }
     };
@@ -217,11 +219,54 @@ export default function RootLayout() {
       handleDeepLink(event.url);
     });
 
-    // Notification listeners not needed in simplified system
-    // Web notifications are handled directly in the notification system
+    const onNotificationTap = (data: unknown) => {
+      try {
+        const payload = data as GlowNotificationData | undefined;
+        const deepLink = payload?.deepLink;
+        console.log('[Notifications] tap payload', payload);
+
+        if (deepLink) {
+          console.log('[Notifications] navigating to deepLink', deepLink);
+          router.push(deepLink as any);
+        }
+      } catch (e) {
+        console.log('[Notifications] onNotificationTap error', e);
+      }
+    };
+
+    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
+      console.log('[Notifications] received', {
+        title: notification.request.content.title,
+        body: notification.request.content.body,
+        data: notification.request.content.data,
+      });
+    });
+
+    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log('[Notifications] response', {
+        actionIdentifier: response.actionIdentifier,
+        data: response.notification.request.content.data,
+      });
+
+      const data = response.notification.request.content.data;
+      onNotificationTap(data);
+    });
+
+    Notifications.getLastNotificationResponseAsync()
+      .then((resp) => {
+        if (!resp) return;
+        console.log('[Notifications] last response', {
+          actionIdentifier: resp.actionIdentifier,
+          data: resp.notification.request.content.data,
+        });
+        onNotificationTap(resp.notification.request.content.data);
+      })
+      .catch((e) => console.log('[Notifications] getLastNotificationResponseAsync error', e));
 
     return () => {
       subscription.remove();
+      receivedSub.remove();
+      responseSub.remove();
     };
   }, []);
 

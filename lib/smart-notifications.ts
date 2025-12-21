@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { scheduleLocalNotificationAt, type GlowNotificationData } from '@/lib/notifications';
 
 const NOTIFICATION_TIMES = {
   MORNING_CHECK_IN: 9,
@@ -13,6 +14,11 @@ const STORAGE_KEYS = {
   NOTIFICATION_PREFERENCES: 'smart_notif_preferences',
   ENGAGEMENT_DATA: 'smart_notif_engagement',
   SCHEDULED_NOTIFS: 'smart_notif_scheduled',
+
+  NOTIF_ID_MORNING: 'smart_notif_id_morning',
+  NOTIF_ID_PRODUCT: 'smart_notif_id_product',
+  NOTIF_ID_EVENING: 'smart_notif_id_evening',
+  NOTIF_ID_STREAK: 'smart_notif_id_streak',
 } as const;
 
 interface NotificationPreferences {
@@ -266,14 +272,14 @@ async function scheduleNotification(
   
   if (Platform.OS === 'web') {
     const timeoutKey = `smart_notif_${type}`;
-    const existingTimeout = (globalThis as any)[timeoutKey];
+    const existingTimeout = (globalThis as any)[timeoutKey] as ReturnType<typeof setTimeout> | undefined;
     if (existingTimeout) {
       clearTimeout(existingTimeout);
     }
-    
+
     (globalThis as any)[timeoutKey] = setTimeout(() => {
       if ('Notification' in globalThis && Notification.permission === 'granted') {
-        new Notification(message.title, { 
+        new Notification(message.title, {
           body,
           icon: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/53s334upy03qk49h5gire',
           badge: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/53s334upy03qk49h5gire',
@@ -281,38 +287,88 @@ async function scheduleNotification(
         console.log('[SmartNotif] Web notification shown:', type);
       }
     }, msUntilNotif);
-    
+
     console.log(`[SmartNotif] Scheduled ${type} in ${Math.round(msUntilNotif / 1000 / 60)} minutes`);
-  } else {
-    console.log(`[SmartNotif] Would schedule ${type} for ${scheduledTime.toLocaleTimeString()}`);
+    return;
   }
+
+  const idKey =
+    type === 'MORNING_CHECK_IN'
+      ? STORAGE_KEYS.NOTIF_ID_MORNING
+      : type === 'PRODUCT_REMINDER'
+        ? STORAGE_KEYS.NOTIF_ID_PRODUCT
+        : type === 'EVENING_ROUTINE'
+          ? STORAGE_KEYS.NOTIF_ID_EVENING
+          : STORAGE_KEYS.NOTIF_ID_STREAK;
+
+  const data: GlowNotificationData = {
+    kind: 'engagement',
+    campaign: `smart_${type}`,
+    deepLink: type === 'MORNING_CHECK_IN' ? '/(tabs)' : type === 'PRODUCT_REMINDER' ? '/product-tracking' : '/glow-coach',
+    meta: {
+      streak: context.streak,
+      scheduledHour: hour,
+    },
+  };
+
+  await scheduleLocalNotificationAt({
+    idKey,
+    at: scheduledTime,
+    title: message.title,
+    body,
+    data,
+  });
+
+  console.log(`[SmartNotif] Scheduled ${type} for ${scheduledTime.toLocaleTimeString()}`);
 }
 
 export async function cancelAllSmartNotifications() {
   if (Platform.OS === 'web') {
     const types = ['MORNING_CHECK_IN', 'PRODUCT_REMINDER', 'EVENING_ROUTINE', 'STREAK_WARNING'];
-    types.forEach(type => {
+    types.forEach((type) => {
       const timeoutKey = `smart_notif_${type}`;
-      const existingTimeout = (globalThis as any)[timeoutKey];
+      const existingTimeout = (globalThis as any)[timeoutKey] as ReturnType<typeof setTimeout> | undefined;
       if (existingTimeout) {
         clearTimeout(existingTimeout);
         delete (globalThis as any)[timeoutKey];
       }
     });
     console.log('[SmartNotif] All notifications cancelled');
+    return;
   }
+
+  await AsyncStorage.multiRemove([
+    STORAGE_KEYS.NOTIF_ID_MORNING,
+    STORAGE_KEYS.NOTIF_ID_PRODUCT,
+    STORAGE_KEYS.NOTIF_ID_EVENING,
+    STORAGE_KEYS.NOTIF_ID_STREAK,
+  ]);
+
+  console.log('[SmartNotif] Cleared scheduled notification ids');
 }
 
 export async function sendImmediateNotification(title: string, body: string) {
   if (Platform.OS === 'web') {
     if ('Notification' in globalThis && Notification.permission === 'granted') {
-      new Notification(title, { 
+      new Notification(title, {
         body,
         icon: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/53s334upy03qk49h5gire',
       });
       console.log('[SmartNotif] Immediate notification sent');
     }
-  } else {
-    console.log('[SmartNotif] Would send immediate notification:', title, body);
+    return;
   }
+
+  await scheduleLocalNotificationAt({
+    at: new Date(Date.now() + 1500),
+    title,
+    body,
+    data: {
+      kind: 'engagement',
+      campaign: 'smart_immediate',
+      deepLink: '/(tabs)',
+    },
+  });
+
+  console.log('[SmartNotif] Immediate notification scheduled');
 }

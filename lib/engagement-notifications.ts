@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { scheduleLocalNotificationAt, type GlowNotificationData } from '@/lib/notifications';
 
 // Zomato-inspired smart notification system
 // Focus: Value-driven, personalized, non-spammy, engaging
@@ -11,6 +12,12 @@ const STORAGE_KEYS = {
   LAST_NOTIFICATION_TIME: 'engagement_last_notif_time',
   DAILY_NOTIFICATION_COUNT: 'engagement_daily_count',
   USER_ENGAGEMENT_PATTERN: 'engagement_pattern',
+
+  NOTIF_ID_MORNING: 'engagement_notif_id_morning',
+  NOTIF_ID_PROGRESS: 'engagement_notif_id_progress',
+  NOTIF_ID_EVENING: 'engagement_notif_id_evening',
+  NOTIF_ID_STREAK: 'engagement_notif_id_streak',
+  NOTIF_ID_WEEKLY: 'engagement_notif_id_weekly',
 } as const;
 
 // Anti-spam rules
@@ -54,11 +61,11 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
 
 interface NotificationHistory {
   date: string;
-  notifications: Array<{
+  notifications: {
     type: string;
     time: string;
     sent: boolean;
-  }>;
+  }[];
 }
 
 interface UserActivity {
@@ -278,7 +285,7 @@ async function getUserActivity(): Promise<UserActivity> {
       totalOpens: 0,
       averageSessionDuration: 0,
     };
-  } catch (error) {
+  } catch {
     return {
       lastAppOpen: new Date().toISOString(),
       lastActionTime: new Date().toISOString(),
@@ -524,33 +531,33 @@ export async function scheduleDailyNotifications(context: {
   // Morning routine (only if not completed)
   if (preferences.routineReminders && !context.hasCompletedMorning) {
     const morningHour = await getOptimalNotificationTime('morning');
-    scheduleNotificationAt('MORNING_ROUTINE', morningHour, {});
+    await scheduleNotificationAt('MORNING_ROUTINE', morningHour, {});
   }
   
   // Progress tracking (only if not tracked today)
   if (preferences.progressReminders && !context.hasTrackedProgress) {
     const progressHour = await getOptimalNotificationTime('progress');
-    scheduleNotificationAt('PROGRESS_TRACKING', progressHour, {});
+    await scheduleNotificationAt('PROGRESS_TRACKING', progressHour, {});
   }
   
   // Evening routine (only if morning was completed and evening not done)
   if (preferences.routineReminders && context.hasCompletedMorning && !context.hasCompletedEvening) {
     const eveningHour = await getOptimalNotificationTime('evening');
-    scheduleNotificationAt('EVENING_ROUTINE', eveningHour, {});
+    await scheduleNotificationAt('EVENING_ROUTINE', eveningHour, {});
   }
   
   // Streak warning (only if streak > 3 and routine not completed)
   if (preferences.streakWarnings && context.streak && context.streak > 3 && !context.hasCompletedEvening) {
-    scheduleNotificationAt('STREAK_WARNING', 22, { streak: context.streak });
+    await scheduleNotificationAt('STREAK_WARNING', 22, { streak: context.streak });
   }
 }
 
 // Schedule notification at specific hour
-function scheduleNotificationAt(
+async function scheduleNotificationAt(
   type: keyof typeof NOTIFICATION_MESSAGES,
   hour: number,
   context: Record<string, string | number>
-): void {
+): Promise<void> {
   const now = new Date();
   const scheduledTime = new Date();
   scheduledTime.setHours(hour, 0, 0, 0);
@@ -563,20 +570,61 @@ function scheduleNotificationAt(
   
   if (Platform.OS === 'web') {
     const timeoutKey = `engagement_notif_${type}`;
-    const existingTimeout = (globalThis as any)[timeoutKey];
+    const existingTimeout = (globalThis as any)[timeoutKey] as ReturnType<typeof setTimeout> | undefined;
     if (existingTimeout) {
       clearTimeout(existingTimeout);
     }
-    
+
     (globalThis as any)[timeoutKey] = setTimeout(async () => {
       await sendNotification(type, context);
       delete (globalThis as any)[timeoutKey];
     }, Math.max(0, msUntilNotif));
-    
+
     console.log(`[EngagementNotif] Scheduled ${type} for ${scheduledTime.toLocaleString()}`);
-  } else {
-    console.log(`[EngagementNotif] Would schedule ${type} for ${scheduledTime.toLocaleString()}`);
+    return;
   }
+
+  const idKey =
+    type === 'MORNING_ROUTINE'
+      ? STORAGE_KEYS.NOTIF_ID_MORNING
+      : type === 'PROGRESS_TRACKING'
+        ? STORAGE_KEYS.NOTIF_ID_PROGRESS
+        : type === 'EVENING_ROUTINE'
+          ? STORAGE_KEYS.NOTIF_ID_EVENING
+          : type === 'STREAK_WARNING'
+            ? STORAGE_KEYS.NOTIF_ID_STREAK
+            : STORAGE_KEYS.NOTIF_ID_WEEKLY;
+
+  const deepLink =
+    type === 'PROGRESS_TRACKING'
+      ? '/(tabs)/progress'
+      : type === 'MORNING_ROUTINE' || type === 'EVENING_ROUTINE'
+        ? '/glow-coach'
+        : '/(tabs)';
+
+  const message = getRandomMessage(type);
+  const title = personalizeMessage(message.title, context);
+  const body = personalizeMessage(message.body, context);
+
+  const data: GlowNotificationData = {
+    kind: type === 'WEEKLY_INSIGHTS' ? 'weekly' : 'engagement',
+    campaign: `engagement_${type}`,
+    deepLink,
+    meta: {
+      ...context,
+      scheduledHour: hour,
+    },
+  };
+
+  await scheduleLocalNotificationAt({
+    idKey,
+    at: scheduledTime,
+    title,
+    body,
+    data,
+  });
+
+  console.log(`[EngagementNotif] Scheduled ${type} for ${scheduledTime.toLocaleString()}`);
 }
 
 // Send immediate notification (for achievements, milestones)
@@ -617,24 +665,35 @@ export async function initializeEngagementNotifications(): Promise<boolean> {
 // Cancel all scheduled notifications
 export async function cancelAllNotifications(): Promise<void> {
   if (Platform.OS === 'web') {
-    const types: Array<keyof typeof NOTIFICATION_MESSAGES> = [
+    const types: (keyof typeof NOTIFICATION_MESSAGES)[] = [
       'MORNING_ROUTINE',
       'EVENING_ROUTINE',
       'PROGRESS_TRACKING',
       'STREAK_WARNING',
     ];
-    
-    types.forEach(type => {
+
+    types.forEach((type) => {
       const timeoutKey = `engagement_notif_${type}`;
-      const existingTimeout = (globalThis as any)[timeoutKey];
+      const existingTimeout = (globalThis as any)[timeoutKey] as ReturnType<typeof setTimeout> | undefined;
       if (existingTimeout) {
         clearTimeout(existingTimeout);
         delete (globalThis as any)[timeoutKey];
       }
     });
-    
+
     console.log('[EngagementNotif] All notifications cancelled');
+    return;
   }
+
+  await AsyncStorage.multiRemove([
+    STORAGE_KEYS.NOTIF_ID_MORNING,
+    STORAGE_KEYS.NOTIF_ID_PROGRESS,
+    STORAGE_KEYS.NOTIF_ID_EVENING,
+    STORAGE_KEYS.NOTIF_ID_STREAK,
+    STORAGE_KEYS.NOTIF_ID_WEEKLY,
+  ]);
+
+  console.log('[EngagementNotif] Cleared scheduled notification ids');
 }
 
 // Get notification status

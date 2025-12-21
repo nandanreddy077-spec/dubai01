@@ -1,10 +1,11 @@
 import { Platform } from 'react-native';
-
-// Simplified notification system without expo-notifications
-// This works in Expo Go SDK 53 and production builds
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 
 const MORNING_HOUR = 10;
-const EVENING_HOUR = 22;
+const EVENING_HOUR = 21;
+
+const ANDROID_CHANNEL_ID = 'glowcheck-reminders';
 
 const STORAGE_KEYS = {
   morningDonePrefix: 'glow_morning_done_',
@@ -20,45 +21,6 @@ function getLocalDateKey(date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-async function getItem(key: string): Promise<string | null> {
-  try {
-    if (Platform.OS === 'web') {
-      return localStorage.getItem(key);
-    }
-    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-    return await AsyncStorage.getItem(key);
-  } catch (e) {
-    console.log('[Notifications] getItem error', e);
-    return null;
-  }
-}
-
-async function setItem(key: string, value: string): Promise<void> {
-  try {
-    if (Platform.OS === 'web') {
-      localStorage.setItem(key, value);
-      return;
-    }
-    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-    await AsyncStorage.setItem(key, value);
-  } catch (e) {
-    console.log('[Notifications] setItem error', e);
-  }
-}
-
-async function removeItem(key: string): Promise<void> {
-  try {
-    if (Platform.OS === 'web') {
-      localStorage.removeItem(key);
-      return;
-    }
-    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-    await AsyncStorage.removeItem(key);
-  } catch (e) {
-    console.log('[Notifications] removeItem error', e);
-  }
-}
-
 function nextTimeTodayOrTomorrow(targetHour: number): Date {
   const now = new Date();
   const target = new Date();
@@ -71,7 +33,7 @@ function nextTimeTodayOrTomorrow(targetHour: number): Date {
 
 async function requestWebNotificationPermission(): Promise<boolean> {
   if (Platform.OS !== 'web') return false;
-  
+
   try {
     if (!('Notification' in globalThis)) {
       console.log('[Notifications] Web Notification API not available');
@@ -93,61 +55,153 @@ async function requestWebNotificationPermission(): Promise<boolean> {
 
 export type RoutineType = 'morning' | 'evening';
 
-export async function initializeNotifications() {
-  console.log('[Notifications] Initializing simplified notification system...');
-  
+export type GlowNotificationKind = 'routine' | 'engagement' | 'weekly' | 'achievement' | 'test';
+
+export type GlowNotificationData = {
+  kind: GlowNotificationKind;
+  deepLink?: string;
+  routineType?: RoutineType;
+  campaign?: string;
+  meta?: Record<string, string | number | boolean | null>;
+};
+
+function getRoutineCopy(type: RoutineType): { title: string; body: string; deepLink: string } {
+  if (type === 'morning') {
+    return {
+      title: 'Rise & Glow',
+      body: 'Your morning GlowCoach routine is waiting. 2 minutes to keep your streak alive.',
+      deepLink: '/glow-coach',
+    };
+  }
+
+  return {
+    title: 'Night Glow Reset',
+    body: 'Time for your evening routine. Close the day strong and wake up glowing.',
+    deepLink: '/glow-coach',
+  };
+}
+
+async function cancelScheduledByStorageKey(storageKey: string) {
+  try {
+    const id = await AsyncStorage.getItem(storageKey);
+    if (id) {
+      await Notifications.cancelScheduledNotificationAsync(id);
+      await AsyncStorage.removeItem(storageKey);
+      console.log('[Notifications] cancelled scheduled notification', storageKey, id);
+    }
+  } catch (e) {
+    console.log('[Notifications] cancelScheduledByStorageKey error', storageKey, e);
+  }
+}
+
+async function scheduleNativeOnce(type: RoutineType, when: Date) {
+  const { title, body, deepLink } = getRoutineCopy(type);
+
+  const storageKey = type === 'morning' ? STORAGE_KEYS.morningNotifId : STORAGE_KEYS.eveningNotifId;
+  await cancelScheduledByStorageKey(storageKey);
+
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      sound: 'default',
+      data: {
+        kind: 'routine',
+        routineType: type,
+        deepLink,
+      } satisfies GlowNotificationData,
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: when,
+    },
+  });
+
+  await AsyncStorage.setItem(storageKey, id);
+  console.log('[Notifications] scheduled', type, 'for', when.toISOString(), 'id=', id);
+}
+
+export async function initializeNotifications(): Promise<boolean> {
+  console.log('[Notifications] Initializing notification system...');
+
   if (Platform.OS === 'web') {
     const hasPermission = await requestWebNotificationPermission();
     console.log('[Notifications] Web notifications initialized:', hasPermission);
     return hasPermission;
   }
-  
-  // For mobile platforms in Expo Go SDK 53, we can't use expo-notifications
-  // But we can still track routine completion
-  console.log('[Notifications] Mobile notifications not available in Expo Go SDK 53');
-  console.log('[Notifications] Routine tracking will still work without push notifications');
-  return true; // Return true to allow routine tracking
+
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+
+    const current = await Notifications.getPermissionsAsync();
+    console.log('[Notifications] current permission:', current.status, current.granted);
+
+    let granted = current.granted;
+    if (!granted) {
+      const asked = await Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+        },
+      });
+      granted = asked.granted;
+      console.log('[Notifications] requested permission:', asked.status, asked.granted);
+    }
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
+        name: 'GlowCoach Reminders',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 200, 50, 200],
+        lightColor: '#F8C7D7',
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        sound: 'default',
+      });
+    }
+
+    console.log('[Notifications] initialized ok, granted=', granted);
+    return granted;
+  } catch (e) {
+    console.log('[Notifications] initialize error', e);
+    return false;
+  }
 }
 
 export async function scheduleDailyReminder(type: RoutineType) {
   const hour = type === 'morning' ? MORNING_HOUR : EVENING_HOUR;
-  const title = type === 'morning' ? 'Morning routine reminder' : 'Evening routine reminder';
-  const body = type === 'morning' ? "Haven't finished your morning skincare yet? Let's glow!" : "Time for your evening routine. Your skin will thank you.";
-
   const dateKey = getLocalDateKey();
   const doneKey = (type === 'morning' ? STORAGE_KEYS.morningDonePrefix : STORAGE_KEYS.eveningDonePrefix) + dateKey;
-  const isDone = (await getItem(doneKey)) === '1';
-  
-  if (isDone) {
-    console.log(`[Notifications] ${type} already done for ${dateKey}, skipping schedule for today`);
-    return;
-  }
 
-  const now = new Date();
-  const currentHour = now.getHours();
-  
-  // Only schedule notification if we haven't passed the time yet today
-  if ((type === 'morning' && currentHour >= MORNING_HOUR) || 
-      (type === 'evening' && currentHour >= EVENING_HOUR)) {
-    console.log(`[Notifications] ${type} time has passed for today, scheduling for tomorrow`);
+  const isDone = (await AsyncStorage.getItem(doneKey)) === '1';
+  if (isDone) {
+    console.log(`[Notifications] ${type} already done for ${dateKey}, skipping schedule`);
+    await cancelScheduledByStorageKey(type === 'morning' ? STORAGE_KEYS.morningNotifId : STORAGE_KEYS.eveningNotifId);
+    return;
   }
 
   const when = nextTimeTodayOrTomorrow(hour);
 
   if (Platform.OS === 'web') {
+    const { title, body } = getRoutineCopy(type);
     const ms = when.getTime() - Date.now();
     console.log(`[Notifications] Web scheduling ${type} in ${Math.round(ms / 1000)}s at`, when.toString());
-    
-    // Clear any existing timeout for this type
+
     const timeoutKey = `${type}_timeout`;
-    const existingTimeout = (globalThis as any)[timeoutKey];
-    if (existingTimeout) {
-      clearTimeout(existingTimeout);
-    }
-    
+    const existingTimeout = (globalThis as any)[timeoutKey] as ReturnType<typeof setTimeout> | undefined;
+    if (existingTimeout) clearTimeout(existingTimeout);
+
     (globalThis as any)[timeoutKey] = setTimeout(() => {
       if (!('Notification' in globalThis)) return console.log('[Notifications] Notification API not available');
-      getItem(doneKey).then(val => {
+      AsyncStorage.getItem(doneKey).then((val) => {
         if (val === '1') {
           console.log(`[Notifications] ${type} done by trigger time, not showing web notification`);
           return;
@@ -159,54 +213,51 @@ export async function scheduleDailyReminder(type: RoutineType) {
         }
       });
     }, Math.max(0, ms));
+
     return;
   }
 
-  // For mobile platforms, just log that we would schedule a notification
-  console.log(`[Notifications] Would schedule ${type} notification for ${when.toString()}`);
-  console.log('[Notifications] Mobile push notifications require a development build (not available in Expo Go SDK 53)');
+  await scheduleNativeOnce(type, when);
 }
 
 export async function markRoutineDone(type: RoutineType, date = new Date()) {
   const key = (type === 'morning' ? STORAGE_KEYS.morningDonePrefix : STORAGE_KEYS.eveningDonePrefix) + getLocalDateKey(date);
-  await setItem(key, '1');
+  await AsyncStorage.setItem(key, '1');
   console.log('[Notifications] marked done', type, getLocalDateKey(date));
 
   if (Platform.OS === 'web') {
-    // Clear web timeout
     const timeoutKey = `${type}_timeout`;
-    const existingTimeout = (globalThis as any)[timeoutKey];
+    const existingTimeout = (globalThis as any)[timeoutKey] as ReturnType<typeof setTimeout> | undefined;
     if (existingTimeout) {
       clearTimeout(existingTimeout);
       delete (globalThis as any)[timeoutKey];
     }
+  } else {
+    await cancelScheduledByStorageKey(type === 'morning' ? STORAGE_KEYS.morningNotifId : STORAGE_KEYS.eveningNotifId);
   }
 
-  // Schedule for tomorrow
   await scheduleDailyReminder(type);
 }
 
 export async function resetTodayFlags() {
   const today = getLocalDateKey();
-  await removeItem(STORAGE_KEYS.morningDonePrefix + today);
-  await removeItem(STORAGE_KEYS.eveningDonePrefix + today);
+  await AsyncStorage.removeItem(STORAGE_KEYS.morningDonePrefix + today);
+  await AsyncStorage.removeItem(STORAGE_KEYS.eveningDonePrefix + today);
 }
 
 export async function startDailyNotifications() {
-  console.log('[Notifications] Starting simplified notification system');
-  
+  console.log('[Notifications] Starting daily notifications');
+
   try {
-    // Initialize notifications first
     const initialized = await initializeNotifications();
-    if (!initialized && Platform.OS === 'web') {
-      console.log('[Notifications] Failed to initialize web notifications');
-      return false;
+    if (!initialized && Platform.OS !== 'web') {
+      console.log('[Notifications] Notification permission not granted');
     }
 
     await scheduleDailyReminder('morning');
     await scheduleDailyReminder('evening');
-    
-    console.log('[Notifications] Notification system started successfully');
+
+    console.log('[Notifications] Daily notifications started');
     return true;
   } catch (e) {
     console.log('[Notifications] Error starting notifications:', e);
@@ -220,20 +271,24 @@ export async function getNotificationStatus() {
     scheduledNotifications: 0,
     morningScheduled: false,
     eveningScheduled: false,
-    platform: Platform.OS,
+    platform: Platform.OS as string,
   };
 
   try {
     if (Platform.OS === 'web') {
       status.permissionGranted = 'Notification' in globalThis && Notification.permission === 'granted';
-      // Check if we have active timeouts
       status.morningScheduled = !!(globalThis as any).morning_timeout;
       status.eveningScheduled = !!(globalThis as any).evening_timeout;
       status.scheduledNotifications = (status.morningScheduled ? 1 : 0) + (status.eveningScheduled ? 1 : 0);
     } else {
-      // For mobile, we can't check actual notifications in Expo Go SDK 53
-      console.log('[Notifications] Mobile notification status not available in Expo Go SDK 53');
-      status.permissionGranted = true; // Assume granted for routine tracking
+      const perm = await Notifications.getPermissionsAsync();
+      status.permissionGranted = perm.granted;
+
+      const morningId = await AsyncStorage.getItem(STORAGE_KEYS.morningNotifId);
+      const eveningId = await AsyncStorage.getItem(STORAGE_KEYS.eveningNotifId);
+      status.morningScheduled = !!morningId;
+      status.eveningScheduled = !!eveningId;
+      status.scheduledNotifications = (morningId ? 1 : 0) + (eveningId ? 1 : 0);
     }
   } catch (e) {
     console.log('[Notifications] Error getting status:', e);
@@ -244,31 +299,38 @@ export async function getNotificationStatus() {
 
 export async function testNotification() {
   console.log('[Notifications] Testing notification...');
-  
+
   if (Platform.OS === 'web') {
     if ('Notification' in globalThis && Notification.permission === 'granted') {
-      new Notification('Test Notification', {
-        body: 'This is a test notification from Glow Check!',
+      new Notification('GlowCheck Test', {
+        body: 'Notifications are working. Tap to open GlowCoach.',
       });
       console.log('[Notifications] Web test notification sent');
-    } else {
-      console.log('[Notifications] Web notifications not available or not permitted');
     }
     return;
   }
 
-  console.log('[Notifications] Mobile test notifications not available in Expo Go SDK 53');
-  console.log('[Notifications] Use a development build for full notification support');
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'GlowCheck Test',
+      body: 'Notifications are working. Tap to open GlowCoach.',
+      sound: 'default',
+      data: {
+        kind: 'test',
+        deepLink: '/glow-coach',
+      } satisfies GlowNotificationData,
+    },
+    trigger: null,
+  });
 }
 
 export async function clearAllNotifications() {
   console.log('[Notifications] Clearing all notifications...');
-  
+
   if (Platform.OS === 'web') {
-    // Clear web timeouts
     const timeoutKeys = ['morning_timeout', 'evening_timeout'];
-    timeoutKeys.forEach(key => {
-      const timeout = (globalThis as any)[key];
+    timeoutKeys.forEach((key) => {
+      const timeout = (globalThis as any)[key] as ReturnType<typeof setTimeout> | undefined;
       if (timeout) {
         clearTimeout(timeout);
         delete (globalThis as any)[key];
@@ -278,8 +340,70 @@ export async function clearAllNotifications() {
     return;
   }
 
-  // Clear stored IDs for mobile (even though we can't cancel actual notifications in Expo Go)
-  await removeItem(STORAGE_KEYS.morningNotifId);
-  await removeItem(STORAGE_KEYS.eveningNotifId);
+  try {
+    await Notifications.cancelAllScheduledNotificationsAsync();
+  } catch (e) {
+    console.log('[Notifications] cancelAllScheduledNotificationsAsync error', e);
+  }
+
+  await AsyncStorage.multiRemove([STORAGE_KEYS.morningNotifId, STORAGE_KEYS.eveningNotifId]);
   console.log('[Notifications] Notification data cleared');
+}
+
+export async function scheduleLocalNotificationAt(params: {
+  idKey?: string;
+  at: Date;
+  title: string;
+  body: string;
+  data?: GlowNotificationData;
+  androidChannelId?: string;
+}): Promise<string | null> {
+  const { idKey, at, title, body, data, androidChannelId } = params;
+
+  if (Platform.OS === 'web') {
+    const ms = at.getTime() - Date.now();
+    const timeoutKey = idKey ?? `local_${title}_${at.toISOString()}`;
+
+    const existingTimeout = (globalThis as any)[timeoutKey] as ReturnType<typeof setTimeout> | undefined;
+    if (existingTimeout) clearTimeout(existingTimeout);
+
+    (globalThis as any)[timeoutKey] = setTimeout(() => {
+      if (!('Notification' in globalThis) || Notification.permission !== 'granted') return;
+      try {
+        new Notification(title, { body });
+      } catch (e) {
+        console.log('[Notifications] Web scheduleLocalNotificationAt show error', e);
+      }
+    }, Math.max(0, ms));
+
+    console.log('[Notifications] Web scheduled notification', timeoutKey, at.toISOString());
+    return timeoutKey;
+  }
+
+  if (idKey) {
+    await cancelScheduledByStorageKey(idKey);
+  }
+
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      sound: 'default',
+      data: data ?? ({ kind: 'engagement' } satisfies GlowNotificationData),
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: at,
+    },
+  });
+
+  if (idKey) {
+    await AsyncStorage.setItem(idKey, id);
+  }
+
+  if (Platform.OS === 'android' && androidChannelId) {
+    console.log('[Notifications] androidChannelId provided (handled by setNotificationChannelAsync):', androidChannelId);
+  }
+
+  return id;
 }
