@@ -33,6 +33,18 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Allow Glow Check to access your camera for beauty analysis</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Allow Glow Check to access your photos for beauty analysis</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Allow Glow Check to access your microphone</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Allow Glow Check to use your location.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Allow Glow Check to use your location.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Allow Glow Check to use your location.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>SplashScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
