@@ -259,7 +259,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = org.name.GlowCheck;
+				PRODUCT_BUNDLE_IDENTIFIER = com.glowcheck01.app;
 				PRODUCT_NAME = GlowCheck;
 				SWIFT_OBJC_BRIDGING_HEADER = "GlowCheck/GlowCheck-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -286,7 +286,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = org.name.GlowCheck;
+				PRODUCT_BUNDLE_IDENTIFIER = com.glowcheck01.app;
 				PRODUCT_NAME = GlowCheck;
 				SWIFT_OBJC_BRIDGING_HEADER = "GlowCheck/GlowCheck-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
