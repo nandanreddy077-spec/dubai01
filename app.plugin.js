@@ -1,6 +1,6 @@
 /**
- * Expo Config Plugin to ensure TARGETED_DEVICE_FAMILY and iPad orientations are set correctly
- * This ensures both iPhone and iPad are supported with all required orientations
+ * Expo Config Plugin to ensure TARGETED_DEVICE_FAMILY, iPad orientations, and usage descriptions are set correctly
+ * This ensures both iPhone and iPad are supported with all required configurations
  */
 const { withXcodeProject, withInfoPlist } = require('@expo/config-plugins');
 
@@ -46,6 +46,26 @@ module.exports = function withTargetedDeviceFamily(config) {
         orientations.push(orientation);
       }
     });
+    
+    // Ensure all required usage descriptions are present
+    if (!infoPlist.NSCameraUsageDescription) {
+      infoPlist.NSCameraUsageDescription = 'Allow Glow Check to access your camera for beauty analysis';
+    }
+    if (!infoPlist.NSPhotoLibraryUsageDescription) {
+      infoPlist.NSPhotoLibraryUsageDescription = 'Allow Glow Check to access your photos for beauty analysis';
+    }
+    if (!infoPlist.NSMicrophoneUsageDescription) {
+      infoPlist.NSMicrophoneUsageDescription = 'Allow Glow Check to access your microphone';
+    }
+    if (!infoPlist.NSLocationWhenInUseUsageDescription) {
+      infoPlist.NSLocationWhenInUseUsageDescription = 'Allow Glow Check to use your location.';
+    }
+    if (!infoPlist.NSLocationAlwaysUsageDescription) {
+      infoPlist.NSLocationAlwaysUsageDescription = 'Allow Glow Check to use your location.';
+    }
+    if (!infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription) {
+      infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription = 'Allow Glow Check to use your location.';
+    }
     
     return config;
   });
