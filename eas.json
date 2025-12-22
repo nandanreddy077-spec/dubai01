@@ -38,14 +38,16 @@
     },
     "production": {
       "ios": {
-        "resourceClass": "m1-medium",
+        "resourceClass": "m-medium",
         "simulator": false,
-        "bundleIdentifier": "com.glowcheck01.app"
+        "buildConfiguration": "Release",
+        "env": {
+          "EXPO_NO_CAPABILITY_SYNC": "1"
+        }
       },
       "android": {
         "resourceClass": "medium",
-        "buildType": "aab",
-        "package": "com.glowcheck01.app"
+        "buildType": "app-bundle"
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://pmroozitldbgnchainxv.supabase.co",

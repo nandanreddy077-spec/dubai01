@@ -53,7 +53,24 @@ function GlassTabBarImpl({ state, descriptors, navigation }: GlassTabBarProps) {
     return routes.filter((route) => {
       const options = descriptors[route.key]?.options;
       const href = (options as { href?: unknown } | undefined)?.href;
-      return href !== null;
+      const tabBarButton = (options as { tabBarButton?: unknown } | undefined)?.tabBarButton;
+      
+      // Hide routes with href: null
+      if (href === null) {
+        return false;
+      }
+      
+      // Hide routes with tabBarButton (even if it's a function that returns null)
+      if (tabBarButton !== undefined) {
+        return false;
+      }
+      
+      // Hide the progress route explicitly
+      if (route.name === 'progress') {
+        return false;
+      }
+      
+      return true;
     });
   }, [descriptors, routes]);
 

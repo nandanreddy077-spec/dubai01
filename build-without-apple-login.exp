@@ -1,0 +1,44 @@
+#!/usr/bin/expect -f
+
+# Build iOS without Apple login (use existing credentials)
+set timeout 600
+
+spawn eas build --platform ios --profile production
+
+expect {
+    "iOS app only uses standard/exempt encryption?" {
+        send "yes\r"
+        exp_continue
+    }
+    "Do you want to log in to your Apple account?" {
+        send "no\r"
+        exp_continue
+    }
+    "https://expo.dev" {
+        puts "\n✅ Build started successfully!"
+        set output $expect_out(buffer)
+        regexp {https://expo.dev/[^\s]+} $output build_url
+        if {[info exists build_url]} {
+            puts "\n📱 Build URL: $build_url"
+            puts "\n⏱️  Build time: 15-25 minutes"
+            puts "📧 You'll receive an email when complete"
+        }
+        exp_continue
+    }
+    "Build started" {
+        puts "\n✅ Build started!"
+        exp_continue
+    }
+    "✔" {
+        exp_continue
+    }
+    eof {
+        puts "\n✅ Build process completed"
+    }
+    timeout {
+        puts "\n⏱️ Build is processing..."
+    }
+}
+
+expect eof
+

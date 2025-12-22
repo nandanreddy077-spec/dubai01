@@ -103,8 +103,11 @@ export async function analyzeImageWithAI(
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
+      console.error('❌ Authentication error:', authError);
       throw new Error('User not authenticated');
     }
+
+    console.log('✅ User authenticated:', user.id);
 
     // Convert image to data URL if needed
     const imageDataUrl = await convertImageToDataURL(request.imageUri);
@@ -113,6 +116,7 @@ export async function analyzeImageWithAI(
       analysisType: request.analysisType,
       hasImage: !!imageDataUrl,
       imageLength: imageDataUrl.length,
+      userId: user.id,
     });
 
     // Try Edge Function with retries (90% success rate target)
@@ -122,6 +126,13 @@ export async function analyzeImageWithAI(
     for (let attempt = 0; attempt < MAX_EDGE_RETRIES; attempt++) {
       try {
         console.log(`🔄 Edge Function attempt ${attempt + 1}/${MAX_EDGE_RETRIES}...`);
+        console.log('📤 Request payload:', {
+          analysisType: request.analysisType,
+          hasImageUri: !!imageDataUrl,
+          imageUriLength: imageDataUrl?.length || 0,
+          hasVisionData: !!request.visionData,
+          userId: user.id,
+        });
         
         const { data, error } = await supabase.functions.invoke('ai-analyze', {
           body: {
@@ -134,6 +145,13 @@ export async function analyzeImageWithAI(
             },
             userId: user.id,
           },
+        });
+
+        console.log('📥 Edge Function response:', {
+          hasData: !!data,
+          hasError: !!error,
+          errorMessage: error?.message,
+          dataKeys: data ? Object.keys(data) : [],
         });
 
         if (error) {
@@ -304,10 +322,31 @@ export async function analyzeStyle(
   imageUri: string,
   occasion: string
 ): Promise<any> {
-  return analyzeImageWithAI({
-    imageUri,
-    analysisType: 'style',
+  console.log('👔 Starting style analysis:', {
+    hasImage: !!imageUri,
+    imageLength: imageUri?.length || 0,
     occasion,
   });
+  
+  try {
+    const result = await analyzeImageWithAI({
+      imageUri,
+      analysisType: 'style',
+      occasion,
+    });
+    
+    console.log('✅ Style analysis completed:', {
+      hasResult: !!result,
+      resultKeys: result ? Object.keys(result) : [],
+      hasOverallScore: !!result?.overallScore,
+      hasColorAnalysis: !!result?.colorAnalysis,
+      hasOutfitBreakdown: !!result?.outfitBreakdown,
+    });
+    
+    return result;
+  } catch (error) {
+    console.error('❌ Style analysis error:', error);
+    throw error;
+  }
 }
 

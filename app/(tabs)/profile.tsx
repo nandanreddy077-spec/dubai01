@@ -67,6 +67,7 @@ export default function ProfileScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
   const [glowAnim] = useState(new Animated.Value(0));
   const [isRestoringPurchases, setIsRestoringPurchases] = useState<boolean>(false);
+  const [soulLabel, setSoulLabel] = useState<string>('Beautiful Soul');
   
   const palette = getPalette(theme);
 
@@ -75,6 +76,21 @@ export default function ProfileScreen() {
       try {
         const stored = await AsyncStorage.getItem("settings_notifications_enabled");
         if (stored !== null) setNotificationsEnabled(stored === "true");
+        
+        // Load onboarding data to get gender
+        const onboardingData = await AsyncStorage.getItem("onboarding_data");
+        if (onboardingData) {
+          try {
+            const data = JSON.parse(onboardingData);
+            if (data.gender === 'Man') {
+              setSoulLabel('Handsome Soul');
+            } else {
+              setSoulLabel('Beautiful Soul');
+            }
+          } catch (e) {
+            console.log("Failed to parse onboarding data", e);
+          }
+        }
       } catch (e) {
         console.log("Failed to load notifications pref", e);
       }
@@ -293,9 +309,9 @@ export default function ProfileScreen() {
           <Text style={styles.email} testID="profileEmail">{displayEmail}</Text>
           
           <LinearGradient colors={getGradient(theme).primary} style={styles.premiumBadge}>
-            <Heart color={palette.textPrimary} size={18} fill={palette.blush} />
-            <Text style={styles.premiumText}>Beautiful Soul</Text>
-            <Sparkles color={palette.textPrimary} size={14} fill={palette.blush} />
+            <Heart color={palette.textLight} size={18} fill={palette.blush} />
+            <Text style={styles.premiumText}>{soulLabel}</Text>
+            <Sparkles color={palette.textLight} size={14} fill={palette.blush} />
           </LinearGradient>
         </View>
 
@@ -636,7 +652,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   premiumText: {
     fontSize: 14,
-    color: palette.textPrimary,
+    color: palette.textLight,
     fontWeight: "800",
     letterSpacing: 0.5,
   },

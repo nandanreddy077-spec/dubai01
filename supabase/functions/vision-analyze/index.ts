@@ -46,8 +46,15 @@ function checkRateLimit(userId: string): boolean {
 }
 
 serve(async (req) => {
+  console.log('🚀 vision-analyze function invoked', {
+    method: req.method,
+    url: req.url,
+    hasAuth: !!req.headers.get('Authorization'),
+  });
+
   // Handle CORS
   if (req.method === 'OPTIONS') {
+    console.log('✅ CORS preflight request');
     return new Response(null, {
       status: 204,
       headers: {
@@ -62,11 +69,14 @@ serve(async (req) => {
     // Get authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('❌ Missing authorization header');
       return new Response(
         JSON.stringify({ error: 'Missing authorization header' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('✅ Authorization header present');
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -114,11 +124,14 @@ serve(async (req) => {
 
     // Check Google Vision API key
     if (!GOOGLE_VISION_API_KEY) {
+      console.error('❌ Google Vision API key not configured');
       return new Response(
         JSON.stringify({ error: 'Google Vision API key not configured' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('✅ Google Vision API key configured');
 
     // Prepare image data (remove data URL prefix if present)
     let base64Image = imageData;
@@ -135,6 +148,7 @@ serve(async (req) => {
     ];
 
     // Call Google Vision API
+    console.log('👁️ Calling Google Vision API...');
     const visionResponse = await fetch(
       `${GOOGLE_VISION_API_URL}?key=${GOOGLE_VISION_API_KEY}`,
       {
@@ -188,6 +202,7 @@ serve(async (req) => {
       );
     }
 
+    console.log('✅ Vision analysis complete, returning result');
     return new Response(
       JSON.stringify(responses),
       {
@@ -199,15 +214,18 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error in Vision analysis:', error);
+    console.error('❌ Error in Vision analysis:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Internal server error' 
+        error: error instanceof Error ? error.message : 'Internal server error',
+        details: error instanceof Error ? error.stack : undefined,
       }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 });
+
 
 
 

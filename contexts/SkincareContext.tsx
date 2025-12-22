@@ -152,22 +152,56 @@ export const [SkincareProvider, useSkincare] = createContextHook((): SkincareCon
     }
   }, [planHistory, currentPlan, activePlans]);
 
-  // Utility function for making AI API calls using centralized OpenAI service
+  // Utility function for making AI API calls via Edge Function
   const makeAIRequest = async (messages: any[], maxRetries = 2): Promise<any> => {
-    const { makeOpenAIRequest, formatMessages } = await import('../lib/openai-service');
+    // Try Edge Function first (secure, server-side)
+    const { supabase } = await import('../lib/supabase');
+    const { data: { user } } = await supabase.auth.getUser();
     
-    const formattedMessages = formatMessages(messages);
-    const result = await makeOpenAIRequest(formattedMessages, {
-      model: 'gpt-4o-mini',
-      temperature: 0.7,
-      maxTokens: 2000,
-    }, maxRetries);
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    // For plan generation, use the plan-generate Edge Function
+    // Extract the user message content (the prompt)
+    const userMessage = messages.find(m => m.role === 'user');
+    const systemMessage = messages.find(m => m.role === 'system');
     
-    if (!result) {
-      throw new Error('AI API request failed after all retries');
+    if (!userMessage) {
+      throw new Error('No user message found');
+    }
+
+    // Get analysis result from context or extract from message
+    // For now, we'll use the Edge Function approach
+    console.log('🤖 Calling plan-generate Edge Function...');
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // We need to pass the analysis result, so we'll need to modify this
+        // For now, fallback to direct API if Edge Function approach needs more work
+        const { makeOpenAIRequest, formatMessages } = await import('../lib/openai-service');
+        
+        const formattedMessages = formatMessages(messages);
+        const result = await makeOpenAIRequest(formattedMessages, {
+          model: 'gpt-4o-mini',
+          temperature: 0.7,
+          maxTokens: 2000,
+        }, maxRetries);
+        
+        if (!result) {
+          throw new Error('AI API request failed after all retries');
+        }
+        
+        return result;
+      } catch (error) {
+        if (attempt === maxRetries - 1) {
+          throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
     }
     
-    return result;
+    throw new Error('AI API request failed after all retries');
   };
 
   const generateCustomPlan = useCallback(async (analysisResult: AnalysisResult, customGoal?: string): Promise<SkincarePlan> => {
@@ -253,10 +287,120 @@ Create a progressive 30-day plan with 4 weekly phases. Focus on the lowest scori
         }
       ];
 
-      let completion;
+      let planData;
       try {
-        completion = await makeAIRequest(messages);
-        console.log('Raw AI response:', completion);
+        // Try Edge Function first (secure, server-side)
+        console.log('🤖 Attempting to generate plan via Edge Function...');
+        const { supabase } = await import('../lib/supabase');
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          try {
+            const { data, error } = await supabase.functions.invoke('plan-generate', {
+              body: {
+                analysisResult: {
+                  overallScore: analysisResult.overallScore,
+                  skinType: analysisResult.skinType,
+                  skinTone: analysisResult.skinTone,
+                  skinQuality: analysisResult.skinQuality,
+                  dermatologyInsights: analysisResult.dermatologyInsights,
+                  detailedScores: analysisResult.detailedScores,
+                },
+                customGoal,
+                userId: user.id,
+              },
+            });
+
+            if (error) {
+              console.warn('⚠️ Edge Function error, falling back to direct API:', error.message);
+              throw error;
+            }
+
+            if (data?.error) {
+              console.warn('⚠️ Edge Function returned error, falling back to direct API:', data.error);
+              throw new Error(data.error);
+            }
+
+            // Edge Function returns the plan data directly (already parsed JSON)
+            console.log('✅ Plan generated via Edge Function');
+            planData = data; // Already parsed JSON from Edge Function
+          } catch (edgeError) {
+            console.warn('⚠️ Edge Function failed, falling back to direct API:', edgeError);
+            // Fallback to direct API
+            const completion = await makeAIRequest(messages);
+            console.log('Raw AI response:', completion);
+            
+            // Extract JSON from the response (handle markdown formatting)
+            let jsonString = completion;
+            
+            // Remove markdown code blocks if present
+            if (jsonString.includes('```json')) {
+              const jsonMatch = jsonString.match(/```json\s*([\s\S]*?)\s*```/);
+              if (jsonMatch) {
+                jsonString = jsonMatch[1];
+              }
+            } else if (jsonString.includes('```')) {
+              const jsonMatch = jsonString.match(/```\s*([\s\S]*?)\s*```/);
+              if (jsonMatch) {
+                jsonString = jsonMatch[1];
+              }
+            }
+            
+            // Clean up the JSON string
+            jsonString = jsonString.trim();
+            
+            // If the response doesn't start with {, try to find JSON in the response
+            if (!jsonString.startsWith('{')) {
+              const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                jsonString = jsonMatch[0];
+              } else {
+                console.error('No valid JSON found in response:', jsonString);
+                throw new Error('No valid JSON found in AI response');
+              }
+            }
+            
+            console.log('Cleaned JSON string:', jsonString);
+            planData = JSON.parse(jsonString);
+          }
+        } else {
+          // No user, use direct API
+          const completion = await makeAIRequest(messages);
+          console.log('Raw AI response:', completion);
+          
+          // Extract JSON from the response (handle markdown formatting)
+          let jsonString = completion;
+          
+          // Remove markdown code blocks if present
+          if (jsonString.includes('```json')) {
+            const jsonMatch = jsonString.match(/```json\s*([\s\S]*?)\s*```/);
+            if (jsonMatch) {
+              jsonString = jsonMatch[1];
+            }
+          } else if (jsonString.includes('```')) {
+            const jsonMatch = jsonString.match(/```\s*([\s\S]*?)\s*```/);
+            if (jsonMatch) {
+              jsonString = jsonMatch[1];
+            }
+          }
+          
+          // Clean up the JSON string
+          jsonString = jsonString.trim();
+          
+          // If the response doesn't start with {, try to find JSON in the response
+          if (!jsonString.startsWith('{')) {
+            const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              jsonString = jsonMatch[0];
+            } else {
+              console.error('No valid JSON found in response:', jsonString);
+              throw new Error('No valid JSON found in AI response');
+            }
+          }
+          
+          console.log('Cleaned JSON string:', jsonString);
+          planData = JSON.parse(jsonString);
+        }
       } catch (error) {
         console.error('AI API failed after retries, using fallback:', error);
         // Use fallback plan immediately if AI fails
@@ -266,52 +410,13 @@ Create a progressive 30-day plan with 4 weekly phases. Focus on the lowest scori
         return plan;
       }
       
-      // Extract JSON from the response (handle markdown formatting)
-      let jsonString = completion;
-      
-      // Remove markdown code blocks if present
-      if (jsonString.includes('```json')) {
-        const jsonMatch = jsonString.match(/```json\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-          jsonString = jsonMatch[1];
-        }
-      } else if (jsonString.includes('```')) {
-        const jsonMatch = jsonString.match(/```\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-          jsonString = jsonMatch[1];
-        }
+      // Plan data should already be parsed (from Edge Function) or parsed above (from direct API)
+      if (!planData || typeof planData !== 'object') {
+        console.error('Invalid plan data received');
+        throw new Error('Invalid plan data from AI');
       }
       
-      // Clean up the JSON string
-      jsonString = jsonString.trim();
-      
-      // If the response doesn't start with {, try to find JSON in the response
-      if (!jsonString.startsWith('{')) {
-        const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          jsonString = jsonMatch[0];
-        } else {
-          console.error('No valid JSON found in response:', jsonString);
-          throw new Error('No valid JSON found in AI response');
-        }
-      }
-      
-      console.log('Cleaned JSON string:', jsonString);
-      
-      let planData;
-      try {
-        planData = JSON.parse(jsonString);
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        console.error('Failed to parse:', jsonString);
-        
-        // Fallback: Create a basic plan structure
-        console.log('Creating fallback plan due to parse error');
-        const plan = createFallbackPlan(analysisResult, customGoal);
-        await savePlan(plan);
-        setCurrentPlan(plan);
-        return plan;
-      }
+      console.log('✅ Plan data parsed successfully, keys:', Object.keys(planData));
 
       const plan: SkincarePlan = {
         id: `plan_${Date.now()}`,

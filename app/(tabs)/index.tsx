@@ -8,6 +8,7 @@ import {
   Image,
   Animated,
   StatusBar,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -231,7 +232,17 @@ export default function HomeScreen() {
               source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/53s334upy03qk49h5gire' }} 
               style={styles.logoImage}
             />
-            <Text style={styles.logoText}>GlowCheck</Text>
+            <View style={styles.logoTextContainer}>
+              <Text style={styles.logoText}>GLOW</Text>
+              <View style={styles.checkTextContainer}>
+                <Text style={styles.logoText}>CH</Text>
+                <View style={styles.eContainer}>
+                  <Text style={styles.logoText}>E</Text>
+                  <View style={styles.eStroke} />
+                </View>
+                <Text style={styles.logoText}>CK</Text>
+              </View>
+            </View>
           </View>
           
           <View style={styles.streakContainer}>
@@ -319,7 +330,7 @@ export default function HomeScreen() {
           
           <View style={styles.progressHubGrid}>
             <TouchableOpacity 
-              onPress={() => router.push('/progress')}
+              onPress={() => router.push('/(tabs)/progress')}
               activeOpacity={0.9}
               style={styles.progressHubCard}
             >
@@ -598,11 +609,37 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     height: 40,
     borderRadius: 20,
   },
+  logoTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   logoText: {
     fontSize: 22,
-    fontWeight: typography.bold,
+    fontWeight: '900' as const, // Extra bold to match image
     color: palette.textPrimary,
     letterSpacing: -0.6,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium', // Bold sans-serif
+  },
+  checkTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  eContainer: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'visible',
+  },
+  eStroke: {
+    position: 'absolute',
+    left: 2,
+    top: '50%',
+    transform: [{ translateY: -2 }],
+    width: 10,
+    height: 4, // Thicker stroke like in image
+    backgroundColor: '#C9A961', // Gold-brown color matching image
+    borderRadius: 2, // Pill-like rounded ends
+    zIndex: 10,
   },
   streakContainer: {
     alignItems: 'center',

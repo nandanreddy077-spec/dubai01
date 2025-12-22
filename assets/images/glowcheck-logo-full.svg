@@ -1,0 +1,115 @@
+<svg width="800" height="300" viewBox="0 0 800 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Premium Rose Gold to Gold Gradient -->
+    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E6A478;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#D2A372;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#C7A76C;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Glow Effect -->
+    <radialGradient id="glowGradient" cx="50%" cy="50%">
+      <stop offset="0%" style="stop-color:#E6A478;stop-opacity:0.8" />
+      <stop offset="50%" style="stop-color:#D2A372;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#C7A76C;stop-opacity:0" />
+    </radialGradient>
+    
+    <!-- Inner Glow -->
+    <radialGradient id="innerGlow" cx="50%" cy="50%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:0.6" />
+      <stop offset="100%" style="stop-color:#FFFFFF;stop-opacity:0" />
+    </radialGradient>
+    
+    <!-- Shadow Filter -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Soft Shadow -->
+    <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="0" dy="3" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.25"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Icon Section -->
+  <g transform="translate(150, 150)">
+    <!-- Background Glow -->
+    <circle cx="0" cy="0" r="80" fill="url(#glowGradient)" opacity="0.25"/>
+    
+    <!-- Main Logo Circle -->
+    <circle cx="0" cy="0" r="70" fill="none" stroke="url(#goldGradient)" stroke-width="2" opacity="0.3"/>
+    <circle cx="0" cy="0" r="60" fill="url(#goldGradient)" filter="url(#softShadow)"/>
+    <circle cx="0" cy="0" r="60" fill="url(#innerGlow)"/>
+    
+    <!-- Stylized "G" -->
+    <path d="M -30 -20 
+             C -30 -40, -10 -50, 10 -50
+             C 30 -50, 50 -30, 50 -10
+             C 50 10, 30 30, 10 30
+             C -10 30, -30 10, -30 -10
+             L -30 -20
+             M 10 0
+             L 30 0
+             L 30 10
+             C 30 20, 20 30, 10 30" 
+          fill="none" 
+          stroke="#FFFFFF" 
+          stroke-width="9" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"
+          filter="url(#glow)"/>
+    
+    <!-- Sparkle Elements -->
+    <circle cx="-40" cy="-40" r="2" fill="#FFFFFF" opacity="0.9"/>
+    <circle cx="40" cy="-30" r="1.5" fill="#FFFFFF" opacity="0.8"/>
+    <circle cx="35" cy="35" r="1.8" fill="#FFFFFF" opacity="0.85"/>
+    <circle cx="-35" cy="30" r="1.5" fill="#FFFFFF" opacity="0.75"/>
+  </g>
+  
+  <!-- Text Section -->
+  <g transform="translate(250, 150)">
+    <!-- GlowCheck Text -->
+    <text x="0" y="0" 
+          font-family="system-ui, -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" 
+          font-size="72" 
+          font-weight="700" 
+          fill="url(#goldGradient)"
+          letter-spacing="-2"
+          filter="url(#softShadow)">
+      Glow
+    </text>
+    <text x="0" y="85" 
+          font-family="system-ui, -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" 
+          font-size="72" 
+          font-weight="700" 
+          fill="url(#goldGradient)"
+          letter-spacing="-2"
+          filter="url(#softShadow)">
+      Check
+    </text>
+    
+    <!-- Subtitle -->
+    <text x="0" y="130" 
+          font-family="system-ui, -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" 
+          font-size="18" 
+          font-weight="400" 
+          fill="#6D6D6D"
+          letter-spacing="2"
+          text-transform="uppercase">
+      Premium Beauty Insights
+    </text>
+  </g>
+</svg>
+

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, Animated, TouchableOpacity, StatusBar, TextInput, Easing } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Animated, TouchableOpacity, StatusBar, TextInput, Easing, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -123,6 +123,9 @@ export default function OnboardingScreen() {
     scaleInAnim.setValue(0);
     slideInAnim.setValue(0);
 
+    // Ensure opacity starts at 1 for immediate visibility
+    slideInAnim.setValue(1);
+
     Animated.parallel([
       Animated.spring(scaleInAnim, {
         toValue: 1,
@@ -132,7 +135,7 @@ export default function OnboardingScreen() {
       }),
       Animated.timing(slideInAnim, {
         toValue: 1,
-        duration: 600,
+        duration: 300,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
@@ -253,7 +256,8 @@ export default function OnboardingScreen() {
                   placeholderTextColor={palette.textMuted}
                   value={data.name}
                   onChangeText={(text) => setData(prev => ({ ...prev, name: text }))}
-                  autoFocus
+                  autoFocus={false}
+                  returnKeyType="next"
                 />
               </View>
               <Text style={styles.inputHint}>We&apos;ll use this to personalize your experience</Text>
@@ -521,9 +525,21 @@ export default function OnboardingScreen() {
           </View>
         </View>
 
-        <View style={styles.content}>
-          {renderStep()}
-        </View>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoid}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <ScrollView 
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.content}>
+              {renderStep()}
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
 
         <View style={styles.footer}>
           <TouchableOpacity 
@@ -634,13 +650,21 @@ const createStyles = (palette: ReturnType<typeof getPalette>, height: number) =>
     color: palette.textMuted,
     letterSpacing: 0.5,
   },
+  keyboardAvoid: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
   content: {
     flex: 1,
     paddingHorizontal: spacing.xl,
+    minHeight: '100%',
   },
   stepContainer: {
     flex: 1,
     justifyContent: 'center',
+    minHeight: 400,
   },
   contentCenter: {
     alignItems: 'center',

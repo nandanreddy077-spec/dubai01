@@ -96,6 +96,12 @@ export default function TabLayout() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="progress"
+          options={{
+            tabBarButton: () => null, // Completely hide from tab bar
+          }}
+        />
       </Tabs>
     </AuthGuard>
   );

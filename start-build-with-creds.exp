@@ -1,0 +1,50 @@
+#!/usr/bin/expect -f
+
+# Automated iOS Build with Credentials
+set timeout 600
+
+spawn eas build --platform ios --profile production
+
+# Encryption compliance
+expect {
+    "iOS app only uses standard/exempt encryption?" {
+        send "yes\r"
+        exp_continue
+    }
+    "Do you want to log in to your Apple account?" {
+        send "yes\r"
+        exp_continue
+    }
+    "Apple ID:" {
+        send "nandanreddy05@icloud.com\r"
+        exp_continue
+    }
+    "Password" {
+        send "Surekhareddy1661\r"
+        exp_continue
+    }
+    "https://expo.dev" {
+        puts "\n✅ Build started successfully!"
+        set output $expect_out(buffer)
+        regexp {https://expo.dev/[^\s]+} $output build_url
+        if {[info exists build_url]} {
+            puts "📱 Build URL: $build_url"
+        }
+        exp_continue
+    }
+    "Build started" {
+        puts "\n✅ Build started!"
+        exp_continue
+    }
+    "✔" {
+        exp_continue
+    }
+    eof {
+        puts "\n✅ Build process initiated"
+    }
+    timeout {
+        puts "\n⏱️ Build is starting (this may take a moment)..."
+    }
+}
+
+expect eof

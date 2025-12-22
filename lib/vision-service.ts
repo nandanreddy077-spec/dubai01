@@ -37,9 +37,19 @@ export async function analyzeImageWithVision(
     }
 
     // Get current user (optional - allow guest analysis)
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError) {
+      console.warn('⚠️ Auth error (continuing as guest):', authError.message);
+    }
     
     console.log('Vision analysis - User ID:', user?.id || 'guest');
+    console.log('📤 Calling vision-analyze Edge Function:', {
+      hasImage: !!base64Image,
+      imageLength: base64Image.length,
+      features: features?.length || 0,
+      userId: user?.id || 'guest',
+    });
 
     // Call Edge Function (works with or without authentication)
     const { data, error } = await supabase.functions.invoke('vision-analyze', {
@@ -48,6 +58,13 @@ export async function analyzeImageWithVision(
         features,
         userId: user?.id || 'guest',
       },
+    });
+
+    console.log('📥 Vision Edge Function response:', {
+      hasData: !!data,
+      hasError: !!error,
+      errorMessage: error?.message,
+      errorDetails: error ? JSON.stringify(error, null, 2) : null,
     });
 
     if (error) {

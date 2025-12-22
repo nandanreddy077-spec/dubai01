@@ -574,6 +574,15 @@ export default function AnalysisLoadingScreen() {
     right: any;
   }, aiData: any, isMultiAngle: boolean) => {
     console.log('🧮 Calculating advanced multi-angle scores...');
+    console.log('📊 AI Data received:', {
+      hasSkinAnalysis: !!aiData.skinAnalysis,
+      hasBeautyScores: !!aiData.beautyScores,
+      hasDermatologyAssessment: !!aiData.dermatologyAssessment,
+      hasBeautyRecommendations: !!aiData.beautyRecommendations,
+      beautyRecommendationsCount: aiData.beautyRecommendations?.length || 0,
+      skinAnalysisKeys: aiData.skinAnalysis ? Object.keys(aiData.skinAnalysis) : [],
+      beautyScoresKeys: aiData.beautyScores ? Object.keys(aiData.beautyScores) : [],
+    });
     
     // Extract face detection data from all angles
     const frontFaceData = visionData.front?.faceAnnotations?.[0];
@@ -642,13 +651,21 @@ export default function AnalysisLoadingScreen() {
         skinConcerns: [...(aiData.dermatologyAssessment?.skinConcerns || []), ...(aiData.dermatologyAssessment?.skinConditions || [])],
         recommendedTreatments: [...(aiData.dermatologyAssessment?.recommendedTreatments || []), ...(aiData.dermatologyAssessment?.preventiveMeasures || [])],
       },
-      personalizedTips: aiData.professionalRecommendations || aiData.personalizedAdvice || [
-        "Use a vitamin C serum in the morning to enhance your natural glow",
-        "Consider facial massage to improve jawline definition",
-        "Maintain your excellent hydration routine for continued skin health",
-        "Apply broad-spectrum SPF 30+ daily for optimal skin protection",
-        "Consider professional treatments based on your skin analysis"
-      ],
+      personalizedTips: (() => {
+        const tips = aiData.beautyRecommendations || aiData.professionalRecommendations || aiData.personalizedAdvice;
+        if (tips && Array.isArray(tips) && tips.length > 0) {
+          console.log('✅ Using AI-generated personalized tips:', tips.length, 'tips');
+          return tips;
+        }
+        console.log('⚠️ Using fallback personalized tips (AI tips not available)');
+        return [
+          "Use a vitamin C serum in the morning to enhance your natural glow",
+          "Consider facial massage to improve jawline definition",
+          "Maintain your excellent hydration routine for continued skin health",
+          "Apply broad-spectrum SPF 30+ daily for optimal skin protection",
+          "Consider professional treatments based on your skin analysis"
+        ];
+      })(),
       confidence: Math.min(0.98, (aiData.confidence || 0.85) + (isMultiAngle ? 0.1 : 0)),
     };
   };

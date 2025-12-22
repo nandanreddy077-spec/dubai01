@@ -1,0 +1,37 @@
+#!/usr/bin/expect -f
+
+# Automated iOS Build with Expect
+# Handles all interactive prompts
+
+set timeout 300
+
+spawn eas build --platform ios --profile production
+
+# Wait for encryption compliance prompt
+expect {
+    "iOS app only uses standard/exempt encryption?" {
+        send "yes\r"
+        exp_continue
+    }
+    "Do you want to log in to your Apple account?" {
+        send "no\r"
+        exp_continue
+    }
+    "https://expo.dev" {
+        set build_url $expect_out(buffer)
+        puts "\n✅ Build started!"
+        puts "Build URL found in output"
+        exp_continue
+    }
+    eof {
+        puts "\nBuild process completed"
+    }
+    timeout {
+        puts "\nTimeout waiting for prompt"
+        exit 1
+    }
+}
+
+# Capture the full output
+expect eof
+

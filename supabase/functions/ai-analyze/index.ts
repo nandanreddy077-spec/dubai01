@@ -66,8 +66,15 @@ function setCachedResponse(cacheKey: string, data: any, ttl: number = 3600000): 
 }
 
 serve(async (req) => {
+  console.log('🚀 ai-analyze function invoked', {
+    method: req.method,
+    url: req.url,
+    hasAuth: !!req.headers.get('Authorization'),
+  });
+
   // Handle CORS
   if (req.method === 'OPTIONS') {
+    console.log('✅ CORS preflight request');
     return new Response(null, {
       status: 204,
       headers: {
@@ -82,31 +89,57 @@ serve(async (req) => {
     // Get authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('❌ Missing authorization header');
       return new Response(
         JSON.stringify({ error: 'Missing authorization header' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
+    console.log('✅ Authorization header present');
+
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase environment variables');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log('✅ Supabase client initialized');
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Verify user token
     const token = authHeader.replace('Bearer ', '');
+    console.log('🔐 Verifying user token...');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
+      console.error('❌ Authentication failed:', authError?.message);
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
+    console.log('✅ User authenticated:', user.id);
+
     // Parse request body
+    console.log('📥 Parsing request body...');
     const body: AnalysisRequest = await req.json();
     const { imageData, userId } = body;
+    
+    console.log('📋 Request received:', {
+      analysisType: imageData?.analysisType,
+      hasImageUri: !!imageData?.imageUri,
+      imageUriLength: imageData?.imageUri?.length || 0,
+      userId,
+      userMatches: userId === user.id,
+    });
 
     // Verify userId matches authenticated user
     if (userId !== user.id) {
@@ -143,14 +176,19 @@ serve(async (req) => {
 
     // Check OpenAI API key
     if (!OPENAI_API_KEY) {
+      console.error('❌ OpenAI API key not configured');
       return new Response(
         JSON.stringify({ error: 'OpenAI API key not configured' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
+    console.log('✅ OpenAI API key configured');
+
     // Build prompt based on analysis type
     let prompt = '';
+    console.log('📝 Building prompt for analysis type:', imageData.analysisType);
+    
     if (imageData.analysisType === 'glow') {
       const analysisType = imageData.multiAngle ? 'multi-angle professional' : 'single-angle';
       let visionContext = '';
@@ -212,7 +250,8 @@ Respond with ONLY a valid JSON object with this exact structure:
   "confidence": 0.95,
   "analysisAccuracy": "${imageData.multiAngle ? 'Professional-grade (multi-angle)' : 'Standard (single-angle)'}"
 }`;
-    } else {
+    } else if (imageData.analysisType === 'style') {
+      console.log('👔 Building style analysis prompt for occasion:', imageData.occasion);
       prompt = `Analyze this outfit photo for a ${imageData.occasion || 'general'} occasion. Provide a comprehensive style analysis including:
 
 1. Overall vibe and aesthetic
@@ -291,6 +330,7 @@ Respond in this exact JSON format:
     }
 
     // Call OpenAI API
+    console.log('🤖 Calling OpenAI API...');
     const openaiResponse = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: {
@@ -326,48 +366,103 @@ Respond in this exact JSON format:
 
     if (!openaiResponse.ok) {
       const errorText = await openaiResponse.text();
+      console.error('❌ OpenAI API error:', openaiResponse.status, errorText);
       return new Response(
         JSON.stringify({ error: `OpenAI API error: ${openaiResponse.status} - ${errorText}` }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
+    console.log('✅ OpenAI API response received');
     const openaiData = await openaiResponse.json();
     const content = openaiData.choices?.[0]?.message?.content;
 
     if (!content) {
+      console.error('❌ No content in OpenAI response');
       return new Response(
         JSON.stringify({ error: 'No response from OpenAI' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
+    console.log('✅ OpenAI content received, length:', content.length);
+    console.log('📋 Analysis type:', imageData.analysisType);
+
     // Parse JSON response
-    let analysisResult;
+    let analysisResult: any;
     try {
+      console.log('📝 Parsing OpenAI response...');
       // Try to extract JSON from markdown code blocks
       const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
       if (jsonMatch) {
+        console.log('✅ Found JSON in code block');
         analysisResult = JSON.parse(jsonMatch[1]);
       } else {
-        analysisResult = JSON.parse(content);
+        // Try parsing the content directly
+        try {
+          analysisResult = JSON.parse(content);
+          console.log('✅ Parsed JSON directly');
+        } catch (directParseError) {
+          // Fallback: try to find any JSON object
+          console.log('⚠️ Direct parse failed, trying to extract JSON object...');
+          const objectMatch = content.match(/\{[\s\S]*\}/);
+          if (objectMatch) {
+            analysisResult = JSON.parse(objectMatch[0]);
+            console.log('✅ Extracted and parsed JSON object');
+          } else {
+            console.error('❌ No JSON object found in response');
+            console.error('Response content (first 500 chars):', content.substring(0, 500));
+            return new Response(
+              JSON.stringify({ 
+                error: 'Failed to parse AI response',
+                details: 'No valid JSON found in OpenAI response',
+                responsePreview: content.substring(0, 200)
+              }),
+              { status: 500, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+        }
       }
+      
+      // Validate response structure based on analysis type
+      if (imageData.analysisType === 'style') {
+        console.log('👔 Validating style analysis response structure...');
+        const requiredStyleFields = ['overallScore', 'vibe', 'colorAnalysis', 'outfitBreakdown', 'occasionMatch', 'bodyTypeRecommendations', 'overallFeedback'];
+        const missingFields = requiredStyleFields.filter(field => !(field in analysisResult));
+        if (missingFields.length > 0) {
+          console.warn('⚠️ Missing style analysis fields:', missingFields);
+        } else {
+          console.log('✅ Style analysis response structure is valid');
+        }
+      } else if (imageData.analysisType === 'glow') {
+        console.log('✨ Validating glow analysis response structure...');
+        const requiredGlowFields = ['skinAnalysis', 'beautyScores', 'beautyRecommendations'];
+        const missingFields = requiredGlowFields.filter(field => !(field in analysisResult));
+        if (missingFields.length > 0) {
+          console.warn('⚠️ Missing glow analysis fields:', missingFields);
+        } else {
+          console.log('✅ Glow analysis response structure is valid');
+        }
+      }
+      
+      console.log('✅ JSON parsed successfully, keys:', Object.keys(analysisResult || {}));
     } catch (parseError) {
-      // Fallback: try to find any JSON object
-      const objectMatch = content.match(/\{[\s\S]*\}/);
-      if (objectMatch) {
-        analysisResult = JSON.parse(objectMatch[0]);
-      } else {
-        return new Response(
-          JSON.stringify({ error: 'Failed to parse AI response' }),
-          { status: 500, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
+      console.error('❌ JSON parsing error:', parseError);
+      console.error('Response content (first 500 chars):', content.substring(0, 500));
+      return new Response(
+        JSON.stringify({ 
+          error: 'Failed to parse AI response',
+          details: parseError instanceof Error ? parseError.message : 'Unknown parsing error',
+          responsePreview: content.substring(0, 200)
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     // Cache response for 1 hour
     setCachedResponse(cacheKey, analysisResult, 3600000);
 
+    console.log('✅ Analysis complete, returning result');
     return new Response(
       JSON.stringify(analysisResult),
       {
@@ -380,9 +475,13 @@ Respond in this exact JSON format:
       }
     );
   } catch (error) {
-    console.error('Error in AI analysis:', error);
+    console.error('❌ Error in AI analysis:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Internal server error' }),
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'Internal server error',
+        details: error instanceof Error ? error.stack : undefined,
+      }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

@@ -1,0 +1,73 @@
+#!/usr/bin/expect -f
+
+# Final iOS Build Script
+set timeout 1200
+
+spawn EXPO_NO_CAPABILITY_SYNC=1 eas build --platform ios --profile production
+
+expect {
+    "iOS app only uses standard/exempt encryption?" {
+        send "yes\r"
+        exp_continue
+    }
+    "Do you want to log in to your Apple account?" {
+        send "yes\r"
+        exp_continue
+    }
+    "Apple ID:" {
+        send "nandanreddy05@icloud.com\r"
+        exp_continue
+    }
+    "Password" {
+        send "Surekhareddy1661\r"
+        exp_continue
+    }
+    "validate your account" {
+        exp_continue
+    }
+    "6-digit code" {
+        # Wait for user to enter code manually
+        exp_continue
+    }
+    "https://expo.dev" {
+        puts "\n✅ Build started successfully!"
+        set output $expect_out(buffer)
+        regexp {https://expo.dev/[^\s]+} $output build_url
+        if {[info exists build_url]} {
+            puts "\n📱 Build URL: $build_url"
+            puts "\n⏱️  Build time: 15-25 minutes"
+            puts "📧 You'll receive an email when complete"
+        }
+        exp_continue
+    }
+    "Build started" {
+        puts "\n✅ Build started!"
+        exp_continue
+    }
+    "Uploaded to EAS" {
+        puts "\n✅ Files uploaded, build starting..."
+        exp_continue
+    }
+    "See logs:" {
+        set output $expect_out(buffer)
+        regexp {https://expo.dev/[^\s]+} $output build_url
+        if {[info exists build_url]} {
+            puts "\n📱 Build URL: $build_url"
+        }
+        exp_continue
+    }
+    "Waiting for build" {
+        puts "\n⏱️  Build is running..."
+        puts "You can monitor it at the URL above"
+        exp_continue
+    }
+    eof {
+        puts "\n✅ Build process completed"
+    }
+    timeout {
+        puts "\n⏱️ Build is processing (this may take a while)..."
+    }
+}
+
+expect eof
+
