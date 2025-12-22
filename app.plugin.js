@@ -5,7 +5,7 @@
 const { withXcodeProject } = require('@expo/config-plugins');
 
 module.exports = function withTargetedDeviceFamily(config) {
-  return withXcodeProject(config, async (config) => {
+  return withXcodeProject(config, (config) => {
     const xcodeProject = config.modResults;
     
     // Set TARGETED_DEVICE_FAMILY to "1,2" (iPhone and iPad) for all configurations
@@ -13,7 +13,7 @@ module.exports = function withTargetedDeviceFamily(config) {
     
     Object.keys(configurations).forEach((configUuid) => {
       const configuration = configurations[configUuid];
-      if (configuration.buildSettings) {
+      if (configuration && configuration.buildSettings) {
         // Set to "1,2" to support both iPhone (1) and iPad (2)
         configuration.buildSettings.TARGETED_DEVICE_FAMILY = '"1,2"';
       }
