@@ -81,11 +81,11 @@ export interface InsightData {
   recentUsage: ProductUsageEntry[];
   currentRoutine: ProductRoutine | null;
   productAnalyses: ProductAnalysis[];
-  correlations: Array<{
+  correlations: {
     factor: string;
     impact: string;
     confidence: number;
-  }>;
+  }[];
   thirtyDayComparison: ThirtyDayComparison;
 }
 
@@ -114,21 +114,15 @@ export interface AIInsightResult {
   insights: string[];
   recommendations: string[];
   productReport?: {
-    working: Array<{ product: string; impact: string; recommendation: string }>;
-    monitoring: Array<{ product: string; impact: string; recommendation: string }>;
-    replace: Array<{ product: string; reason: string; alternative?: string }>;
+    working: { product: string; impact: string; recommendation: string }[];
+    monitoring: { product: string; impact: string; recommendation: string }[];
+    replace: { product: string; reason: string; alternative?: string }[];
   };
   summary: string;
   generatedAt: string;
 }
 
 // Helper functions
-function isWithinDays(timestamp: number, days: number): boolean {
-  const now = Date.now();
-  const daysAgo = now - (days * 24 * 60 * 60 * 1000);
-  return timestamp >= daysAgo;
-}
-
 function isSameDay(timestamp1: number, timestamp2: number | string): boolean {
   const date1 = new Date(timestamp1);
   const date2 = new Date(timestamp2);
@@ -346,8 +340,8 @@ function findCorrelations(
   photos: ProgressPhoto[],
   journalEntries: JournalEntry[],
   products: Product[]
-): Array<{ factor: string; impact: string; confidence: number }> {
-  const correlations: Array<{ factor: string; impact: string; confidence: number }> = [];
+): { factor: string; impact: string; confidence: number }[] {
+  const correlations: { factor: string; impact: string; confidence: number }[] = [];
 
   if (photos.length < 3 || journalEntries.length < 5) {
     return correlations;
@@ -655,7 +649,7 @@ export async function collectInsightData(
   };
 }
 
-// Build AI prompt
+// Build AI prompt with enhanced context
 function buildInsightPrompt(data: InsightData): string {
   // Calculate consistency for prompt
   const consistency = calculateConsistency(
@@ -664,12 +658,19 @@ function buildInsightPrompt(data: InsightData): string {
     data.recentUsage
   );
   
+  // Calculate actual improvements over time
+  const totalImprovement = data.photoTrends.hydration.change + 
+    data.photoTrends.texture.change + 
+    data.photoTrends.brightness.change - 
+    data.photoTrends.acne.change;
+  
   const photoSummary = data.recentPhotos.length > 0
-    ? `Photos: ${data.recentPhotos.length}
+    ? `Photos: ${data.recentPhotos.length} photos in last 5 days
 - Hydration: ${data.photoTrends.hydration.current}% (${data.photoTrends.hydration.trend} ${Math.abs(data.photoTrends.hydration.change)}%)
 - Texture: ${data.photoTrends.texture.current}% (${data.photoTrends.texture.trend} ${Math.abs(data.photoTrends.texture.change)}%)
 - Brightness: ${data.photoTrends.brightness.current}% (${data.photoTrends.brightness.trend} ${Math.abs(data.photoTrends.brightness.change)}%)
-- Acne/Clarity: ${100 - data.photoTrends.acne.current}%`
+- Acne/Clarity: ${100 - data.photoTrends.acne.current}% (acne ${data.photoTrends.acne.trend} ${Math.abs(data.photoTrends.acne.change)}%)
+- Total Change: ${totalImprovement > 0 ? '+' : ''}${totalImprovement.toFixed(1)}%`
     : 'No photos taken in last 5 days';
   
   const consistencySummary = `
@@ -717,60 +718,126 @@ Day ${data.thirtyDayComparison.daysBetween} Photo (Today):
   * Verdict: ${analysis.verdict}`;
   }).join('\n');
 
-  return `You are a beauty and skincare advisor providing cosmetic guidance. Analyze a user's beauty journey for enhancement purposes only. This is NOT medical diagnosis. Provide personalized, actionable beauty insights.
+  return `You are an expert beauty and skincare coach providing personalized cosmetic guidance. This is for beauty enhancement only, NOT medical advice.
 
-## USER DATA
+## USER'S JOURNEY DATA
 
-### SHORT-TERM ANALYSIS (Last 5 Days)
+### 📸 SKIN PROGRESS (Last 5 Days)
 ${photoSummary}
+
 ${consistencySummary}
+
 ${thirtyDaySummary}
 
-### LIFESTYLE & HABITS (Last 5 Days)
-Journal Entries: ${data.recentJournal.length} days
-- Sleep: ${data.habitAverages.sleep.toFixed(1)} hours/night (avg)
-- Water: ${data.habitAverages.water.toFixed(1)} glasses/day (avg)
-- Stress: ${data.habitAverages.stress.toFixed(1)}/5 (avg)
-- Mood: ${Math.round(data.habitAverages.mood.great)}% great, ${Math.round(data.habitAverages.mood.good)}% good, ${Math.round(data.habitAverages.mood.okay)}% okay, ${Math.round(data.habitAverages.mood.bad)}% bad
+### 💆‍♀️ LIFESTYLE HABITS (Last 5 Days)
+Journal Entries: ${data.recentJournal.length} days logged
+- Sleep: ${data.habitAverages.sleep.toFixed(1)} hours/night (optimal: 7-9h)
+- Water: ${data.habitAverages.water.toFixed(1)} glasses/day (optimal: 8+ glasses)
+- Stress: ${data.habitAverages.stress.toFixed(1)}/5 (lower is better)
+- Mood Distribution: ${Math.round(data.habitAverages.mood.great)}% great, ${Math.round(data.habitAverages.mood.good)}% good, ${Math.round(data.habitAverages.mood.okay)}% okay, ${Math.round(data.habitAverages.mood.bad)}% bad
 
-Recent Skin Feelings:
-${data.recentJournal.map(e => `- ${new Date(e.timestamp).toLocaleDateString()}: "${e.skinFeeling || 'No notes'}"`).join('\n') || 'No notes'}
+Recent Skin Feelings (User's Own Words):
+${data.recentJournal.map(e => `- ${new Date(e.timestamp).toLocaleDateString()}: "${e.skinFeeling || 'No notes'}"`).join('\n') || 'No skin feeling notes yet'}
 
-### PRODUCTS IN USE
+### 🧴 SKINCARE PRODUCTS & ROUTINES
 ${data.activeProducts.length > 0 ? `
 ${productDetails}
 
-Active Routine: ${data.currentRoutine ? data.currentRoutine.name + ' (' + data.currentRoutine.type + ')' : 'None'}
-` : 'No products tracked'}
+Active Routine: ${data.currentRoutine ? data.currentRoutine.name + ' (' + data.currentRoutine.type + ')' : 'No routine set'}
+` : 'No products tracked yet'}
 
-### DETECTED PATTERNS
+### 🔍 DETECTED CORRELATIONS
 ${data.correlations.length > 0 ? data.correlations.map(c =>
-  `- ${c.factor} → ${c.impact} (${Math.round(c.confidence * 100)}% confidence)`
-).join('\n') : 'Insufficient data for pattern detection'}
+  `- ${c.factor} correlates with ${c.impact} (${Math.round(c.confidence * 100)}% confidence)`
+).join('\n') : 'Not enough data for pattern detection yet (need more consistent tracking)'}
 
-## YOUR TASK
-Analyze BOTH short-term (5 days) and long-term (30 days) data. Generate insights in JSON format:
+## YOUR MISSION
+
+Analyze this data like a personal skincare coach who truly cares about results. Be specific, actionable, and encouraging.
+
+**Generate a JSON response with this EXACT structure:**
 
 {
-  "wins": [string, string, string] (3 specific achievements - include 30-day improvements if available),
-  "insights": [string, string, string] (2-3 pattern discoveries - connect 5-day trends with 30-day transformation),
-  "recommendations": [string, string, string, string, string] (3-5 actionable steps that will make REAL change),
+  "wins": [
+    "string (specific achievement with numbers)",
+    "string (celebration of consistency or improvement)",
+    "string (positive pattern or habit)"
+  ],
+  "insights": [
+    "string (what's actually working and WHY - connect product/habit to result)",
+    "string (concerning pattern that needs attention)",
+    "string (surprising discovery or correlation)"
+  ],
+  "recommendations": [
+    "string (most impactful change to make NOW)",
+    "string (product or routine adjustment)",
+    "string (lifestyle habit to improve)",
+    "string (tracking or consistency tip)",
+    "string (next milestone to aim for)"
+  ],
   "productReport": {
-    "working": [{"product": "name", "impact": "what it does", "recommendation": "action"}],
-    "monitoring": [{"product": "name", "impact": "status", "recommendation": "action"}],
-    "replace": [{"product": "name", "reason": "why", "alternative": "suggestion"}]
+    "working": [
+      {
+        "product": "Brand Name Product",
+        "impact": "Specific measurable improvement (e.g., +15% hydration, clearer skin)",
+        "recommendation": "Keep using consistently. Use X times per day for Y weeks."
+      }
+    ],
+    "monitoring": [
+      {
+        "product": "Brand Name Product",
+        "impact": "Mixed or unclear results",
+        "recommendation": "Continue for X more days and track closely. Watch for [specific signs]."
+      }
+    ],
+    "replace": [
+      {
+        "product": "Brand Name Product",
+        "reason": "Specific issue (e.g., causing breakouts, no improvement after X days)",
+        "alternative": "Try [specific alternative product] or [ingredient to look for]"
+      }
+    ]
   },
-  "summary": "one sentence summary focusing on what's working and what needs to change"
+  "summary": "One sentence: Your skin is [trending], keep doing [what works], change [what doesn't], and focus on [next goal]"
 }
 
-CRITICAL ANALYSIS REQUIRED:
-1. Compare 30-day transformation with 5-day trends - are they consistent?
-2. Identify which products drove the 30-day improvements
-3. Tell user EXACTLY what's working (keep doing) and what needs to change
-4. Connect product usage to 30-day results - which products caused the improvements?
-5. Be specific: "CeraVe Moisturizer used 28/30 days = +13% hydration improvement"
+## CRITICAL COACHING PRINCIPLES:
 
-IMPORTANT: Focus on insights that will make REAL CHANGE. Tell user what to KEEP, what to CHANGE, and what to ADD.`;
+1. **BE SPECIFIC WITH NUMBERS**: "Hydration improved 15%" not "skin looks better"
+2. **CONNECT CAUSE & EFFECT**: "Using serum 2x daily for 10 days = +18% brightness"
+3. **PRIORITIZE ACTIONS**: Start with highest impact changes first
+4. **CELEBRATE PROGRESS**: Acknowledge even small wins to encourage consistency
+5. **BE HONEST**: If something isn't working, say it clearly but kindly
+6. **EXPLAIN WHY**: Help user understand the science behind recommendations
+7. **MAKE IT ACTIONABLE**: "Do X at Y time for Z result" not vague suggestions
+8. **ADDRESS CONSISTENCY**: If tracking is low, this is the #1 priority
+
+## SPECIAL SCENARIOS:
+
+**If 30-day data shows improvement:**
+- Identify which products/habits drove it
+- Emphasize continuing what's working
+- Suggest optimization (better timing, pairing, etc.)
+
+**If 30-day shows decline:**
+- Pinpoint when it started declining
+- Identify new products or habit changes that correlate
+- Recommend returning to what worked OR trying new approach
+
+**If tracking is inconsistent (<50%):**
+- Make "track daily for 7 days" the TOP recommendation
+- Explain that insights need data to be accurate
+- Motivate with "Users with 80%+ consistency see 3x better results"
+
+**If no products tracked:**
+- Recommend starting with 1-2 products and tracking their impact
+- Suggest basic routine (cleanser + moisturizer + SPF)
+
+**If lifestyle habits are poor:**
+- Prioritize sleep (biggest skin impact) then water then stress
+- Give ONE specific habit to fix this week
+
+Return ONLY the JSON object, no markdown, no explanation.`;
 }
 
 // Generate AI insights (with fallback)
@@ -935,9 +1002,9 @@ function generateRuleBasedInsights(data: InsightData): AIInsightResult {
   }
 
   // Product analysis
-  const workingProducts: Array<{ product: string; impact: string; recommendation: string }> = [];
-  const monitoringProducts: Array<{ product: string; impact: string; recommendation: string }> = [];
-  const replaceProducts: Array<{ product: string; reason: string; alternative?: string }> = [];
+  const workingProducts: { product: string; impact: string; recommendation: string }[] = [];
+  const monitoringProducts: { product: string; impact: string; recommendation: string }[] = [];
+  const replaceProducts: { product: string; reason: string; alternative?: string }[] = [];
 
   data.productAnalyses.forEach(analysis => {
     const productName = `${analysis.product.brand} ${analysis.product.name}`;
