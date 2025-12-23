@@ -433,8 +433,15 @@ export default function ProgressTrackerScreen() {
     // Check minimum requirements first
     const requirements = checkMinimumRequirements(photos, journalEntries);
     if (!requirements.met) {
+      console.log('⚠️ Minimum requirements not met:', requirements);
       return; // Don't generate if requirements not met
     }
+
+    console.log('🚀 Starting insights generation...', {
+      photosCount: photos.length,
+      journalCount: journalEntries.length,
+      productsCount: products.length,
+    });
 
     setIsGeneratingInsights(true);
     try {
@@ -445,9 +452,20 @@ export default function ProgressTrackerScreen() {
         usageHistory,
         routines
       );
+      console.log('✅ Insights generated successfully:', {
+        winsCount: insights.wins?.length || 0,
+        insightsCount: insights.insights?.length || 0,
+        recommendationsCount: insights.recommendations?.length || 0,
+        consistency: insights.consistency?.consistencyPercentage || 0,
+      });
       setAiInsights(insights);
     } catch (error) {
-      console.error('Failed to generate insights:', error);
+      console.error('❌ Failed to generate insights:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      
       // Still set some basic insights even if generation fails
       const fallbackConsistency = {
         photoStreak: 0,

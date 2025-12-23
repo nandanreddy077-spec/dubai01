@@ -782,56 +782,47 @@ export async function generateAIInsights(data: InsightData): Promise<AIInsightRe
     data.recentUsage
   );
   
-  // Try AI first if API key is available
-  const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-  
-  if (apiKey && apiKey !== 'your-openai-api-key-here' && apiKey.length > 20) {
-    try {
-      const prompt = buildInsightPrompt(data);
-      
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini', // Cost-effective model
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a beauty and skincare advisor providing cosmetic guidance. This is for beauty enhancement only, NOT medical advice. Be encouraging, specific, and science-based. Always return valid JSON. Focus on consistency patterns and actionable beauty improvements. Always recommend consulting a dermatologist for medical concerns.',
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 1500,
-        }),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        const content = result.choices[0]?.message?.content;
-        
-        if (content) {
-          // Try to extract JSON from response
-          const jsonMatch = content.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            return {
-              consistency,
-              ...parsed,
-              generatedAt: new Date().toISOString(),
-            };
-          }
-        }
-      }
-    } catch (error) {
-      console.log('AI generation failed, using rule-based fallback:', error);
+  // Try Edge Function first (secure, server-side)
+  try {
+    const { supabase } = await import('@/lib/supabase');
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      console.log('⚠️ User not authenticated, using rule-based fallback');
+      return generateRuleBasedInsights(data);
     }
+
+    const prompt = buildInsightPrompt(data);
+    
+    console.log('🤖 Calling insights-generate Edge Function...');
+    
+    const { data: insightsData, error } = await supabase.functions.invoke('insights-generate', {
+      body: {
+        prompt,
+        userId: user.id,
+      },
+    });
+
+    if (error) {
+      console.error('❌ Insights Edge Function error:', error);
+      throw error;
+    }
+
+    if (insightsData?.error) {
+      console.error('❌ Insights Edge Function returned error:', insightsData.error);
+      throw new Error(insightsData.error);
+    }
+
+    if (insightsData) {
+      console.log('✅ Insights generated via Edge Function');
+      return {
+        consistency,
+        ...insightsData,
+        generatedAt: new Date().toISOString(),
+      };
+    }
+  } catch (edgeError) {
+    console.warn('⚠️ Insights Edge Function failed, using rule-based fallback:', edgeError);
   }
 
   // Fallback to rule-based insights
