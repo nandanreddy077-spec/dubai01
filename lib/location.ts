@@ -32,6 +32,61 @@ const COUNTRY_AMAZON_MAPPING: Record<string, { domain: string; currency: string 
   'SA': { domain: 'amazon.sa', currency: 'SAR' },
   'SE': { domain: 'amazon.se', currency: 'SEK' },
   'PL': { domain: 'amazon.pl', currency: 'PLN' },
+  'EG': { domain: 'amazon.eg', currency: 'EGP' },
+  'BE': { domain: 'amazon.com', currency: 'EUR' },
+  'NO': { domain: 'amazon.com', currency: 'NOK' },
+  'DK': { domain: 'amazon.com', currency: 'DKK' },
+  'AT': { domain: 'amazon.de', currency: 'EUR' },
+  'CH': { domain: 'amazon.de', currency: 'CHF' },
+  'IE': { domain: 'amazon.co.uk', currency: 'EUR' },
+  'NZ': { domain: 'amazon.com.au', currency: 'NZD' },
+  'ZA': { domain: 'amazon.com', currency: 'ZAR' },
+  'KR': { domain: 'amazon.com', currency: 'KRW' },
+  'TH': { domain: 'amazon.sg', currency: 'THB' },
+  'MY': { domain: 'amazon.sg', currency: 'MYR' },
+  'ID': { domain: 'amazon.sg', currency: 'IDR' },
+  'PH': { domain: 'amazon.sg', currency: 'PHP' },
+  'VN': { domain: 'amazon.sg', currency: 'VND' },
+  'CL': { domain: 'amazon.com', currency: 'CLP' },
+  'AR': { domain: 'amazon.com', currency: 'ARS' },
+  'CO': { domain: 'amazon.com', currency: 'COP' },
+  'PE': { domain: 'amazon.com', currency: 'PEN' },
+  'IL': { domain: 'amazon.com', currency: 'ILS' },
+  'QA': { domain: 'amazon.ae', currency: 'QAR' },
+  'KW': { domain: 'amazon.ae', currency: 'KWD' },
+  'BH': { domain: 'amazon.ae', currency: 'BHD' },
+  'OM': { domain: 'amazon.ae', currency: 'OMR' },
+  'JO': { domain: 'amazon.ae', currency: 'JOD' },
+  'LB': { domain: 'amazon.com', currency: 'LBP' },
+  'PK': { domain: 'amazon.in', currency: 'PKR' },
+  'BD': { domain: 'amazon.in', currency: 'BDT' },
+  'LK': { domain: 'amazon.in', currency: 'LKR' },
+  'NP': { domain: 'amazon.in', currency: 'NPR' },
+  'HK': { domain: 'amazon.com', currency: 'HKD' },
+  'TW': { domain: 'amazon.co.jp', currency: 'TWD' },
+  'UA': { domain: 'amazon.com', currency: 'UAH' },
+  'RU': { domain: 'amazon.com', currency: 'RUB' },
+  'KZ': { domain: 'amazon.com', currency: 'KZT' },
+  'GR': { domain: 'amazon.com', currency: 'EUR' },
+  'PT': { domain: 'amazon.es', currency: 'EUR' },
+  'RO': { domain: 'amazon.com', currency: 'RON' },
+  'CZ': { domain: 'amazon.de', currency: 'CZK' },
+  'HU': { domain: 'amazon.de', currency: 'HUF' },
+  'BG': { domain: 'amazon.com', currency: 'BGN' },
+  'HR': { domain: 'amazon.de', currency: 'HRK' },
+  'SK': { domain: 'amazon.de', currency: 'EUR' },
+  'SI': { domain: 'amazon.de', currency: 'EUR' },
+  'LT': { domain: 'amazon.de', currency: 'EUR' },
+  'LV': { domain: 'amazon.de', currency: 'EUR' },
+  'EE': { domain: 'amazon.de', currency: 'EUR' },
+  'FI': { domain: 'amazon.se', currency: 'EUR' },
+  'IS': { domain: 'amazon.co.uk', currency: 'ISK' },
+  'NG': { domain: 'amazon.com', currency: 'NGN' },
+  'KE': { domain: 'amazon.com', currency: 'KES' },
+  'GH': { domain: 'amazon.com', currency: 'GHS' },
+  'MA': { domain: 'amazon.fr', currency: 'MAD' },
+  'TN': { domain: 'amazon.fr', currency: 'TND' },
+  'DZ': { domain: 'amazon.fr', currency: 'DZD' },
 };
 
 export async function getUserLocation(): Promise<LocationInfo | null> {
@@ -124,8 +179,6 @@ function getDefaultLocation(): LocationInfo {
   };
 }
 
-// Map Amazon domains to their respective affiliate tags
-// You need to register with each regional Amazon Associates program
 const REGIONAL_AFFILIATE_TAGS: Record<string, string> = {
   'amazon.com': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_US || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
   'amazon.co.uk': process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_UK || process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 'glowcheck-20',
@@ -153,23 +206,14 @@ export function formatAmazonAffiliateLink(
   country?: LocationInfo | null
 ): string {
   const searchEncoded = encodeURIComponent(searchQuery);
-  
-  // Default to amazon.com if country or amazonDomain is not available
   const amazonDomain = country?.amazonDomain || 'amazon.com';
-  
-  // Get the appropriate affiliate tag for this region
   const affiliateTag = REGIONAL_AFFILIATE_TAGS[amazonDomain] || 
                        process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 
                        'glowcheck-20';
   
-  // Use Amazon's proper affiliate link format with tracking parameters:
-  // - linkCode=ll2: Associates Link format (required for proper tracking)
-  // - ref=as_li_ss_tl: Reference tag for Associates tracking
-  // These parameters ensure the affiliate tag persists when users click through to products
   return `https://www.${amazonDomain}/s?k=${searchEncoded}&tag=${affiliateTag}&linkCode=ll2&ref=as_li_ss_tl`;
 }
 
-// For direct product links (if you have specific ASINs)
 export function formatAmazonProductLink(
   asin: string,
   country?: LocationInfo | null
@@ -179,11 +223,9 @@ export function formatAmazonProductLink(
                        process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 
                        'glowcheck-20';
   
-  // Direct product link with Associates parameters
   return `https://www.${amazonDomain}/dp/${asin}?tag=${affiliateTag}&linkCode=ll2&ref=as_li_ss_tl`;
 }
 
-// For add-to-cart links (most reliable for attribution)
 export function formatAmazonCartLink(
   asin: string,
   country?: LocationInfo | null
@@ -193,55 +235,44 @@ export function formatAmazonCartLink(
                        process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 
                        'glowcheck-20';
   
-  // Add to cart link - guarantees affiliate attribution
   return `https://www.${amazonDomain}/gp/aws/cart/add.html?AssociateTag=${affiliateTag}&ASIN.1=${asin}&Quantity.1=1`;
 }
 
 export function getLocalizedPrice(basePrice: number, fromCurrency: string, toCurrency: string): string {
   const rates: Record<string, number> = {
-    'USD': 1,
-    'EUR': 0.92,
-    'GBP': 0.79,
-    'CAD': 1.35,
-    'AUD': 1.52,
-    'JPY': 149.50,
-    'INR': 83.12,
-    'BRL': 4.97,
-    'MXN': 17.05,
-    'CNY': 7.24,
-    'SGD': 1.34,
-    'TRY': 32.15,
-    'AED': 3.67,
-    'SAR': 3.75,
-    'SEK': 10.57,
-    'PLN': 4.03,
+    'USD': 1, 'EUR': 0.92, 'GBP': 0.79, 'CAD': 1.35, 'AUD': 1.52,
+    'JPY': 149.50, 'INR': 83.12, 'BRL': 4.97, 'MXN': 17.05, 'CNY': 7.24,
+    'SGD': 1.34, 'TRY': 32.15, 'AED': 3.67, 'SAR': 3.75, 'SEK': 10.57,
+    'PLN': 4.03, 'EGP': 49.12, 'NOK': 10.82, 'DKK': 6.88, 'CHF': 0.88,
+    'NZD': 1.68, 'ZAR': 18.65, 'KRW': 1387.50, 'THB': 34.25, 'MYR': 4.47,
+    'IDR': 15830.0, 'PHP': 56.42, 'VND': 25368.0, 'CLP': 976.50, 'ARS': 1012.0,
+    'COP': 4312.0, 'PEN': 3.74, 'ILS': 3.64, 'QAR': 3.64, 'KWD': 0.31,
+    'BHD': 0.38, 'OMR': 0.39, 'JOD': 0.71, 'LBP': 89500.0, 'PKR': 278.50,
+    'BDT': 110.25, 'LKR': 292.0, 'NPR': 133.0, 'HKD': 7.78, 'TWD': 32.15,
+    'UAH': 41.25, 'RUB': 97.50, 'KZT': 496.0, 'RON': 4.58, 'CZK': 23.42,
+    'HUF': 362.0, 'BGN': 1.80, 'HRK': 6.93, 'ISK': 137.50, 'NGN': 1570.0,
+    'KES': 129.0, 'GHS': 15.82, 'MAD': 9.95, 'TND': 3.13, 'DZD': 134.0,
   };
 
   const fromRate = rates[fromCurrency] || 1;
   const toRate = rates[toCurrency] || 1;
-  
   const convertedPrice = (basePrice / fromRate) * toRate;
   
   const currencySymbols: Record<string, string> = {
-    'USD': '$',
-    'EUR': '€',
-    'GBP': '£',
-    'CAD': 'C$',
-    'AUD': 'A$',
-    'JPY': '¥',
-    'INR': '₹',
-    'BRL': 'R$',
-    'MXN': 'MX$',
-    'CNY': '¥',
-    'SGD': 'S$',
-    'TRY': '₺',
-    'AED': 'د.إ',
-    'SAR': '﷼',
-    'SEK': 'kr',
-    'PLN': 'zł',
+    'USD': '$', 'EUR': '€', 'GBP': '£', 'CAD': 'C$', 'AUD': 'A$',
+    'JPY': '¥', 'INR': '₹', 'BRL': 'R$', 'MXN': 'MX$', 'CNY': '¥',
+    'SGD': 'S$', 'TRY': '₺', 'AED': 'د.إ', 'SAR': '﷼', 'SEK': 'kr',
+    'PLN': 'zł', 'EGP': 'E£', 'NOK': 'kr', 'DKK': 'kr', 'CHF': 'Fr',
+    'NZD': 'NZ$', 'ZAR': 'R', 'KRW': '₩', 'THB': '฿', 'MYR': 'RM',
+    'IDR': 'Rp', 'PHP': '₱', 'VND': '₫', 'CLP': '$', 'ARS': '$',
+    'COP': '$', 'PEN': 'S/', 'ILS': '₪', 'QAR': 'ر.ق', 'KWD': 'د.ك',
+    'BHD': 'د.ب', 'OMR': 'ر.ع.', 'JOD': 'د.ا', 'LBP': 'ل.ل', 'PKR': '₨',
+    'BDT': '৳', 'LKR': 'Rs', 'NPR': 'रू', 'HKD': 'HK$', 'TWD': 'NT$',
+    'UAH': '₴', 'RUB': '₽', 'KZT': '₸', 'RON': 'lei', 'CZK': 'Kč',
+    'HUF': 'Ft', 'BGN': 'лв', 'HRK': 'kn', 'ISK': 'kr', 'NGN': '₦',
+    'KES': 'KSh', 'GHS': '₵', 'MAD': 'د.م.', 'TND': 'د.ت', 'DZD': 'د.ج',
   };
 
   const symbol = currencySymbols[toCurrency] || '$';
-  
   return `${symbol}${convertedPrice.toFixed(2)}`;
 }
