@@ -15,7 +15,6 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import { Camera, AlertTriangle, RotateCcw, CheckCircle, User, Sparkles, Star, Heart } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from 'expo-linear-gradient';
-// All features free - SubscriptionGuard removed
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { getPalette, getGradient, shadow } from '@/constants/theme';
@@ -33,7 +32,8 @@ interface CapturedPhoto {
 export default function GlowAnalysisScreen() {
   const { error } = useLocalSearchParams<{ error?: string }>();
   const { theme } = useTheme();
-  // All features free - no subscription checks needed
+  const subscription = useSubscription();
+  const { canScan, incrementScanCount } = subscription || {};
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [showError, setShowError] = useState<boolean>(false);
   const [capturedPhotos, setCapturedPhotos] = useState<CapturedPhoto[]>([]);
@@ -44,6 +44,28 @@ export default function GlowAnalysisScreen() {
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
   const styles = createStyles(palette);
+
+  // Check if user can scan (1 free scan, then require trial)
+  useEffect(() => {
+    if (!canScan) {
+      Alert.alert(
+        '✨ Start Your Free Trial',
+        `You've used your free scan! Start your 7-day free trial to get unlimited scans and unlock all premium features.`,
+        [
+          {
+            text: 'Start Free Trial',
+            onPress: () => router.replace('/start-trial'),
+            style: 'default'
+          },
+          {
+            text: 'Not Now',
+            onPress: () => router.back(),
+            style: 'cancel'
+          }
+        ]
+      );
+    }
+  }, [canScan]);
 
   useEffect(() => {
     if (error === 'no_face_detected') {
@@ -152,7 +174,7 @@ export default function GlowAnalysisScreen() {
     }
   };
 
-  const startMultiAngleAnalysis = (photos: CapturedPhoto[]) => {
+  const startMultiAngleAnalysis = async (photos: CapturedPhoto[]) => {
     if (photos.length < 3) {
       Alert.alert(
         "Incomplete Capture",
@@ -160,6 +182,11 @@ export default function GlowAnalysisScreen() {
         [{ text: "Continue Capturing" }]
       );
       return;
+    }
+
+    // Increment scan count before analysis
+    if (incrementScanCount) {
+      await incrementScanCount();
     }
 
     router.push({
@@ -197,8 +224,6 @@ export default function GlowAnalysisScreen() {
   };
 
   const handleUploadPhoto = async () => {
-    // All features free - no checks needed
-
     setIsLoading(true);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -209,6 +234,11 @@ export default function GlowAnalysisScreen() {
       });
 
       if (!result.canceled) {
+        // Increment scan count before analysis
+        if (incrementScanCount) {
+          await incrementScanCount();
+        }
+
         router.push({
           pathname: '/analysis-loading',
           params: { 

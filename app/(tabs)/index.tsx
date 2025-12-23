@@ -22,6 +22,7 @@ import PhotoPickerModal from "@/components/PhotoPickerModal";
 import { getPalette, getGradient, shadow, typography } from "@/constants/theme";
 import { trackAppOpen, scheduleDailyNotifications } from "@/lib/smart-notifications";
 import PressableScale from "@/components/PressableScale";
+import TrialReminderBanner from "@/components/TrialReminderBanner";
 
 const DAILY_AFFIRMATIONS = [
   {
@@ -313,6 +314,9 @@ export default function HomeScreen() {
             </View>
           </LinearGradient>
         </PressableScale>
+
+        {/* Trial Reminder Banner */}
+        <TrialReminderBanner />
 
         {/* Progress Hub Section */}
         <View style={styles.section}>

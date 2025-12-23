@@ -41,9 +41,9 @@ export interface SubscriptionContextType {
 const STORAGE_KEY = 'glowcheck_subscription_state';
 
 const DEFAULT_STATE: SubscriptionState = {
-  isPremium: true, // All features free - no monetization
+  isPremium: false, // Monetization enabled - require trial/subscription
   scanCount: 0,
-  maxScansInTrial: Infinity, // Unlimited scans
+  maxScansInTrial: 1, // 1 free scan to hook users, then require trial
   hasStartedTrial: false,
 };
 
@@ -178,12 +178,20 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
   }, [inTrial, state.hasStartedTrial]);
 
   const canScan = useMemo(() => {
-    return true; // All features free - unlimited scans
-  }, []);
+    // Premium users or active trial: unlimited scans
+    if (state.isPremium || inTrial) return true;
+    
+    // Free users: 1 free scan to experience the product
+    return state.scanCount < state.maxScansInTrial;
+  }, [state.isPremium, state.scanCount, state.maxScansInTrial, inTrial]);
 
   const scansLeft = useMemo(() => {
-    return Infinity; // All features free - unlimited scans
-  }, []);
+    // Premium users or active trial: unlimited
+    if (state.isPremium || inTrial) return Infinity;
+    
+    // Free users: show remaining free scans
+    return Math.max(0, state.maxScansInTrial - state.scanCount);
+  }, [state.isPremium, state.scanCount, state.maxScansInTrial, inTrial]);
 
   const incrementScanCount = useCallback(async () => {
     // Increment scan count (applies to trial and premium users)
@@ -293,7 +301,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
           
           await setSubscriptionData(backendState);
         }
-      } catch (error) {
+      } catch {
         // Silently fail - app will use local AsyncStorage state
         // This is expected when backend sync is not available
         console.log('Backend subscription sync unavailable, using local state');
@@ -452,13 +460,15 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
 
   // Can view results (not blurred)
   const canViewResults = useMemo(() => {
-    return true; // All features free - always can view results
-  }, []);
+    // Premium or trial users can view results
+    return state.isPremium || inTrial;
+  }, [state.isPremium, inTrial]);
 
   // Needs premium (show paywall)
   const needsPremium = useMemo(() => {
-    return false; // All features free - no paywall needed
-  }, []);
+    // User needs premium if they've used their free scan and don't have premium/trial
+    return !state.isPremium && !inTrial && state.scanCount >= state.maxScansInTrial;
+  }, [state.isPremium, inTrial, state.scanCount, state.maxScansInTrial]);
 
   return useMemo(() => ({
     state,
