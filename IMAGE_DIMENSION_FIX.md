@@ -54,3 +54,5 @@ The app was failing with "Failed to read image dimensions" error when trying to 
 
 
 
+
+

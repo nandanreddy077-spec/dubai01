@@ -61,3 +61,5 @@ Returns a JSON object with the skincare plan structure:
 - `weeklyPlans`: Array of 4 weekly plans
 - `shoppingList`: Array of product categories and items
 
+
+

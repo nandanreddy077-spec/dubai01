@@ -88,3 +88,5 @@ https://pmroozitldbgnchainxv.supabase.co/auth/v1/callback
 
 The Site URL should **NEVER** include `/auth/v1/callback` - that's only for the Google Cloud Console redirect URI.
 
+
+

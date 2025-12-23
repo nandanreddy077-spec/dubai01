@@ -47,3 +47,5 @@ https://expo.dev/accounts/nandan_07/projects/glowcheck01-app/builds/[build-id]
 - You'll get an email when complete
 - IPA file will be available for download
 
+
+

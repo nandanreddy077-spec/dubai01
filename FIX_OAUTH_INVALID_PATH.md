@@ -124,3 +124,5 @@ If these don't match your configuration, fix them.
 - **Redirect URL not in Supabase** → Add `glowcheck://auth/callback`
 - **Google redirect URI doesn't match** → Must be exactly `https://pmroozitldbgnchainxv.supabase.co/auth/v1/callback`
 
+
+

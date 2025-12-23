@@ -36,3 +36,5 @@ else
     echo "When prompted, answer 'yes' to encryption compliance"
 fi
 
+
+
