@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,12 @@ import {
   Platform,
   Linking,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, router } from 'expo-router';
 import {
-  ArrowLeft,
   Crown,
   Heart,
   Sparkles,
@@ -30,6 +30,10 @@ import {
   Zap,
   Lock,
   ChevronRight,
+  X,
+  Check,
+  Flame,
+  Clock,
 } from 'lucide-react-native';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -40,45 +44,92 @@ const PREMIUM_FEATURES = [
     icon: Camera,
     title: 'Unlimited Glow Analyses',
     description: 'Scan your glow anytime, anywhere',
+    value: '$47/mo value',
   },
   {
     icon: Sparkles,
     title: 'AI Beauty Coach',
     description: 'Personalized beauty guidance 24/7',
+    value: '$29/mo value',
   },
   {
     icon: TrendingUp,
     title: 'Progress Tracking',
     description: 'Watch your transformation over time',
-  },
-  {
-    icon: Users,
-    title: 'Exclusive Community',
-    description: 'Connect with 100K+ glowing members',
+    value: '$19/mo value',
   },
   {
     icon: Star,
     title: 'Custom Skincare Plans',
     description: 'Personalized routines just for you',
+    value: '$39/mo value',
+  },
+  {
+    icon: Users,
+    title: 'Exclusive Community',
+    description: 'Connect with 150K+ glowing members',
+    value: 'Priceless',
   },
   {
     icon: Zap,
     title: 'Priority Support',
     description: 'Get help when you need it',
+    value: '$15/mo value',
   },
+];
+
+const SOCIAL_PROOF = [
+  { count: '150K+', label: 'Active Users' },
+  { count: '4.9', label: 'App Rating' },
+  { count: '2M+', label: 'Glow Scans' },
 ];
 
 export default function BeautyMembershipScreen() {
   const subscription = useSubscription();
-  const { state = { isPremium: false, scanCount: 0, maxScansInTrial: 3, hasStartedTrial: false }, inTrial = false, daysLeft = 0, hoursLeft = 0, processInAppPurchase } = subscription || {};
+  const { state = { isPremium: false, scanCount: 0, maxScansInTrial: 3, hasStartedTrial: false }, inTrial = false, daysLeft = 0, processInAppPurchase } = subscription || {};
   const { theme } = useTheme();
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [pulseAnim] = useState(new Animated.Value(1));
+  const [showOffer] = useState(true);
 
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
   const styles = createStyles(palette, gradient);
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [pulseAnim]);
+
+  const totalValue = useMemo(() => {
+    return PREMIUM_FEATURES.reduce((sum, feature) => {
+      if (feature.value === 'Priceless') return sum;
+      const value = parseFloat(feature.value.replace(/[^0-9.]/g, ''));
+      return sum + value;
+    }, 0);
+  }, []);
+
+  const savingsPercentage = useMemo(() => {
+    if (selectedPlan === 'yearly') {
+      const monthlyTotal = 8.99 * 12;
+      const yearlyPrice = 99;
+      return Math.round(((monthlyTotal - yearlyPrice) / monthlyTotal) * 100);
+    }
+    return 0;
+  }, [selectedPlan]);
 
   const handleManageSubscription = useCallback(async () => {
     try {
@@ -142,7 +193,6 @@ export default function BeautyMembershipScreen() {
           [{ text: 'Start Glowing ✨', onPress: () => router.back() }]
         );
       } else if (result.error === 'STORE_REDIRECT') {
-        // User was redirected to store - that's fine
         return;
       } else {
         const errorMessage = result.error || 'Unable to process subscription. Please try again.';
@@ -193,7 +243,7 @@ export default function BeautyMembershipScreen() {
   const StatusIcon = status.icon;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <Stack.Screen
         options={{
           title: 'Beauty Membership',
@@ -201,63 +251,101 @@ export default function BeautyMembershipScreen() {
         }}
       />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft color={palette.textPrimary} size={24} strokeWidth={2.5} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Beauty Membership</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+      <SafeAreaView edges={['top']} style={styles.safeHeader}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
+            <X color={palette.textSecondary} size={24} strokeWidth={2.5} />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
 
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        bounces={true}
       >
-        {/* Status Card */}
-        <LinearGradient colors={gradient.card} style={styles.statusCard}>
-          <View style={styles.statusHeader}>
-            <LinearGradient
-              colors={[status.color, status.color + '80']}
-              style={styles.statusIconContainer}
-            >
-              <StatusIcon color="#FFFFFF" size={32} strokeWidth={2.5} />
-            </LinearGradient>
-            <View style={styles.statusTextContainer}>
-              <Text style={styles.statusTitle}>{status.title}</Text>
-              <Text style={styles.statusSubtitle}>{status.subtitle}</Text>
+        {!state.isPremium && (
+          <View style={styles.heroSection}>
+            <View style={styles.crownContainer}>
+              <LinearGradient colors={['#FFD700', '#FFA500']} style={styles.crownGradient}>
+                <Crown color="#FFFFFF" size={40} strokeWidth={2.5} />
+              </LinearGradient>
             </View>
+            
+            <Text style={styles.heroTitle}>Unlock Your{"\n"}Best Glow Yet</Text>
+            <Text style={styles.heroSubtitle}>
+              Join 150,000+ people transforming their skin with AI
+            </Text>
+
+            <View style={styles.socialProofBar}>
+              {SOCIAL_PROOF.map((item, index) => (
+                <View key={index} style={styles.socialProofItem}>
+                  <Text style={styles.socialProofCount}>{item.count}</Text>
+                  <Text style={styles.socialProofLabel}>{item.label}</Text>
+                </View>
+              ))}
+            </View>
+
+            {showOffer && (
+              <Animated.View style={[styles.offerBadge, { transform: [{ scale: pulseAnim }] }]}>
+                <LinearGradient
+                  colors={['#FF6B6B', '#EE5A6F']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.offerBadgeGradient}
+                >
+                  <Flame color="#FFFFFF" size={16} strokeWidth={2.5} />
+                  <Text style={styles.offerBadgeText}>Limited Time: 7-Day Free Trial</Text>
+                </LinearGradient>
+              </Animated.View>
+            )}
           </View>
+        )}
 
-          {state.isPremium && (
-            <View style={styles.subscriptionDetails}>
-              <View style={styles.detailRow}>
-                <Calendar color={palette.textSecondary} size={18} strokeWidth={2} />
-                <Text style={styles.detailLabel}>Plan:</Text>
-                <Text style={styles.detailValue}>
-                  {state.subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Glow
-                </Text>
+        {state.isPremium && (
+          <LinearGradient colors={gradient.card} style={styles.statusCard}>
+            <View style={styles.statusHeader}>
+              <LinearGradient
+                colors={[status.color, status.color + '80']}
+                style={styles.statusIconContainer}
+              >
+                <StatusIcon color="#FFFFFF" size={32} strokeWidth={2.5} />
+              </LinearGradient>
+              <View style={styles.statusTextContainer}>
+                <Text style={styles.statusTitle}>{status.title}</Text>
+                <Text style={styles.statusSubtitle}>{status.subtitle}</Text>
               </View>
-              {state.nextBillingDate && (
-                <View style={styles.detailRow}>
-                  <CreditCard color={palette.textSecondary} size={18} strokeWidth={2} />
-                  <Text style={styles.detailLabel}>Next billing:</Text>
-                  <Text style={styles.detailValue}>{formatDate(state.nextBillingDate)}</Text>
-                </View>
-              )}
-              {inTrial && state.trialEndsAt && (
-                <View style={styles.detailRow}>
-                  <Gift color={palette.textSecondary} size={18} strokeWidth={2} />
-                  <Text style={styles.detailLabel}>Trial ends:</Text>
-                  <Text style={styles.detailValue}>{formatDate(state.trialEndsAt)}</Text>
-                </View>
-              )}
             </View>
-          )}
-        </LinearGradient>
 
-        {/* Active Subscription Actions */}
+            {state.isPremium && (
+              <View style={styles.subscriptionDetails}>
+                <View style={styles.detailRow}>
+                  <Calendar color={palette.textSecondary} size={18} strokeWidth={2} />
+                  <Text style={styles.detailLabel}>Plan:</Text>
+                  <Text style={styles.detailValue}>
+                    {state.subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Glow
+                  </Text>
+                </View>
+                {state.nextBillingDate && (
+                  <View style={styles.detailRow}>
+                    <CreditCard color={palette.textSecondary} size={18} strokeWidth={2} />
+                    <Text style={styles.detailLabel}>Next billing:</Text>
+                    <Text style={styles.detailValue}>{formatDate(state.nextBillingDate)}</Text>
+                  </View>
+                )}
+                {inTrial && state.trialEndsAt && (
+                  <View style={styles.detailRow}>
+                    <Gift color={palette.textSecondary} size={18} strokeWidth={2} />
+                    <Text style={styles.detailLabel}>Trial ends:</Text>
+                    <Text style={styles.detailValue}>{formatDate(state.trialEndsAt)}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </LinearGradient>
+        )}
+
         {state.isPremium && (
           <View style={styles.section}>
             <TouchableOpacity
@@ -279,129 +367,254 @@ export default function BeautyMembershipScreen() {
           </View>
         )}
 
-        {/* Upgrade Section (if not premium) */}
         {!state.isPremium && (
           <View style={styles.section}>
+            <View style={styles.valueCard}>
+              <Text style={styles.valueTitle}>Total Value: ${totalValue}/month</Text>
+              <Text style={styles.valueSubtitle}>Get it all for just $8.25/month</Text>
+            </View>
+
             <Text style={styles.sectionTitle}>Choose Your Plan</Text>
 
-            {/* Yearly Plan */}
+            <View style={styles.popularBadgeContainer}>
+              <LinearGradient
+                colors={['#FFD700', '#FFA500']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.popularBadge}
+              >
+                <Star color="#FFFFFF" size={12} strokeWidth={2.5} fill="#FFFFFF" />
+                <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
+              </LinearGradient>
+            </View>
+
             <TouchableOpacity
               style={[styles.planCard, selectedPlan === 'yearly' && styles.planCardSelected]}
               onPress={() => setSelectedPlan('yearly')}
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={selectedPlan === 'yearly' ? gradient.primary : ['#FFFFFF', '#FFFFFF']}
+                colors={selectedPlan === 'yearly' ? ['#1A1A1A', '#000000'] : ['#FFFFFF', '#FFFFFF']}
                 style={styles.planCardGradient}
               >
+                {selectedPlan === 'yearly' && (
+                  <View style={styles.planSelectedIndicator}>
+                    <CheckCircle2 color="#FFD700" size={24} strokeWidth={2.5} fill="#FFD700" />
+                  </View>
+                )}
+                
                 <View style={styles.planHeader}>
-                  <View>
+                  <View style={styles.planHeaderLeft}>
                     <Text style={[styles.planName, { color: selectedPlan === 'yearly' ? '#FFFFFF' : palette.textPrimary }]}>
                       Yearly Glow
                     </Text>
-                    <Text style={[styles.planBadge, { color: selectedPlan === 'yearly' ? 'rgba(255,255,255,0.9)' : palette.champagne }]}>
-                      BEST VALUE 🔥
+                    <View style={styles.savingBadge}>
+                      <Text style={[styles.savingBadgeText, { color: selectedPlan === 'yearly' ? '#FFD700' : '#FF6B6B' }]}>
+                        Save {savingsPercentage}%
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                
+                <View style={styles.planPriceRow}>
+                  <View>
+                    <Text style={[styles.planPrice, { color: selectedPlan === 'yearly' ? '#FFFFFF' : palette.textPrimary }]}>
+                      $8.25<Text style={styles.planPeriod}>/mo</Text>
+                    </Text>
+                    <Text style={[styles.planOriginalPrice, { color: selectedPlan === 'yearly' ? 'rgba(255,255,255,0.5)' : palette.textMuted }]}>
+                      $8.99/mo
                     </Text>
                   </View>
-                  {selectedPlan === 'yearly' && (
-                    <CheckCircle2 color="#FFFFFF" size={24} strokeWidth={2.5} />
-                  )}
+                  <View style={styles.planBilledContainer}>
+                    <Text style={[styles.planBilledText, { color: selectedPlan === 'yearly' ? 'rgba(255,255,255,0.8)' : palette.textSecondary }]}>
+                      Billed $99/year
+                    </Text>
+                  </View>
                 </View>
-                <Text style={[styles.planPrice, { color: selectedPlan === 'yearly' ? '#FFFFFF' : palette.textPrimary }]}>
-                  $99<Text style={styles.planPeriod}>/year</Text>
-                </Text>
-                <Text style={[styles.planSaving, { color: selectedPlan === 'yearly' ? 'rgba(255,255,255,0.9)' : palette.textSecondary }]}>
-                  Save $8.88 • Just $8.25/month
-                </Text>
+
+                <View style={styles.planBenefits}>
+                  <View style={styles.planBenefit}>
+                    <Check color={selectedPlan === 'yearly' ? '#FFD700' : palette.success} size={16} strokeWidth={3} />
+                    <Text style={[styles.planBenefitText, { color: selectedPlan === 'yearly' ? 'rgba(255,255,255,0.9)' : palette.textSecondary }]}>
+                      Save $8.88 vs monthly
+                    </Text>
+                  </View>
+                  <View style={styles.planBenefit}>
+                    <Check color={selectedPlan === 'yearly' ? '#FFD700' : palette.success} size={16} strokeWidth={3} />
+                    <Text style={[styles.planBenefitText, { color: selectedPlan === 'yearly' ? 'rgba(255,255,255,0.9)' : palette.textSecondary }]}>
+                      Best value for your glow journey
+                    </Text>
+                  </View>
+                </View>
               </LinearGradient>
             </TouchableOpacity>
 
-            {/* Monthly Plan */}
             <TouchableOpacity
-              style={[styles.planCard, selectedPlan === 'monthly' && styles.planCardSelected]}
+              style={[styles.planCard, styles.planCardMonthly, selectedPlan === 'monthly' && styles.planCardSelected]}
               onPress={() => setSelectedPlan('monthly')}
               activeOpacity={0.8}
             >
-              <View style={[styles.planCardGradient, { backgroundColor: '#FFFFFF' }]}>
+              <View style={[styles.planCardGradient, { backgroundColor: palette.surface }]}>
+                {selectedPlan === 'monthly' && (
+                  <View style={styles.planSelectedIndicator}>
+                    <CheckCircle2 color={palette.primary} size={24} strokeWidth={2.5} fill={palette.primary} />
+                  </View>
+                )}
+                
                 <View style={styles.planHeader}>
-                  <Text style={styles.planName}>Monthly Glow</Text>
-                  {selectedPlan === 'monthly' && (
-                    <CheckCircle2 color={palette.primary} size={24} strokeWidth={2.5} />
-                  )}
+                  <View style={styles.planHeaderLeft}>
+                    <Text style={styles.planName}>Monthly Glow</Text>
+                    <Text style={styles.planFlexible}>Flexible</Text>
+                  </View>
                 </View>
-                <Text style={styles.planPrice}>
-                  $8.99<Text style={styles.planPeriod}>/month</Text>
-                </Text>
-                <Text style={[styles.planSaving, { color: palette.textSecondary }]}>
-                  Flexible billing
-                </Text>
+                
+                <View style={styles.planPriceRow}>
+                  <View>
+                    <Text style={styles.planPrice}>
+                      $8.99<Text style={styles.planPeriod}>/month</Text>
+                    </Text>
+                  </View>
+                  <View style={styles.planBilledContainer}>
+                    <Text style={[styles.planBilledText, { color: palette.textSecondary }]}>
+                      Billed monthly
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.planBenefits}>
+                  <View style={styles.planBenefit}>
+                    <Check color={palette.success} size={16} strokeWidth={3} />
+                    <Text style={[styles.planBenefitText, { color: palette.textSecondary }]}>
+                      Cancel anytime
+                    </Text>
+                  </View>
+                </View>
               </View>
             </TouchableOpacity>
 
-            {/* Subscribe Button */}
-            <TouchableOpacity
-              style={[styles.subscribeButton, isProcessing && styles.subscribeButtonDisabled]}
-              onPress={() => handleSubscribe(selectedPlan)}
-              disabled={isProcessing}
-              activeOpacity={0.9}
-            >
-              <LinearGradient colors={gradient.primary} style={styles.subscribeButtonGradient}>
-                {isProcessing ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <>
-                    <Sparkles color="#FFFFFF" size={20} strokeWidth={2.5} />
-                    <Text style={styles.subscribeButtonText}>Start Free Trial</Text>
-                    <View style={styles.buttonBadge}>
-                      <Text style={styles.buttonBadgeText}>7 DAYS</Text>
-                    </View>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
+            <View style={styles.ctaSection}>
+              <TouchableOpacity
+                style={[styles.subscribeButton, isProcessing && styles.subscribeButtonDisabled]}
+                onPress={() => handleSubscribe(selectedPlan)}
+                disabled={isProcessing}
+                activeOpacity={0.9}
+              >
+                <LinearGradient 
+                  colors={['#FFD700', '#FFA500']} 
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.subscribeButtonGradient}
+                >
+                  {isProcessing ? (
+                    <ActivityIndicator color="#000000" size="small" />
+                  ) : (
+                    <>
+                      <Text style={styles.subscribeButtonText}>Start My 7-Day Free Trial</Text>
+                      <View style={styles.subscribeArrow}>
+                        <ChevronRight color="#000000" size={24} strokeWidth={3} />
+                      </View>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
 
-            <Text style={styles.trialInfo}>
-              Free for 7 days, then {selectedPlan === 'yearly' ? '$99/year' : '$8.99/month'}.{'\n'}
-              Cancel anytime. No commitment.
-            </Text>
+              <View style={styles.trialInfoContainer}>
+                <View style={styles.trialInfoRow}>
+                  <Check color={palette.success} size={16} strokeWidth={3} />
+                  <Text style={styles.trialInfo}>
+                    Free for 7 days, then {selectedPlan === 'yearly' ? '$99/year ($8.25/mo)' : '$8.99/month'}
+                  </Text>
+                </View>
+                <View style={styles.trialInfoRow}>
+                  <Check color={palette.success} size={16} strokeWidth={3} />
+                  <Text style={styles.trialInfo}>
+                    Cancel anytime before trial ends — no charge
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.trustSignals}>
+                <View style={styles.trustSignal}>
+                  <Shield color={palette.success} size={16} strokeWidth={2.5} />
+                  <Text style={styles.trustSignalText}>Secure Payment</Text>
+                </View>
+                <View style={styles.trustSignalDivider} />
+                <View style={styles.trustSignal}>
+                  <Clock color={palette.success} size={16} strokeWidth={2.5} />
+                  <Text style={styles.trustSignalText}>Cancel Anytime</Text>
+                </View>
+                <View style={styles.trustSignalDivider} />
+                <View style={styles.trustSignal}>
+                  <Heart color={palette.success} size={16} strokeWidth={2.5} />
+                  <Text style={styles.trustSignalText}>150K+ Happy Users</Text>
+                </View>
+              </View>
+            </View>
           </View>
         )}
 
-        {/* Premium Features */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Premium Features</Text>
-          <View style={styles.featuresGrid}>
-            {PREMIUM_FEATURES.map((feature, index) => {
-              const FeatureIcon = feature.icon;
-              return (
-                <View key={index} style={styles.featureCard}>
-                  <LinearGradient colors={gradient.primary} style={styles.featureIcon}>
-                    <FeatureIcon color="#FFFFFF" size={20} strokeWidth={2.5} />
-                  </LinearGradient>
-                  <View style={styles.featureContent}>
-                    <Text style={styles.featureTitle}>{feature.title}</Text>
-                    <Text style={styles.featureDescription}>{feature.description}</Text>
-                  </View>
-                  {state.isPremium ? (
+        {!state.isPremium && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>What You&apos;ll Get</Text>
+            <View style={styles.featuresGrid}>
+              {PREMIUM_FEATURES.map((feature, index) => {
+                const FeatureIcon = feature.icon;
+                return (
+                  <View key={index} style={styles.featureCard}>
+                    <View style={styles.featureIconContainer}>
+                      <LinearGradient 
+                        colors={['#FFD700', '#FFA500']} 
+                        style={styles.featureIcon}
+                      >
+                        <FeatureIcon color="#FFFFFF" size={20} strokeWidth={2.5} />
+                      </LinearGradient>
+                    </View>
+                    <View style={styles.featureContent}>
+                      <Text style={styles.featureTitle}>{feature.title}</Text>
+                      <Text style={styles.featureDescription}>{feature.description}</Text>
+                      <Text style={styles.featureValue}>{feature.value}</Text>
+                    </View>
                     <CheckCircle2 color={palette.success} size={20} strokeWidth={2.5} />
-                  ) : (
-                    <Lock color={palette.textMuted} size={20} strokeWidth={2} />
-                  )}
-                </View>
-              );
-            })}
+                  </View>
+                );
+              })}
+            </View>
           </View>
-        </View>
+        )}
 
-        {/* Legal Info */}
+        {state.isPremium && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Your Premium Features</Text>
+            <View style={styles.featuresGrid}>
+              {PREMIUM_FEATURES.map((feature, index) => {
+                const FeatureIcon = feature.icon;
+                return (
+                  <View key={index} style={styles.featureCard}>
+                    <LinearGradient colors={['#FFD700', '#FFA500']} style={styles.featureIcon}>
+                      <FeatureIcon color="#FFFFFF" size={20} strokeWidth={2.5} />
+                    </LinearGradient>
+                    <View style={styles.featureContent}>
+                      <Text style={styles.featureTitle}>{feature.title}</Text>
+                      <Text style={styles.featureDescription}>{feature.description}</Text>
+                    </View>
+                    <CheckCircle2 color={palette.success} size={20} strokeWidth={2.5} />
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
         <View style={styles.legalSection}>
           <Text style={styles.legalText}>
-            Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current period.{'\n\n'}
+            Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period.{'\n\n'}
             Manage your subscription in your {Platform.OS === 'ios' ? 'App Store' : 'Play Store'} account settings.
           </Text>
         </View>
+
+        <View style={styles.bottomSpacer} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -411,40 +624,115 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
       flex: 1,
       backgroundColor: palette.backgroundStart,
     },
+    safeHeader: {
+      backgroundColor: palette.backgroundStart,
+    },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      justifyContent: 'flex-end',
       paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.md,
-      backgroundColor: palette.surface,
-      borderBottomWidth: 1,
-      borderBottomColor: palette.borderLight,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.md,
     },
-    backButton: {
-      padding: spacing.sm,
-      marginLeft: -spacing.sm,
-    },
-    headerTitle: {
-      fontSize: 20,
-      fontWeight: '800',
-      color: palette.textPrimary,
-      letterSpacing: 0.3,
-    },
-    headerSpacer: {
+    closeButton: {
       width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: palette.overlayLight,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     scrollView: {
       flex: 1,
     },
     scrollContent: {
+      paddingBottom: spacing.xxxxl,
+    },
+    heroSection: {
+      alignItems: 'center',
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.xl,
+    },
+    crownContainer: {
+      marginBottom: spacing.lg,
+    },
+    crownGradient: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      ...shadow.glow,
+    },
+    heroTitle: {
+      fontSize: 36,
+      fontWeight: '900',
+      color: palette.textPrimary,
+      textAlign: 'center',
+      marginBottom: spacing.sm,
+      letterSpacing: -0.5,
+      lineHeight: 42,
+    },
+    heroSubtitle: {
+      fontSize: 17,
+      fontWeight: '500',
+      color: palette.textSecondary,
+      textAlign: 'center',
+      marginBottom: spacing.xl,
+      lineHeight: 24,
+    },
+    socialProofBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-around',
+      width: '100%',
+      backgroundColor: palette.surface,
+      borderRadius: radii.lg,
       padding: spacing.lg,
-      paddingBottom: spacing.xxl,
+      marginBottom: spacing.md,
+      ...shadow.card,
+    },
+    socialProofItem: {
+      alignItems: 'center',
+    },
+    socialProofCount: {
+      fontSize: 24,
+      fontWeight: '900',
+      color: palette.textPrimary,
+      marginBottom: spacing.xs / 2,
+    },
+    socialProofLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: palette.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    offerBadge: {
+      borderRadius: radii.pill,
+      overflow: 'hidden',
+      ...shadow.medium,
+    },
+    offerBadgeGradient: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+    },
+    offerBadgeText: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: '#FFFFFF',
+      letterSpacing: 0.3,
     },
     statusCard: {
       borderRadius: radii.xl,
       padding: spacing.xl,
       marginBottom: spacing.lg,
+      marginHorizontal: spacing.lg,
       ...shadow.card,
     },
     statusHeader: {
@@ -500,6 +788,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
     },
     section: {
       marginBottom: spacing.xl,
+      paddingHorizontal: spacing.lg,
     },
     sectionTitle: {
       fontSize: 22,
@@ -541,59 +830,155 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
       color: palette.textSecondary,
       fontWeight: '500',
     },
+    valueCard: {
+      backgroundColor: palette.overlayGold,
+      borderRadius: radii.lg,
+      padding: spacing.lg,
+      marginBottom: spacing.lg,
+      borderWidth: 2,
+      borderColor: '#FFD700',
+    },
+    valueTitle: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: palette.textPrimary,
+      marginBottom: spacing.xs,
+      textAlign: 'center',
+    },
+    valueSubtitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: palette.textSecondary,
+      textAlign: 'center',
+    },
+    popularBadgeContainer: {
+      alignItems: 'center',
+      marginBottom: -spacing.sm,
+      zIndex: 1,
+      paddingHorizontal: spacing.lg,
+    },
+    popularBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      borderRadius: radii.pill,
+      ...shadow.card,
+    },
+    popularBadgeText: {
+      fontSize: 11,
+      fontWeight: '900',
+      color: '#FFFFFF',
+      letterSpacing: 0.8,
+    },
     planCard: {
-      marginBottom: spacing.md,
+      marginBottom: spacing.lg,
       borderRadius: radii.xl,
       overflow: 'hidden',
       borderWidth: 3,
       borderColor: 'transparent',
-      ...shadow.card,
+      ...shadow.elevated,
     },
     planCardSelected: {
-      borderColor: palette.primary,
+      borderColor: '#FFD700',
+      ...shadow.glow,
+    },
+    planCardMonthly: {
+      marginTop: spacing.md,
     },
     planCardGradient: {
-      padding: spacing.lg,
+      padding: spacing.xl,
+      position: 'relative',
+    },
+    planSelectedIndicator: {
+      position: 'absolute',
+      top: spacing.md,
+      right: spacing.md,
+      zIndex: 1,
     },
     planHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
       marginBottom: spacing.md,
     },
+    planHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
     planName: {
-      fontSize: 20,
+      fontSize: 22,
       fontWeight: '800',
       color: palette.textPrimary,
     },
-    planBadge: {
-      fontSize: 11,
+    savingBadge: {
+      backgroundColor: 'rgba(255, 107, 107, 0.15)',
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs / 2,
+      borderRadius: radii.sm,
+    },
+    savingBadgeText: {
+      fontSize: 12,
       fontWeight: '800',
-      marginTop: spacing.xs,
+      letterSpacing: 0.3,
+    },
+    planFlexible: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: palette.textSecondary,
+      textTransform: 'uppercase',
       letterSpacing: 0.5,
     },
+    planPriceRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      marginBottom: spacing.md,
+    },
     planPrice: {
-      fontSize: 36,
+      fontSize: 40,
       fontWeight: '900',
       color: palette.textPrimary,
-      marginBottom: spacing.xs,
-      letterSpacing: -1,
+      letterSpacing: -1.5,
     },
     planPeriod: {
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: '600',
-      opacity: 0.8,
+      opacity: 0.7,
     },
-    planSaving: {
+    planOriginalPrice: {
+      fontSize: 16,
+      fontWeight: '600',
+      textDecorationLine: 'line-through',
+      marginTop: spacing.xs,
+    },
+    planBilledContainer: {
+      alignItems: 'flex-end',
+    },
+    planBilledText: {
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    planBenefits: {
+      gap: spacing.sm,
+    },
+    planBenefit: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    planBenefitText: {
       fontSize: 14,
       fontWeight: '600',
+      flex: 1,
+    },
+    ctaSection: {
+      marginTop: spacing.lg,
     },
     subscribeButton: {
-      borderRadius: radii.lg,
+      borderRadius: radii.xl,
       overflow: 'hidden',
-      marginTop: spacing.md,
-      marginBottom: spacing.sm,
-      ...shadow.elevated,
+      marginBottom: spacing.lg,
+      ...shadow.strong,
     },
     subscribeButtonDisabled: {
       opacity: 0.6,
@@ -602,81 +987,124 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: spacing.lg,
+      paddingVertical: spacing.xl,
       paddingHorizontal: spacing.xl,
       gap: spacing.sm,
     },
     subscribeButtonText: {
-      fontSize: 18,
-      fontWeight: '800',
-      color: '#FFFFFF',
-      letterSpacing: 0.5,
+      fontSize: 19,
+      fontWeight: '900',
+      color: '#000000',
+      letterSpacing: 0.3,
     },
-    buttonBadge: {
-      backgroundColor: 'rgba(255, 255, 255, 0.25)',
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs,
-      borderRadius: radii.sm,
+    subscribeArrow: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: 'rgba(0, 0, 0, 0.1)',
+      justifyContent: 'center',
+      alignItems: 'center',
     },
-    buttonBadgeText: {
-      fontSize: 10,
-      fontWeight: '800',
-      color: '#FFFFFF',
-      letterSpacing: 0.5,
+    trialInfoContainer: {
+      gap: spacing.sm,
+      marginBottom: spacing.lg,
+    },
+    trialInfoRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
     },
     trialInfo: {
-      fontSize: 13,
+      fontSize: 14,
       color: palette.textSecondary,
-      textAlign: 'center',
-      lineHeight: 18,
+      lineHeight: 20,
       fontWeight: '500',
+      flex: 1,
+    },
+    trustSignals: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: palette.overlayLight,
+      borderRadius: radii.lg,
+      padding: spacing.md,
+      gap: spacing.sm,
+    },
+    trustSignal: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    trustSignalText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: palette.textSecondary,
+    },
+    trustSignalDivider: {
+      width: 1,
+      height: 16,
+      backgroundColor: palette.border,
     },
     featuresGrid: {
-      gap: spacing.md,
+      gap: spacing.sm,
     },
     featureCard: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: palette.surface,
       borderRadius: radii.lg,
-      padding: spacing.md,
+      padding: spacing.lg,
       borderWidth: 1,
       borderColor: palette.borderLight,
-      ...shadow.card,
+      ...shadow.soft,
+    },
+    featureIconContainer: {
+      marginRight: spacing.md,
     },
     featureIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 48,
+      height: 48,
+      borderRadius: 24,
       justifyContent: 'center',
       alignItems: 'center',
-      marginRight: spacing.md,
+      ...shadow.card,
     },
     featureContent: {
       flex: 1,
     },
     featureTitle: {
-      fontSize: 15,
+      fontSize: 16,
       fontWeight: '700',
       color: palette.textPrimary,
       marginBottom: spacing.xs / 2,
     },
     featureDescription: {
-      fontSize: 13,
+      fontSize: 14,
       color: palette.textSecondary,
       fontWeight: '500',
+      marginBottom: spacing.xs / 2,
+    },
+    featureValue: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: '#FFD700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
     },
     legalSection: {
       marginTop: spacing.lg,
       padding: spacing.lg,
+      marginHorizontal: spacing.lg,
       backgroundColor: palette.overlayLight,
       borderRadius: radii.lg,
     },
     legalText: {
-      fontSize: 12,
+      fontSize: 11,
       color: palette.textMuted,
-      lineHeight: 18,
+      lineHeight: 16,
       textAlign: 'center',
     },
+    bottomSpacer: {
+      height: spacing.xxl,
+    },
   });
-
