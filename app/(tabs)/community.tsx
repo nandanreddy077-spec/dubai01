@@ -14,7 +14,9 @@ import {
   Modal,
   Share,
   Alert,
+  Platform,
 } from "react-native";
+import * as Haptics from 'expo-haptics';
 import {
   Heart,
   MessageCircle,
@@ -38,7 +40,7 @@ import {
   MapPin,
   ThumbsUp,
   Lightbulb,
-  ChevronRight,
+
   Gift,
 } from "lucide-react-native";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -77,11 +79,6 @@ export default function CommunityScreen() {
     joinChallenge,
     createPost,
     addComment,
-    followUser,
-    unfollowUser,
-    isFollowing,
-    getFollowers,
-    getFollowing,
     getFollowingFeed,
     createCollection,
     getUserCollections,
@@ -293,11 +290,14 @@ export default function CommunityScreen() {
     const now = Date.now();
     const last = lastTapRef.current[postId] ?? 0;
     if (now - last < 280) {
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
       reactToPost(selectedCircleId, postId, 'love');
       const v = ensurePostAnim(postId);
       v.setValue(0);
       Animated.sequence([
-        Animated.timing(v, { toValue: 1, duration: 180, useNativeDriver: true }),
+        Animated.spring(v, { toValue: 1, friction: 3, useNativeDriver: true }),
         Animated.timing(v, { toValue: 0, duration: 400, useNativeDriver: true }),
       ]).start();
     }
@@ -655,6 +655,9 @@ export default function CommunityScreen() {
               style={styles.actionBtn} 
               onPress={async (e) => {
                 e.stopPropagation();
+                if (Platform.OS !== 'web') {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }
                 try {
                   await reactToPost(selectedCircleId, post.id, 'love');
                 } catch (error) {
@@ -664,11 +667,13 @@ export default function CommunityScreen() {
               }}
               activeOpacity={0.7}
             >
-              <Heart 
-                color={hasLiked ? palette.danger : palette.textPrimary} 
-                size={26} 
-                fill={hasLiked ? palette.danger : 'none'}
-              />
+              <Animated.View>
+                <Heart 
+                  color={hasLiked ? palette.danger : palette.textPrimary} 
+                  size={26} 
+                  fill={hasLiked ? palette.danger : 'none'}
+                />
+              </Animated.View>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionBtn} 
@@ -868,31 +873,26 @@ export default function CommunityScreen() {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.appTitle}>Beauty Circle</Text>
-          <TouchableOpacity 
-            style={styles.circleSelector}
-            onPress={() => setShowCircles(true)}
-          >
-            <Users size={16} color={palette.textSecondary} />
-            <ChevronRight size={16} color={palette.textSecondary} />
-          </TouchableOpacity>
+          <View style={styles.liveIndicator}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>{Object.values(posts).flat().length}</Text>
+          </View>
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity 
-            style={styles.headerIcon} 
+            style={styles.headerIconBtn} 
             activeOpacity={0.7}
-            onPress={() => setShowChallenges(true)}
+            onPress={() => {
+              if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowChallenges(true);
+            }}
           >
-            <Target color={palette.textPrimary} size={22} />
+            <View style={styles.iconGlow}>
+              <Target color={palette.textPrimary} size={22} />
+            </View>
             {activeChallenges.length > 0 && (
-              <View style={styles.notificationDot} />
+              <View style={styles.pulseDot} />
             )}
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.headerIcon} 
-            activeOpacity={0.7} 
-            onPress={() => setShowCreatePost(true)}
-          >
-            <PlusCircle color={palette.textPrimary} size={24} />
           </TouchableOpacity>
         </View>
       </View>
@@ -902,7 +902,7 @@ export default function CommunityScreen() {
           <Search size={18} color={palette.textSecondary} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search posts, people, hashtags..."
+            placeholder="Discover beauty secrets..."
             placeholderTextColor={palette.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -1053,6 +1053,19 @@ export default function CommunityScreen() {
           {filteredPosts.map(renderPost)}
         </View>
       </ScrollView>
+
+      <TouchableOpacity 
+        style={[styles.fabButton, { bottom: insets.bottom + 80 }]}
+        activeOpacity={0.9}
+        onPress={() => {
+          if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+          setShowCreatePost(true);
+        }}
+      >
+        <View style={styles.fabGradient}>
+          <PlusCircle color="#FFF" size={28} fill="#FFF" />
+        </View>
+      </TouchableOpacity>
 
       <Modal
         visible={showCircles}
@@ -2421,5 +2434,59 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontSize: 14,
     color: palette.textMuted,
     fontWeight: '600' as const,
+  },
+
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+    backgroundColor: palette.surfaceElevated,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
+  liveText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: palette.textSecondary,
+  },
+  headerIconBtn: {
+    padding: spacing.xs,
+    position: 'relative' as const,
+  },
+  iconGlow: {
+    padding: 4,
+  },
+  pulseDot: {
+    position: 'absolute' as const,
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: palette.danger,
+  },
+  fabButton: {
+    position: 'absolute' as const,
+    right: spacing.lg,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    ...shadow.elevated,
+    elevation: 8,
+  },
+  fabGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: palette.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
