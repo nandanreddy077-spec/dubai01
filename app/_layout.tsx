@@ -78,6 +78,15 @@ function RootLayoutNav() {
       <Stack.Screen name="user-profile" options={{ headerShown: false }} />
       <Stack.Screen name="post-detail" options={{ headerShown: false }} />
       <Stack.Screen name="notification-settings" options={{ headerShown: true, title: 'Notification Settings', headerBackTitle: 'Back' }} />
+      <Stack.Screen name="ai-advisor" options={{ headerShown: true, headerBackTitle: 'Back' }} />
+      <Stack.Screen name="beauty-membership" options={{ headerShown: false }} />
+      <Stack.Screen name="plan-selection" options={{ headerShown: true, headerBackTitle: 'Back' }} />
+      <Stack.Screen name="promo-code" options={{ headerShown: true, headerBackTitle: 'Back' }} />
+      <Stack.Screen name="start-trial" options={{ headerShown: false }} />
+      <Stack.Screen name="trends" options={{ headerShown: true, headerBackTitle: 'Back' }} />
+      <Stack.Screen name="unlock-glow" options={{ headerShown: true, headerBackTitle: 'Back' }} />
+      <Stack.Screen name="privacy-policy" options={{ headerShown: true, title: 'Privacy Policy', headerBackTitle: 'Back' }} />
+      <Stack.Screen name="terms-of-service" options={{ headerShown: true, title: 'Terms of Service', headerBackTitle: 'Back' }} />
     </Stack>
   );
 }
