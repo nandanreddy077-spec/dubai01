@@ -6,8 +6,10 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useReferral } from '@/contexts/ReferralContext';
 import ResultsPaywallOverlay from './ResultsPaywallOverlay';
 import MiniPaywallBanner from './MiniPaywallBanner';
+import ShareInviteModal from './ShareInviteModal';
 
 interface BlurredContentProps {
   children: React.ReactNode;
@@ -20,12 +22,14 @@ interface BlurredContentProps {
   badge?: string;
   skinType?: string;
   topConcern?: string;
+  featureType?: 'analysis' | 'style';
   onStartTrial?: () => void;
   onViewPlans?: () => void;
   onDismiss?: () => void;
   // Control whether to show paywall or just blur
   showPaywall?: boolean;
   showDismiss?: boolean;
+  showReferralOption?: boolean;
 }
 
 /**
@@ -48,20 +52,26 @@ export default function BlurredContent({
   badge,
   skinType,
   topConcern,
+  featureType = 'analysis',
   onStartTrial,
   onViewPlans,
   onDismiss,
   showPaywall = true,
   showDismiss = true,
+  showReferralOption = true,
   testID,
 }: BlurredContentProps) {
   const subscription = useSubscription();
+  const referral = useReferral();
   
   // Track if user dismissed the full paywall
   const [isPaywallDismissed, setIsPaywallDismissed] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   
-  // Check if user has access - canViewResults returns true for premium OR trial users
-  const hasAccess = subscription?.canViewResults === true;
+  // Check if user has access - canViewResults returns true for premium, trial, OR referral unlock
+  const hasSubscriptionAccess = subscription?.canViewResults === true;
+  const hasReferralAccess = referral?.canViewResults === true;
+  const hasAccess = hasSubscriptionAccess || hasReferralAccess;
   
   // Handle paywall dismiss - don't navigate away, just hide full paywall
   const handleDismiss = useCallback(() => {
@@ -75,6 +85,16 @@ export default function BlurredContent({
   // Handle expanding mini banner back to full paywall
   const handleExpandPaywall = useCallback(() => {
     setIsPaywallDismissed(false);
+  }, []);
+  
+  // Handle share invite action
+  const handleShareInvite = useCallback(() => {
+    setShowShareModal(true);
+  }, []);
+  
+  // Handle share modal close
+  const handleShareModalClose = useCallback(() => {
+    setShowShareModal(false);
   }, []);
   
   // If user has access, show content without blur
@@ -118,9 +138,20 @@ export default function BlurredContent({
           onStartTrial={onStartTrial}
           onViewPlans={onViewPlans}
           onDismiss={handleDismiss}
+          onShareInvite={handleShareInvite}
           showDismiss={showDismiss}
+          invitesRemaining={referral?.invitesRemaining}
+          showReferralOption={showReferralOption}
         />
       )}
+      
+      {/* Share Invite Modal */}
+      <ShareInviteModal
+        visible={showShareModal}
+        onClose={handleShareModalClose}
+        score={score}
+        featureType={featureType}
+      />
       
       {/* Mini Banner - shown after dismiss */}
       {showMiniBanner && (

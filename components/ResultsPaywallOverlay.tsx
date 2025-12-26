@@ -18,15 +18,16 @@ import {
   Clock,
   CheckCircle,
   Crown,
-  Zap,
   Heart,
   TrendingUp,
   X,
+  UserPlus,
+  Gift,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getPalette, getGradient, shadow } from '@/constants/theme';
 
-const { width } = Dimensions.get('window');
+
 
 // Analytics tracking keys
 const ANALYTICS_KEYS = {
@@ -45,7 +46,10 @@ interface ResultsPaywallOverlayProps {
   onStartTrial?: () => void;
   onViewPlans?: () => void;
   onDismiss?: () => void;
+  onShareInvite?: () => void;
   showDismiss?: boolean;
+  invitesRemaining?: number;
+  showReferralOption?: boolean;
 }
 
 // Track analytics event
@@ -94,7 +98,10 @@ export default function ResultsPaywallOverlay({
   onStartTrial,
   onViewPlans,
   onDismiss,
+  onShareInvite,
   showDismiss = true,
+  invitesRemaining = 3,
+  showReferralOption = true,
 }: ResultsPaywallOverlayProps) {
   const { theme } = useTheme();
   const palette = getPalette(theme);
@@ -419,6 +426,51 @@ export default function ResultsPaywallOverlay({
             </LinearGradient>
           </TouchableOpacity>
         </Animated.View>
+        
+        {/* OR Divider */}
+        {showReferralOption && (
+          <View style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
+        )}
+        
+        {/* Referral Unlock Option */}
+        {showReferralOption && (
+          <TouchableOpacity
+            style={styles.referralButton}
+            onPress={onShareInvite || handleViewPlans}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={['#10B981', '#059669']}
+              style={styles.referralGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Gift color="#FFF" size={22} strokeWidth={2.5} />
+              <View style={styles.ctaContent}>
+                <Text style={styles.ctaMainText}>Unlock by Sharing</Text>
+                <Text style={styles.ctaSubText}>Invite {invitesRemaining} friends • 100% Free</Text>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+        
+        {/* Benefit Comparison */}
+        {showReferralOption && (
+          <View style={styles.benefitComparison}>
+            <View style={styles.benefitItem}>
+              <UserPlus color={palette.success} size={16} strokeWidth={2.5} />
+              <Text style={styles.benefitText}>Share with friends = Free forever</Text>
+            </View>
+            <View style={styles.benefitItem}>
+              <Star color={palette.gold} size={16} fill={palette.gold} strokeWidth={2} />
+              <Text style={styles.benefitText}>Compare results • Earn rewards together</Text>
+            </View>
+          </View>
+        )}
         
         {/* Secondary Option */}
         <TouchableOpacity
@@ -761,5 +813,61 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
     fontSize: 11,
     color: palette.textMuted,
     fontWeight: '500',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+    paddingHorizontal: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: palette.divider,
+  },
+  dividerText: {
+    paddingHorizontal: 12,
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.textMuted,
+    letterSpacing: 0.5,
+  },
+  referralButton: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 10,
+    ...shadow.elevated,
+    shadowColor: '#10B981',
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+  },
+  referralGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  benefitComparison: {
+    backgroundColor: palette.overlayLight,
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 8,
+    marginBottom: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: palette.divider,
+  },
+  benefitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  benefitText: {
+    flex: 1,
+    fontSize: 13,
+    color: palette.textSecondary,
+    fontWeight: '600',
   },
 });

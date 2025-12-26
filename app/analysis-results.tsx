@@ -388,8 +388,10 @@ export default function AnalysisResultsScreen() {
         rating={currentResult?.rating}
         skinType={currentResult?.skinType}
         topConcern={currentResult?.dermatologyInsights?.skinConcerns?.[0]}
+        featureType="analysis"
         showPaywall={true}
         showDismiss={true}
+        showReferralOption={true}
       >
         {resultsContent}
       </BlurredContent>

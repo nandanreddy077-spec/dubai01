@@ -14,6 +14,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { CommunityProvider } from "@/contexts/CommunityContext";
 import { ProductProvider } from "@/contexts/ProductContext";
+import { ReferralProvider } from "@/contexts/ReferralContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
@@ -277,13 +278,15 @@ export default function RootLayout() {
                     <SkincareProvider>
                       <StyleProvider>
                         <SubscriptionProvider>
-                          <ProductProvider>
-                            <GestureHandlerRootView style={styles.container}>
-                              <CommunityProvider>
-                                <RootLayoutNav />
-                              </CommunityProvider>
-                            </GestureHandlerRootView>
-                          </ProductProvider>
+                          <ReferralProvider>
+                            <ProductProvider>
+                              <GestureHandlerRootView style={styles.container}>
+                                <CommunityProvider>
+                                  <RootLayoutNav />
+                                </CommunityProvider>
+                              </GestureHandlerRootView>
+                            </ProductProvider>
+                          </ReferralProvider>
                         </SubscriptionProvider>
                       </StyleProvider>
                     </SkincareProvider>
