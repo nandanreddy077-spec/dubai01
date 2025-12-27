@@ -29,7 +29,7 @@ import {
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import Logo from '@/components/Logo';
 
-const { width } = Dimensions.get('window');
+
 
 interface Feature {
   icon: React.ReactNode;
@@ -255,7 +255,7 @@ export default function TrialOfferScreen() {
             7 days free, then {selectedPlan === 'yearly' ? '$99/year' : '$8.99/month'}
             {'\n'}
             <Text style={styles.trustSubtext}>
-              Card required • Won't charge until Day 8
+              Card required • Won&apos;t charge until Day 8
             </Text>
           </Text>
 
@@ -290,7 +290,7 @@ export default function TrialOfferScreen() {
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={selectedPlan === 'yearly' ? ['#D4A574', '#C8956D'] : ['#FFFFFF', '#FFFFFF']}
+              colors={selectedPlan === 'yearly' ? ['#1A1A1A', '#000000'] : ['#FFFFFF', '#FFFFFF']}
               style={styles.planCardGradient}
             >
               <View style={styles.planBadge}>
@@ -365,7 +365,7 @@ export default function TrialOfferScreen() {
         <View style={styles.trustSection}>
           <View style={styles.trustItem}>
             <Shield size={16} color="#4CAF50" strokeWidth={2.5} />
-            <Text style={styles.trustText}>Card required • Won't charge until Day 8</Text>
+            <Text style={styles.trustText}>Card required • Won&apos;t charge until Day 8</Text>
           </View>
           <View style={styles.trustItem}>
             <Lock size={16} color="#2196F3" strokeWidth={2.5} />
@@ -388,7 +388,7 @@ export default function TrialOfferScreen() {
             activeOpacity={0.9}
           >
             <LinearGradient
-              colors={['#D4A574', '#C8956D']}
+              colors={['#FFD700', '#FFA500']}
               style={styles.startButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -423,6 +423,7 @@ export default function TrialOfferScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
   },
   scrollView: {
     flex: 1,
@@ -435,20 +436,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   skipButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   skipText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#666666',
   },
   heroSection: {
@@ -557,9 +562,11 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   planCardSelected: {
-    borderColor: '#D4A574',
-    shadowColor: '#D4A574',
+    borderColor: '#FFD700',
+    shadowColor: '#FFD700',
     shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
   },
   planCardGradient: {
     padding: 20,
@@ -697,8 +704,8 @@ const styles = StyleSheet.create({
   startButton: {
     borderRadius: 28,
     overflow: 'hidden',
-    marginBottom: 12,
-    shadowColor: '#D4A574',
+    marginBottom: 16,
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
@@ -714,9 +721,9 @@ const styles = StyleSheet.create({
   },
   startButtonText: {
     fontSize: 19,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 0.3,
   },
   buttonBadge: {
     backgroundColor: 'rgba(255, 255, 255, 0.25)',

@@ -379,12 +379,14 @@ export default function StartTrialScreen() {
               colors={['#FFD700', '#FFA500']}
               style={styles.startButtonGradient}
               start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
+              end={{ x: 1, y: 1 }}
             >
               <Text style={styles.startButtonText}>
                 {isProcessing ? 'Processing...' : 'Start 7-Day Free Trial'}
               </Text>
-              <ArrowRight size={22} color="#1A1A1A" strokeWidth={3} />
+              <View style={styles.subscribeArrow}>
+                <ArrowRight size={20} color="#000000" strokeWidth={3} />
+              </View>
             </LinearGradient>
           </TouchableOpacity>
         </Animated.View>
@@ -419,9 +421,9 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   closeCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -598,17 +600,21 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 3,
     borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   planCardSelected: {
     borderColor: '#FFD700',
     shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
     elevation: 8,
   },
   planCardGradient: {
-    padding: 20,
+    padding: 24,
     position: 'relative',
   },
   popularBadge: {
@@ -698,7 +704,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 8,
   },
@@ -713,8 +719,8 @@ const styles = StyleSheet.create({
   startButtonText: {
     fontSize: 19,
     fontWeight: '900',
-    color: '#1A1A1A',
-    letterSpacing: 0.5,
+    color: '#000000',
+    letterSpacing: 0.3,
   },
   trialInfo: {
     fontSize: 12,
@@ -733,5 +739,13 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.5)',
     textAlign: 'center',
     lineHeight: 14,
+  },
+  subscribeArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

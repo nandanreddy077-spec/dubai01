@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -413,12 +412,12 @@ export default function ResultsPaywallOverlay({
             activeOpacity={0.9}
           >
             <LinearGradient
-              colors={gradient.primary}
+              colors={['#FFD700', '#FFA500']}
               style={styles.ctaGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <Sparkles color="#FFF" size={22} fill="#FFF" strokeWidth={2} />
+              <Sparkles color="#000" size={22} strokeWidth={2.5} />
               <View style={styles.ctaContent}>
                 <Text style={styles.ctaMainText}>Start 7-Day Free Trial</Text>
                 <Text style={styles.ctaSubText}>No payment required • Cancel anytime</Text>
@@ -532,10 +531,10 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
     position: 'absolute',
     top: 16,
     right: 16,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: palette.surfaceAlt,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: palette.overlayLight,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
@@ -752,36 +751,37 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
     color: palette.primary,
   },
   ctaButton: {
-    borderRadius: 24,
+    borderRadius: 28,
     overflow: 'hidden',
     marginBottom: 10,
-    ...shadow.elevated,
-    shadowColor: palette.primary,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
-    shadowRadius: 20,
+    shadowRadius: 16,
+    elevation: 8,
   },
   ctaGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    gap: 10,
+    paddingVertical: 20,
+    paddingHorizontal: 32,
+    gap: 12,
   },
   ctaContent: {
     alignItems: 'flex-start',
   },
   ctaMainText: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#FFF',
+    fontSize: 19,
+    fontWeight: '900',
+    color: '#000',
     letterSpacing: 0.3,
   },
   ctaSubText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 1,
+    color: 'rgba(0, 0, 0, 0.8)',
+    marginTop: 2,
   },
   secondaryButton: {
     paddingVertical: 10,
@@ -833,21 +833,22 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
     letterSpacing: 0.5,
   },
   referralButton: {
-    borderRadius: 24,
+    borderRadius: 28,
     overflow: 'hidden',
     marginBottom: 10,
-    ...shadow.elevated,
     shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
-    shadowRadius: 20,
+    shadowRadius: 16,
+    elevation: 8,
   },
   referralGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    gap: 10,
+    paddingVertical: 20,
+    paddingHorizontal: 32,
+    gap: 12,
   },
   benefitComparison: {
     backgroundColor: palette.overlayLight,
