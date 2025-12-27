@@ -420,7 +420,7 @@ export default function ResultsPaywallOverlay({
               <Sparkles color="#000" size={22} strokeWidth={2.5} />
               <View style={styles.ctaContent}>
                 <Text style={styles.ctaMainText}>Start 7-Day Free Trial</Text>
-                <Text style={styles.ctaSubText}>No payment required • Cancel anytime</Text>
+                <Text style={styles.ctaSubText}>Card required • Won&apos;t charge until Day 8</Text>
               </View>
             </LinearGradient>
           </TouchableOpacity>
