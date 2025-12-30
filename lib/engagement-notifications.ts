@@ -488,8 +488,8 @@ async function sendNotification(
       try {
         new Notification(title, {
           body,
-          icon: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/53s334upy03qk49h5gire',
-          badge: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/53s334upy03qk49h5gire',
+          icon: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/f5e5w5vtr879xn52v2jvv',
+          badge: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/f5e5w5vtr879xn52v2jvv',
         });
         console.log('[EngagementNotif] Notification sent:', type);
         await incrementDailyCount();

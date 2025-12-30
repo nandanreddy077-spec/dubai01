@@ -230,7 +230,7 @@ export default function HomeScreen() {
         <View style={styles.topBar}>
           <View style={styles.logoContainer}>
             <Image 
-              source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/53s334upy03qk49h5gire' }} 
+              source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/f5e5w5vtr879xn52v2jvv' }} 
               style={styles.logoImage}
             />
             <View style={styles.logoTextContainer}>

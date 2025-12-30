@@ -281,8 +281,8 @@ async function scheduleNotification(
       if ('Notification' in globalThis && Notification.permission === 'granted') {
         new Notification(message.title, {
           body,
-          icon: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/53s334upy03qk49h5gire',
-          badge: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/53s334upy03qk49h5gire',
+          icon: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/f5e5w5vtr879xn52v2jvv',
+          badge: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/f5e5w5vtr879xn52v2jvv',
         });
         console.log('[SmartNotif] Web notification shown:', type);
       }
@@ -352,7 +352,7 @@ export async function sendImmediateNotification(title: string, body: string) {
     if ('Notification' in globalThis && Notification.permission === 'granted') {
       new Notification(title, {
         body,
-        icon: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/53s334upy03qk49h5gire',
+        icon: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/f5e5w5vtr879xn52v2jvv',
       });
       console.log('[SmartNotif] Immediate notification sent');
     }
