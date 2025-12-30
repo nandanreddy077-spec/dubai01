@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { useUser } from '@/contexts/UserContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { ChevronRight, Sparkles, Star, Zap, Heart, Check, ArrowLeft } from 'lucide-react-native';
 import Logo from '@/components/Logo';
 import { getPalette, getGradient, shadow, spacing, radii } from '@/constants/theme';
@@ -39,6 +40,7 @@ const goals = [
 
 export default function OnboardingScreen() {
   const { setIsFirstTime } = useUser();
+  const { user, session, loading } = useAuth();
   const { theme } = useTheme();
   const height = Dimensions.get('window').height;
   const [step, setStep] = useState<number>(0);
@@ -59,6 +61,27 @@ export default function OnboardingScreen() {
   
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
+  
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      if (loading) return;
+      
+      if (user && session) {
+        console.log('✅ User already authenticated, redirecting to home');
+        router.replace('/(tabs)');
+        return;
+      }
+      
+      const hasCompletedOnboarding = await AsyncStorage.getItem('@onboarding_completed');
+      if (hasCompletedOnboarding === 'true') {
+        console.log('⚠️ Onboarding completed, redirecting to login');
+        router.replace('/login');
+        return;
+      }
+    };
+    
+    checkAuthStatus();
+  }, [user, session, loading]);
   
   useEffect(() => {
     const sparkleAnimation = Animated.loop(
@@ -147,6 +170,7 @@ export default function OnboardingScreen() {
       setStep(step + 1);
     } else {
       await AsyncStorage.setItem('onboarding_data', JSON.stringify(data));
+      await AsyncStorage.setItem('@onboarding_completed', 'true');
       setIsFirstTime(false);
       router.replace('/login');
     }

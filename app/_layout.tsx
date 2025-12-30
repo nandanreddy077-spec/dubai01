@@ -97,25 +97,28 @@ export default function RootLayout() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // Clear old Supabase sessions when switching projects (one-time)
+        // One-time cleanup: Clear old Supabase sessions when switching projects
+        const cleanupDone = await AsyncStorage.getItem('@cleanup_done');
         const currentSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
         const OLD_SUPABASE_URL = 'kvwshebdezzoetmaqndc';
         
-        if (currentSupabaseUrl && !currentSupabaseUrl.includes(OLD_SUPABASE_URL)) {
+        if (!cleanupDone && currentSupabaseUrl && !currentSupabaseUrl.includes(OLD_SUPABASE_URL)) {
           const allKeys = await AsyncStorage.getAllKeys();
           const supabaseKeys = allKeys.filter(key => 
-            key.includes('supabase') || 
+            (key.includes('supabase') || 
             key.includes('auth') ||
             key.includes('sb-') ||
-            key.startsWith('@supabase')
+            key.startsWith('@supabase')) &&
+            !key.includes('@cleanup_done') &&
+            !key.includes('@onboarding_completed')
           );
           
           if (supabaseKeys.length > 0) {
-            console.log('🔄 Clearing old Supabase cache on app start...');
-            await supabase.auth.signOut().catch(() => {});
+            console.log('🔄 One-time cleanup: Clearing old Supabase cache...');
             await AsyncStorage.multiRemove(supabaseKeys);
             console.log('✅ Cleared old Supabase cache');
           }
+          await AsyncStorage.setItem('@cleanup_done', 'true');
         }
         
         // Validate and clean corrupted storage data on app start
