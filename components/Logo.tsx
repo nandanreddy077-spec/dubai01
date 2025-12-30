@@ -6,7 +6,7 @@ interface LogoProps {
   style?: object;
 }
 
-const LOGO_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/0uzima7kum4z7z8xmq6ia';
+const LOGO_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/f5e5w5vtr879xn52v2jvv';
 
 export default function Logo({ size = 80, style }: LogoProps) {
   return (
