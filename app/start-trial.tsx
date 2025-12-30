@@ -245,7 +245,7 @@ export default function StartTrialScreen() {
               ))}
             </View>
             <Text style={styles.socialProofText}>
-              <Text style={styles.socialProofBold}>43,892 women</Text> started trials today
+              <Text style={styles.socialProofBold}>Join others</Text> transforming their skin today
             </Text>
           </View>
         </View>
@@ -382,7 +382,7 @@ export default function StartTrialScreen() {
               end={{ x: 1, y: 0 }}
             >
               <Text style={styles.startButtonText}>
-                {isProcessing ? 'Processing...' : 'Start 7-Day Free Trial'}
+                {isProcessing ? 'Processing...' : 'Try It Free - $0 Today'}
               </Text>
               <ArrowRight size={22} color="#1A1A1A" strokeWidth={3} />
             </LinearGradient>

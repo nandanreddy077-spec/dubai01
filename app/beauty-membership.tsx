@@ -79,8 +79,8 @@ const PREMIUM_FEATURES = [
 ];
 
 const SOCIAL_PROOF = [
-  { count: '150K+', label: 'Active Users' },
-  { count: '4.9', label: 'App Rating' },
+  { count: '24/7', label: 'Access' },
+  { count: 'Expert', label: 'AI Tech' },
   { count: '2M+', label: 'Glow Scans' },
 ];
 
@@ -509,7 +509,7 @@ export default function BeautyMembershipScreen() {
                     <ActivityIndicator color="#000000" size="small" />
                   ) : (
                     <>
-                      <Text style={styles.subscribeButtonText}>Start My 7-Day Free Trial</Text>
+                      <Text style={styles.subscribeButtonText}>Try It Free - $0 Today</Text>
                       <View style={styles.subscribeArrow}>
                         <ChevronRight color="#000000" size={24} strokeWidth={3} />
                       </View>

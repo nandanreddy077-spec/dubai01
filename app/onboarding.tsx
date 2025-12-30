@@ -219,17 +219,17 @@ export default function OnboardingScreen() {
             <View style={styles.contentCenter}>
               <Text style={styles.stepTitle}>Your Journey to{' \n'}Confidence Starts Here</Text>
               <Text style={styles.stepSubtitle}>
-                Join 100,000+ people who discovered their best self through personalized skincare insights
+                Join people who discovered their best self through personalized skincare insights
               </Text>
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>4.9</Text>
-                  <Text style={styles.statLabel}>★★★★★</Text>
+                  <Text style={styles.statNumber}>Expert</Text>
+                  <Text style={styles.statLabel}>AI Tech</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>100K+</Text>
-                  <Text style={styles.statLabel}>Active Users</Text>
+                  <Text style={styles.statNumber}>24/7</Text>
+                  <Text style={styles.statLabel}>Access</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statItem}>
