@@ -334,7 +334,7 @@ export default function SubscribeScreen() {
               style={styles.buttonGradient}
             >
               <Gift color={palette.textPrimary} size={20} strokeWidth={2.5} />
-              <Text style={[styles.buttonText, { color: palette.textPrimary }]}>Start 7-Day Free Trial</Text>
+              <Text style={[styles.buttonText, { color: palette.textPrimary }]}>Try It Free - $0 Today</Text>
               <Text style={[styles.buttonSubtext, { color: palette.textPrimary }]}>Card required • Won&apos;t charge until Day 8</Text>
             </LinearGradient>
           </TouchableOpacity>
