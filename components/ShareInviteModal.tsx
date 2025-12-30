@@ -8,7 +8,6 @@ import {
   Animated,
   Share,
   Dimensions,
-  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { 
@@ -239,7 +238,7 @@ export default function ShareInviteModal({
             </View>
 
             <View style={styles.benefitsSection}>
-              <Text style={styles.benefitsTitle}>What You'll Unlock:</Text>
+              <Text style={styles.benefitsTitle}>What You&apos;ll Unlock:</Text>
               
               <View style={styles.benefitItem}>
                 <Sparkles color={palette.primary} size={18} strokeWidth={2.5} />

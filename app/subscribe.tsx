@@ -26,7 +26,7 @@ const { width } = Dimensions.get('window');
 
 export default function SubscribeScreen() {
   const subscription = useSubscription();
-  const { startLocalTrial, processInAppPurchase, inTrial = false, state = { isPremium: false, scanCount: 0, maxScansInTrial: 3, hasStartedTrial: false }, setSubscriptionData } = subscription || {};
+  const { processInAppPurchase, inTrial = false, state = { isPremium: false, scanCount: 0, maxScansInTrial: 3, hasStartedTrial: false }, setSubscriptionData } = subscription || {};
 
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -55,17 +55,44 @@ export default function SubscribeScreen() {
   }, [scaleAnim, fadeAnim]);
 
   const handleStartTrial = useCallback(async () => {
-    try {
-      await startLocalTrial(3);
+    if (Platform.OS === 'web') {
       Alert.alert(
-        '🌟 Trial Started!', 
-        'Your 3-day free trial has started! You can now scan and view results for 3 days.',
-        [{ text: 'Start Glowing ✨', style: 'default', onPress: () => router.back() }]
+        '💳 Payment Required',
+        'To start your 7-day free trial, please download our mobile app and add a payment method. Your card won\'t be charged until after the trial ends.',
+        [{ text: 'Got it', style: 'default' }]
       );
-    } catch {
-      Alert.alert('Error', 'Could not start trial. Please try again.');
+      return;
     }
-  }, [startLocalTrial]);
+    
+    try {
+      const result = await processInAppPurchase(selectedPlan);
+      
+      if (result.success) {
+        Alert.alert(
+          '🎉 Trial Started!',
+          `Your 7-day free trial has started! You'll be charged ${selectedPlan === 'yearly' ? '$99/year' : '$8.99/month'} after the trial ends. Cancel anytime in your device settings.`,
+          [{ text: 'Start Glowing ✨', onPress: () => router.back() }]
+        );
+      } else if (result.error === 'STORE_REDIRECT') {
+        return;
+      } else {
+        const errorMessage = result.cancelled 
+          ? 'To start your free trial, please add a payment method. Your card won\'t be charged until after the 7-day trial period ends.'
+          : result.error || 'Please add a payment method to start your trial.';
+        
+        Alert.alert(
+          'Payment Required',
+          errorMessage,
+          [
+            { text: 'Maybe Later', style: 'cancel' },
+            { text: 'Try Again', style: 'default', onPress: () => handleStartTrial() },
+          ]
+        );
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Could not start trial. Please try again.');
+    }
+  }, [processInAppPurchase, selectedPlan]);
 
   const handleSubscribe = useCallback(async (type: 'monthly' | 'yearly') => {
     if (isProcessing) return;
@@ -137,7 +164,7 @@ export default function SubscribeScreen() {
     } finally {
       setIsProcessing(false);
     }
-  }, [isProcessing, processInAppPurchase, router]);
+  }, [isProcessing, processInAppPurchase]);
 
   const handleManage = useCallback(async () => {
     Alert.alert(
@@ -254,7 +281,7 @@ export default function SubscribeScreen() {
             Start Your Beauty Journey
           </Text>
           <Text style={[styles.heroText, { color: palette.textSecondary }]}>
-            3-day free trial, then choose your perfect plan
+            7-day free trial • Card required • Cancel anytime
           </Text>
         </View>
 
@@ -307,8 +334,8 @@ export default function SubscribeScreen() {
               style={styles.buttonGradient}
             >
               <Gift color={palette.textPrimary} size={20} strokeWidth={2.5} />
-              <Text style={[styles.buttonText, { color: palette.textPrimary }]}>Start Free Trial</Text>
-              <Text style={[styles.buttonSubtext, { color: palette.textPrimary }]}>3 days free • No payment required</Text>
+              <Text style={[styles.buttonText, { color: palette.textPrimary }]}>Start 7-Day Free Trial</Text>
+              <Text style={[styles.buttonSubtext, { color: palette.textPrimary }]}>Card required • Won&apos;t charge until Day 8</Text>
             </LinearGradient>
           </TouchableOpacity>
         )}
@@ -329,7 +356,7 @@ export default function SubscribeScreen() {
               </Text>
               {!state.isPremium && (
                 <Text style={[styles.statusText, { color: palette.textSecondary }]}>
-                  {state.scanCount}/3 scans used • {state.trialStartedAt ? `${3 - Math.floor((Date.now() - Number(state.trialStartedAt)) / (1000 * 60 * 60 * 24))} days left` : '3 days left'}
+                  {state.scanCount}/3 scans used • {state.trialStartedAt ? `${7 - Math.floor((Date.now() - Number(state.trialStartedAt)) / (1000 * 60 * 60 * 24))} days left` : '7 days left'}
                 </Text>
               )}
             </View>
@@ -469,8 +496,8 @@ export default function SubscribeScreen() {
         {/* Legal Text */}
         <Text style={[styles.legalText, { color: palette.textMuted }]}>
           By continuing, you agree to our Terms of Service and Privacy Policy.
-          {!state.hasStartedTrial && !state.isPremium ? ' Your 3-day free trial starts immediately. No payment required during trial.' : ''}
-          {Platform.OS !== 'web' ? ' Subscription will be charged to your App Store/Play Store account.' : ''}
+          {!state.hasStartedTrial && !state.isPremium ? ' Card required to start trial. Free for 7 days, then charged to your account. Cancel anytime.' : ''}
+          {Platform.OS !== 'web' ? ' Subscription managed through your App Store/Play Store account.' : ''}
         </Text>
         </Animated.View>
       </ScrollView>

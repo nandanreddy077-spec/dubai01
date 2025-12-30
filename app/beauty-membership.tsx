@@ -23,17 +23,17 @@ import {
   Users,
   Shield,
   CheckCircle2,
-  Calendar,
-  CreditCard,
-  Gift,
-  Star,
-  Zap,
   Lock,
   ChevronRight,
   X,
   Check,
   Flame,
   Clock,
+  Calendar,
+  CreditCard,
+  Gift,
+  Star,
+  Zap,
 } from 'lucide-react-native';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -296,7 +296,7 @@ export default function BeautyMembershipScreen() {
                   style={styles.offerBadgeGradient}
                 >
                   <Flame color="#FFFFFF" size={16} strokeWidth={2.5} />
-                  <Text style={styles.offerBadgeText}>Limited Time: 7-Day Free Trial</Text>
+                  <Text style={styles.offerBadgeText}>🔥 7-Day Free Trial • Card Required</Text>
                 </LinearGradient>
               </Animated.View>
             )}
@@ -520,6 +520,12 @@ export default function BeautyMembershipScreen() {
 
               <View style={styles.trialInfoContainer}>
                 <View style={styles.trialInfoRow}>
+                  <Shield color={palette.success} size={16} strokeWidth={3} />
+                  <Text style={styles.trialInfo}>
+                    Card required • Won&apos;t charge until Day 8
+                  </Text>
+                </View>
+                <View style={styles.trialInfoRow}>
                   <Check color={palette.success} size={16} strokeWidth={3} />
                   <Text style={styles.trialInfo}>
                     Free for 7 days, then {selectedPlan === 'yearly' ? '$99/year ($8.25/mo)' : '$8.99/month'}
@@ -528,7 +534,7 @@ export default function BeautyMembershipScreen() {
                 <View style={styles.trialInfoRow}>
                   <Check color={palette.success} size={16} strokeWidth={3} />
                   <Text style={styles.trialInfo}>
-                    Cancel anytime before trial ends — no charge
+                    Cancel anytime • No commitment
                   </Text>
                 </View>
               </View>

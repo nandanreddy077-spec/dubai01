@@ -94,6 +94,36 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         
         if (error) {
           console.error('Error getting session:', error.message || error);
+          
+          // Handle invalid refresh token by clearing session
+          if (error.message?.includes('Invalid Refresh Token') || 
+              error.message?.includes('Refresh Token Not Found') ||
+              error.message?.includes('refresh_token')) {
+            console.log('🔄 Invalid refresh token detected, clearing session...');
+            try {
+              await supabase.auth.signOut();
+              const allKeys = await AsyncStorage.getAllKeys();
+              const supabaseKeys = allKeys.filter(key => 
+                key.includes('supabase') || 
+                key.includes('auth') ||
+                key.includes('sb-') ||
+                key.startsWith('@supabase')
+              );
+              if (supabaseKeys.length > 0) {
+                await AsyncStorage.multiRemove(supabaseKeys);
+              }
+              console.log('✅ Cleared invalid session');
+            } catch (clearError) {
+              console.warn('Error clearing invalid session:', clearError);
+            }
+            if (mounted) {
+              setSession(null);
+              setUser(null);
+              setLoading(false);
+            }
+            return;
+          }
+          
           if (error.message?.includes('Failed to fetch') && retryCount < maxRetries) {
             retryCount++;
             console.log(`Session fetch failed, retrying... (${retryCount}/${maxRetries})`);
@@ -133,6 +163,21 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
               console.log('User signed in successfully:', session.user.email);
             } else if (event === 'SIGNED_OUT') {
               console.log('User signed out');
+              // Clear storage on sign out
+              try {
+                const allKeys = await AsyncStorage.getAllKeys();
+                const supabaseKeys = allKeys.filter(key => 
+                  key.includes('supabase') || 
+                  key.includes('auth') ||
+                  key.includes('sb-') ||
+                  key.startsWith('@supabase')
+                );
+                if (supabaseKeys.length > 0) {
+                  await AsyncStorage.multiRemove(supabaseKeys);
+                }
+              } catch (err) {
+                console.warn('Error clearing storage on sign out:', err);
+              }
             } else if (event === 'TOKEN_REFRESHED') {
               console.log('Token refreshed');
             }
