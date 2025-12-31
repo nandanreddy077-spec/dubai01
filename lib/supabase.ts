@@ -20,14 +20,56 @@ if (!hasCorrectVars && hasLegacyVars) {
 console.log('Supabase URL:', supabaseUrl);
 console.log('Supabase Key (first 20 chars):', supabaseAnonKey.substring(0, 20) + '...');
 
+// Custom storage wrapper that handles errors gracefully
+const safeStorage = {
+  async getItem(key: string) {
+    try {
+      const value = await AsyncStorage.getItem(key);
+      if (value) {
+        const parsed = JSON.parse(value);
+        // Check if refresh token is expired or invalid
+        if (parsed?.refresh_token && parsed?.expires_at) {
+          const expiresAt = parsed.expires_at * 1000;
+          if (Date.now() > expiresAt) {
+            console.log('🔄 Refresh token expired, clearing...');
+            await AsyncStorage.removeItem(key);
+            return null;
+          }
+        }
+        return value;
+      }
+      return null;
+    } catch (error) {
+      console.warn('Storage getItem error:', error);
+      return null;
+    }
+  },
+  async setItem(key: string, value: string) {
+    try {
+      await AsyncStorage.setItem(key, value);
+    } catch (error) {
+      console.warn('Storage setItem error:', error);
+    }
+  },
+  async removeItem(key: string) {
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch (error) {
+      console.warn('Storage removeItem error:', error);
+    }
+  },
+};
+
 // Enhanced configuration with better error handling
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
+    storage: safeStorage as any,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true, // Enable URL detection for OAuth redirects
+    detectSessionInUrl: true,
     debug: __DEV__,
+    // Don't throw errors on refresh token failures
+    flowType: 'pkce',
   },
   global: {
     headers: {

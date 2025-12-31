@@ -1,7 +1,7 @@
 import { Session, User } from '@supabase/supabase-js';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import createContextHook from '@nkzw/create-context-hook';
-import { supabase, testSupabaseConnection } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
@@ -41,81 +41,39 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         return;
       }
 
-      // Clear old Supabase sessions if switching projects
-      const currentSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      const OLD_SUPABASE_URL = 'kvwshebdezzoetmaqndc'; // Old project identifier
-      
       try {
-        // Check if we have cached session from old Supabase
-        const allKeys = await AsyncStorage.getAllKeys();
-        const supabaseKeys = allKeys.filter(key => 
-          key.includes('supabase') || 
-          key.includes('auth') ||
-          key.includes('sb-') ||
-          key.startsWith('@supabase')
-        );
-        
-        // If we find old session data and we're using new Supabase, clear it
-        if (supabaseKeys.length > 0 && currentSupabaseUrl && !currentSupabaseUrl.includes(OLD_SUPABASE_URL)) {
-          console.log('🔄 Clearing old Supabase session cache...');
-          console.log('Current URL:', currentSupabaseUrl);
-          console.log('Found cached keys:', supabaseKeys);
-          
-          // Sign out from any existing session first
-          await supabase.auth.signOut();
-          
-          // Clear all Supabase-related AsyncStorage keys
-          await AsyncStorage.multiRemove(supabaseKeys);
-          console.log('✅ Cleared old Supabase cache');
-        }
-      } catch (clearError) {
-        console.warn('⚠️ Error clearing old session cache:', clearError);
-        // Continue anyway - might not have old cache
-      }
-
-      try {
-        // Test connection first
-        console.log('Testing Supabase connection in AuthContext...');
-        console.log('Using Supabase URL:', currentSupabaseUrl);
-        const connectionOk = await testSupabaseConnection();
-        console.log('Connection test result:', connectionOk);
-        
-        if (!connectionOk && retryCount < maxRetries) {
-          retryCount++;
-          console.log(`Connection test failed, retrying... (${retryCount}/${maxRetries})`);
-          setTimeout(() => {
-            if (mounted) initializeAuth();
-          }, 2000 * retryCount); // Exponential backoff
-          return;
-        }
-
-        // Get initial session with retry logic
+        // Get initial session with comprehensive error handling
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('Error getting session:', error.message || error);
+          console.log('Session error detected:', error.message);
           
-          // Handle invalid refresh token by clearing session
+          // Handle any refresh token errors by clearing session
           if (error.message?.includes('Invalid Refresh Token') || 
               error.message?.includes('Refresh Token Not Found') ||
-              error.message?.includes('refresh_token')) {
-            console.log('🔄 Invalid refresh token detected, clearing session...');
+              error.message?.includes('refresh_token') ||
+              error.message?.includes('JWT') ||
+              error.status === 400) {
+            console.log('🔄 Clearing invalid session...');
             try {
-              await supabase.auth.signOut();
+              // Clear all auth-related storage
+              await supabase.auth.signOut({ scope: 'local' });
               const allKeys = await AsyncStorage.getAllKeys();
-              const supabaseKeys = allKeys.filter(key => 
+              const authKeys = allKeys.filter(key => 
                 key.includes('supabase') || 
                 key.includes('auth') ||
                 key.includes('sb-') ||
                 key.startsWith('@supabase')
               );
-              if (supabaseKeys.length > 0) {
-                await AsyncStorage.multiRemove(supabaseKeys);
+              if (authKeys.length > 0) {
+                await AsyncStorage.multiRemove(authKeys);
               }
-              console.log('✅ Cleared invalid session');
+              console.log('✅ Session cleared');
             } catch (clearError) {
-              console.warn('Error clearing invalid session:', clearError);
+              console.warn('Error clearing session:', clearError);
             }
+            
+            // Continue with no session
             if (mounted) {
               setSession(null);
               setUser(null);
@@ -124,14 +82,18 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
             return;
           }
           
+          // Network errors - retry
           if (error.message?.includes('Failed to fetch') && retryCount < maxRetries) {
             retryCount++;
-            console.log(`Session fetch failed, retrying... (${retryCount}/${maxRetries})`);
+            console.log(`Retrying... (${retryCount}/${maxRetries})`);
             setTimeout(() => {
               if (mounted) initializeAuth();
             }, 2000 * retryCount);
             return;
           }
+          
+          // For other errors, continue without session
+          console.log('Continuing without session due to error');
         }
         
         if (mounted) {
@@ -140,8 +102,17 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
           setLoading(false);
         }
       } catch (error: any) {
-        console.error('Auth initialization error:', error.message || error);
-        if (mounted) setLoading(false);
+        console.log('Auth init exception:', error.message);
+        // Clear session on any exception
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch {}
+        
+        if (mounted) {
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+        }
       }
     };
 
@@ -152,41 +123,41 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
     try {
       const { data } = supabase.auth.onAuthStateChange(
         async (event, session) => {
-          console.log('Auth state changed:', event, session?.user?.email);
+          console.log('Auth state changed:', event, session?.user?.email || 'no user');
           if (mounted) {
             setSession(session);
             setUser(session?.user ?? null);
             setLoading(false);
             
-            // Handle OAuth redirects
             if (event === 'SIGNED_IN' && session) {
-              console.log('User signed in successfully:', session.user.email);
+              console.log('✅ User signed in:', session.user.email);
             } else if (event === 'SIGNED_OUT') {
-              console.log('User signed out');
-              // Clear storage on sign out
+              console.log('User signed out, clearing storage...');
               try {
                 const allKeys = await AsyncStorage.getAllKeys();
-                const supabaseKeys = allKeys.filter(key => 
+                const authKeys = allKeys.filter(key => 
                   key.includes('supabase') || 
                   key.includes('auth') ||
                   key.includes('sb-') ||
                   key.startsWith('@supabase')
                 );
-                if (supabaseKeys.length > 0) {
-                  await AsyncStorage.multiRemove(supabaseKeys);
+                if (authKeys.length > 0) {
+                  await AsyncStorage.multiRemove(authKeys);
                 }
               } catch (err) {
-                console.warn('Error clearing storage on sign out:', err);
+                console.warn('Error clearing storage:', err);
               }
             } else if (event === 'TOKEN_REFRESHED') {
-              console.log('Token refreshed');
+              console.log('✅ Token refreshed');
+            } else if (event === 'USER_UPDATED') {
+              console.log('User updated');
             }
           }
         }
       );
       subscription = data.subscription;
     } catch (error) {
-      console.error('Error setting up auth state listener:', error);
+      console.error('Error setting up auth listener:', error);
     }
 
     return () => {

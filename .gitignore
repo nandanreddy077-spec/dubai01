@@ -57,3 +57,5 @@ android/*.iml
 
 .rork
 rork-eslint.config.js
+ios/
+android/

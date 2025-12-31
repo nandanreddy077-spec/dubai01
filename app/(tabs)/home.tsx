@@ -47,7 +47,7 @@ const DAILY_AFFIRMATIONS = [
   },
 ];
 
-export default function HomeScreen() {
+export default function GlowHomeScreen() {
   const { user, isFirstTime, setIsFirstTime } = useUser();
   const { user: authUser } = useAuth();
   const { theme } = useTheme();
@@ -69,7 +69,6 @@ export default function HomeScreen() {
     return "Good evening,";
   }, []);
 
-  // Initialize notifications and tracking once on mount
   useEffect(() => {
     const initializeHome = async () => {
       await trackAppOpen();
@@ -77,21 +76,15 @@ export default function HomeScreen() {
     };
     
     initializeHome();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?.stats.dayStreak]);
 
-  // Handle first time user - just mark as not first time anymore
-  // Don't automatically show photo picker as it can cause issues on app startup
   useEffect(() => {
     if (isFirstTime && user) {
-      // Just mark as not first time - user can add profile photo from profile screen
       setIsFirstTime(false);
     }
   }, [isFirstTime, setIsFirstTime, user]);
 
-  // Animations effect - only runs once
   useEffect(() => {
-    // Gentle sparkle animation
     const sparkleAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(sparkleAnim, {
@@ -107,7 +100,6 @@ export default function HomeScreen() {
       ])
     );
     
-    // Floating animation for cards
     const floatingAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(floatingAnim, {
@@ -126,7 +118,6 @@ export default function HomeScreen() {
     sparkleAnimation.start();
     floatingAnimation.start();
     
-    // Cycle through affirmations
     const affirmationInterval = setInterval(() => {
       setCurrentAffirmationIndex((prev) => (prev + 1) % DAILY_AFFIRMATIONS.length);
     }, 5000);
@@ -182,7 +173,6 @@ export default function HomeScreen() {
       <View style={styles.ambientTop} pointerEvents="none" />
       <View style={styles.ambientBottom} pointerEvents="none" />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Floating sparkles */}
         <Animated.View 
           style={[
             styles.sparkle1,
@@ -226,11 +216,10 @@ export default function HomeScreen() {
           <Heart color={palette.gold} size={14} fill={palette.gold} />
         </Animated.View>
         
-        {/* Logo and Streak Header */}
         <View style={styles.topBar}>
           <View style={styles.logoContainer}>
             <Image 
-              source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/f5e5w5vtr879xn52v2jvv' }} 
+              source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/zyxej2cms2wm7flx3yj7z' }} 
               style={styles.logoImage}
             />
             <View style={styles.logoTextContainer}>
@@ -315,10 +304,8 @@ export default function HomeScreen() {
           </LinearGradient>
         </PressableScale>
 
-        {/* Trial Reminder Banner */}
         <TrialReminderBanner />
 
-        {/* Progress Hub Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
@@ -357,7 +344,6 @@ export default function HomeScreen() {
                   <ArrowRight color={palette.textLight} size={16} strokeWidth={3} />
                 </View>
                 
-                {/* Decorative circles */}
                 <View style={[styles.progressDecorCircle, { top: 20, right: 20, width: 40, height: 40, opacity: 0.15 }]} />
                 <View style={[styles.progressDecorCircle, { bottom: 30, right: 30, width: 60, height: 60, opacity: 0.1 }]} />
               </LinearGradient>
@@ -387,7 +373,6 @@ export default function HomeScreen() {
                   <ArrowRight color={palette.textLight} size={16} strokeWidth={3} />
                 </View>
                 
-                {/* Decorative circles */}
                 <View style={[styles.progressDecorCircle, { top: 20, right: 20, width: 40, height: 40, opacity: 0.15 }]} />
                 <View style={[styles.progressDecorCircle, { bottom: 30, right: 30, width: 60, height: 60, opacity: 0.1 }]} />
               </LinearGradient>
@@ -619,10 +604,10 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   logoText: {
     fontSize: 22,
-    fontWeight: '900' as const, // Extra bold to match image
+    fontWeight: '900' as const,
     color: palette.textPrimary,
     letterSpacing: -0.6,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium', // Bold sans-serif
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
   checkTextContainer: {
     flexDirection: 'row',
@@ -640,9 +625,9 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     top: '50%',
     transform: [{ translateY: -2 }],
     width: 10,
-    height: 4, // Thicker stroke like in image
-    backgroundColor: '#C9A961', // Gold-brown color matching image
-    borderRadius: 2, // Pill-like rounded ends
+    height: 4,
+    backgroundColor: '#C9A961',
+    borderRadius: 2,
     zIndex: 10,
   },
   streakContainer: {
@@ -961,7 +946,6 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     borderRadius: 1000,
     backgroundColor: palette.textLight,
   },
-
   actionCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -1107,7 +1091,6 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     marginHorizontal: 20,
     borderRadius: 1,
   },
-  // Floating sparkles
   sparkle1: {
     position: 'absolute',
     top: 80,
@@ -1126,7 +1109,6 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     right: 80,
     zIndex: 1,
   },
-  // Action icon background
   actionIconBg: {
     width: 56,
     height: 56,

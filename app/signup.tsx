@@ -125,7 +125,7 @@ export default function SignupScreen() {
       Alert.alert(
         'Welcome to Your Glow Journey! ✨',
         'Account created! Next, add a profile picture to personalize your experience.',
-        [{ text: 'Continue', onPress: () => router.replace('/(tabs)') }]
+        [{ text: 'Continue', onPress: () => router.replace('/(tabs)/home') }]
       );
     }
   };
@@ -146,7 +146,7 @@ export default function SignupScreen() {
       }
       Alert.alert('Google Sign In', error.message || 'Something went wrong. Please try again.');
     } else {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/home');
     }
   };
 
