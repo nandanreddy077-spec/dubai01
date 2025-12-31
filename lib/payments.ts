@@ -71,6 +71,10 @@ class PaymentService {
   private subscriptionListeners: Set<(customerInfo: any) => void> = new Set();
 
   private async loadPurchasesModule(): Promise<any> {
+    if (Platform.OS === 'web') {
+      return null;
+    }
+    
     try {
       // Try to load RevenueCat - this will work in production builds with EAS Build
       const Purchases = require('react-native-purchases');
