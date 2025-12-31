@@ -1,15 +1,16 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Dimensions, Animated, TouchableOpacity, StatusBar, TextInput, Easing, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { useUser } from '@/contexts/UserContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { ChevronRight, Sparkles, Star, Zap, Heart, Check, ArrowLeft } from 'lucide-react-native';
+import { ChevronRight, Sparkles, Star, Zap, Heart, Check, ArrowLeft, Crown, TrendingUp, Users } from 'lucide-react-native';
 import Logo from '@/components/Logo';
 import { getPalette, getGradient, shadow, spacing, radii } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 
 interface OnboardingData {
   name: string;
@@ -42,8 +43,8 @@ export default function OnboardingScreen() {
   const { setIsFirstTime } = useUser();
   const { user, session, loading } = useAuth();
   const { theme } = useTheme();
-  const height = Dimensions.get('window').height;
-  const [step, setStep] = useState<number>(0);
+  const { width, height } = Dimensions.get('window');
+  const [step, setStep] = useState<number>(-1);
   const [data, setData] = useState<OnboardingData>({
     name: '',
     gender: '',
@@ -58,6 +59,10 @@ export default function OnboardingScreen() {
   const [floatAnim] = useState(new Animated.Value(0));
   const [scaleInAnim] = useState(new Animated.Value(0));
   const [slideInAnim] = useState(new Animated.Value(0));
+  const [splashFadeIn] = useState(new Animated.Value(0));
+  const [splashScale] = useState(new Animated.Value(0.8));
+  const [rotateAnim] = useState(new Animated.Value(0));
+  const particleAnims = useRef(Array.from({ length: 8 }, () => new Animated.Value(0))).current;
   
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
@@ -84,6 +89,44 @@ export default function OnboardingScreen() {
   }, [user, session, loading]);
   
   useEffect(() => {
+    if (step === -1) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Animated.parallel([
+        Animated.timing(splashFadeIn, {
+          toValue: 1,
+          duration: 800,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.spring(splashScale, {
+          toValue: 1,
+          tension: 40,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      particleAnims.forEach((anim, index) => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.delay(index * 200),
+            Animated.timing(anim, {
+              toValue: 1,
+              duration: 2000 + index * 200,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(anim, {
+              toValue: 0,
+              duration: 2000 + index * 200,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+      });
+    }
+
     const sparkleAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(sparkleAnim, {
@@ -130,42 +173,56 @@ export default function OnboardingScreen() {
         }),
       ])
     );
+
+    const rotateAnimation = Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 20000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
     
     sparkleAnimation.start();
     pulseAnimation.start();
     floatAnimation.start();
+    rotateAnimation.start();
     
     return () => {
       sparkleAnimation.stop();
       pulseAnimation.stop();
       floatAnimation.stop();
+      rotateAnimation.stop();
     };
-  }, [sparkleAnim, pulseAnim, floatAnim]);
+  }, [step, sparkleAnim, pulseAnim, floatAnim, splashFadeIn, splashScale, rotateAnim, particleAnims]);
 
   useEffect(() => {
-    scaleInAnim.setValue(0);
-    slideInAnim.setValue(0);
+    if (step >= 0) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      scaleInAnim.setValue(0);
+      slideInAnim.setValue(0);
 
-    // Ensure opacity starts at 1 for immediate visibility
-    slideInAnim.setValue(1);
+      slideInAnim.setValue(1);
 
-    Animated.parallel([
-      Animated.spring(scaleInAnim, {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideInAnim, {
-        toValue: 1,
-        duration: 300,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
+      Animated.parallel([
+        Animated.spring(scaleInAnim, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideInAnim, {
+          toValue: 1,
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
   }, [step, scaleInAnim, slideInAnim]);
 
   const handleNext = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (step < 6) {
       setStep(step + 1);
     } else {
@@ -177,12 +234,16 @@ export default function OnboardingScreen() {
   }, [step, data, setIsFirstTime]);
 
   const handleBack = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (step > 0) {
       setStep(step - 1);
+    } else if (step === 0) {
+      setStep(-1);
     }
   }, [step]);
 
   const toggleSkinConcern = (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setData(prev => ({
       ...prev,
       skinConcerns: prev.skinConcerns.includes(id)
@@ -192,6 +253,7 @@ export default function OnboardingScreen() {
   };
 
   const toggleGoal = (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setData(prev => ({
       ...prev,
       goals: prev.goals.includes(id)
@@ -202,6 +264,7 @@ export default function OnboardingScreen() {
 
   const canProceed = () => {
     switch(step) {
+      case -1: return true;
       case 0: return true;
       case 1: return data.name.trim().length > 0;
       case 2: return data.gender.length > 0;
@@ -230,8 +293,103 @@ export default function OnboardingScreen() {
 
   const styles = createStyles(palette, height);
 
+  const rotation = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
   const renderStep = () => {
     switch(step) {
+      case -1:
+        return (
+          <Animated.View style={[styles.splashContainer, { opacity: splashFadeIn }]}>
+            <Animated.View style={[styles.splashContent, { transform: [{ scale: splashScale }] }]}>
+              <View style={styles.splashLogoWrapper}>
+                <Animated.View style={[styles.splashGlowRing, { transform: [{ rotate: rotation }] }]}>
+                  <LinearGradient
+                    colors={gradient.gold}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.splashGlowGradient}
+                  />
+                </Animated.View>
+                <Logo size={140} />
+              </View>
+              
+              <View style={styles.splashTextSection}>
+                <Text style={styles.splashTitle}>GlowCheck</Text>
+                <Text style={styles.splashSubtitle}>Your AI-Powered Beauty Companion</Text>
+                <View style={styles.splashTagline}>
+                  <Crown size={18} color={palette.gold} strokeWidth={2.5} />
+                  <Text style={styles.splashTaglineText}>Unlock Your Best Self</Text>
+                </View>
+              </View>
+
+              <View style={styles.splashFeatures}>
+                <View style={styles.splashFeature}>
+                  <View style={styles.splashFeatureIcon}>
+                    <Sparkles size={20} color={palette.gold} strokeWidth={2.5} />
+                  </View>
+                  <View style={styles.splashFeatureText}>
+                    <Text style={styles.splashFeatureTitle}>AI-Powered Analysis</Text>
+                    <Text style={styles.splashFeatureDesc}>Get instant personalized insights</Text>
+                  </View>
+                </View>
+                <View style={styles.splashFeature}>
+                  <View style={styles.splashFeatureIcon}>
+                    <TrendingUp size={20} color={palette.gold} strokeWidth={2.5} />
+                  </View>
+                  <View style={styles.splashFeatureText}>
+                    <Text style={styles.splashFeatureTitle}>Track Progress</Text>
+                    <Text style={styles.splashFeatureDesc}>See your glow-up journey unfold</Text>
+                  </View>
+                </View>
+                <View style={styles.splashFeature}>
+                  <View style={styles.splashFeatureIcon}>
+                    <Users size={20} color={palette.gold} strokeWidth={2.5} />
+                  </View>
+                  <View style={styles.splashFeatureText}>
+                    <Text style={styles.splashFeatureTitle}>Join Community</Text>
+                    <Text style={styles.splashFeatureDesc}>Connect with beauty enthusiasts</Text>
+                  </View>
+                </View>
+              </View>
+            </Animated.View>
+
+            {particleAnims.map((anim, index) => {
+              const angle = (index / particleAnims.length) * Math.PI * 2;
+              const radius = width * 0.35;
+              const translateY = anim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, -30],
+              });
+              const particleOpacity = anim.interpolate({
+                inputRange: [0, 0.5, 1],
+                outputRange: [0, 1, 0],
+              });
+              return (
+                <Animated.View
+                  key={index}
+                  style={[
+                    styles.particle,
+                    {
+                      left: width / 2 + Math.cos(angle) * radius,
+                      top: height / 2 + Math.sin(angle) * radius,
+                      opacity: particleOpacity,
+                      transform: [{ translateY }],
+                    },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[palette.gold, 'transparent']}
+                    style={styles.particleGradient}
+                  />
+                </Animated.View>
+              );
+            })}
+          </Animated.View>
+        );
+      
       case 0:
         return (
           <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
@@ -241,9 +399,9 @@ export default function OnboardingScreen() {
               </Animated.View>
             </View>
             <View style={styles.contentCenter}>
-              <Text style={styles.stepTitle}>Your Journey to{' \n'}Confidence Starts Here</Text>
+              <Text style={styles.stepTitle}>Transform Your{' \n'}Beauty Journey</Text>
               <Text style={styles.stepSubtitle}>
-                Join people who discovered their best self through personalized skincare insights
+                Join thousands who unlocked their glow with personalized AI insights
               </Text>
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
@@ -269,8 +427,8 @@ export default function OnboardingScreen() {
         return (
           <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
             <View style={styles.contentTop}>
-              <Text style={styles.stepTitle}>Let&apos;s get to know you</Text>
-              <Text style={styles.stepSubtitle}>What should we call you?</Text>
+              <Text style={styles.stepTitle}>Welcome to Your{' \n'}Glow Journey</Text>
+              <Text style={styles.stepSubtitle}>First, what&apos;s your name?</Text>
             </View>
             <View style={styles.inputSection}>
               <View style={styles.inputWrapper}>
@@ -293,8 +451,8 @@ export default function OnboardingScreen() {
         return (
           <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
             <View style={styles.contentTop}>
-              <Text style={styles.stepTitle}>Nice to meet you, {data.name}!</Text>
-              <Text style={styles.stepSubtitle}>How do you identify?</Text>
+              <Text style={styles.stepTitle}>Perfect, {data.name}! 👋</Text>
+              <Text style={styles.stepSubtitle}>How do you identify? This helps us personalize your experience.</Text>
             </View>
             <View style={styles.optionsGrid}>
               {['Woman', 'Man', 'Non-binary', 'Prefer not to say'].map((option) => (
@@ -326,8 +484,8 @@ export default function OnboardingScreen() {
         return (
           <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
             <View style={styles.contentTop}>
-              <Text style={styles.stepTitle}>What&apos;s your age range?</Text>
-              <Text style={styles.stepSubtitle}>This helps us tailor recommendations</Text>
+              <Text style={styles.stepTitle}>Tell Us Your Age Range</Text>
+              <Text style={styles.stepSubtitle}>Age-appropriate skincare is the secret to lasting results</Text>
             </View>
             <View style={styles.optionsGrid}>
               {['Under 18', '18-24', '25-34', '35-44', '45-54', '55+'].map((option) => (
@@ -359,8 +517,8 @@ export default function OnboardingScreen() {
         return (
           <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
             <View style={styles.contentTop}>
-              <Text style={styles.stepTitle}>What are your main skin concerns?</Text>
-              <Text style={styles.stepSubtitle}>Select all that apply</Text>
+              <Text style={styles.stepTitle}>What Are Your{' \n'}Skin Goals?</Text>
+              <Text style={styles.stepSubtitle}>Choose everything you want to improve—we&apos;ve got you covered</Text>
             </View>
             <View style={styles.concernsGrid}>
               {skinConcerns.map((concern) => (
@@ -393,8 +551,8 @@ export default function OnboardingScreen() {
         return (
           <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
             <View style={styles.contentTop}>
-              <Text style={styles.stepTitle}>What are your skincare goals?</Text>
-              <Text style={styles.stepSubtitle}>Choose your priorities</Text>
+              <Text style={styles.stepTitle}>Your Dream{' \n'}Skin Results</Text>
+              <Text style={styles.stepSubtitle}>Pick what matters most to you right now</Text>
             </View>
             <View style={styles.goalsContainer}>
               {goals.map((goal) => {
@@ -444,14 +602,14 @@ export default function OnboardingScreen() {
         return (
           <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
             <View style={styles.contentTop}>
-              <Text style={styles.stepTitle}>How committed are you?</Text>
-              <Text style={styles.stepSubtitle}>Choose your dedication level</Text>
+              <Text style={styles.stepTitle}>Ready to{' \n'}Transform?</Text>
+              <Text style={styles.stepSubtitle}>Your commitment level helps us create your perfect plan</Text>
             </View>
             <View style={styles.commitmentContainer}>
               {[
-                { id: 'casual', label: 'Casual Explorer', subtitle: 'I\'m just exploring', emoji: '🌱' },
-                { id: 'serious', label: 'Serious Improver', subtitle: 'I want real results', emoji: '🎯' },
-                { id: 'dedicated', label: 'Transformation Ready', subtitle: 'I\'m all in!', emoji: '🔥' },
+                { id: 'casual', label: 'Curious Explorer', subtitle: 'Just starting my journey', emoji: '🌱' },
+                { id: 'serious', label: 'Results Focused', subtitle: 'Ready for real change', emoji: '🎯' },
+                { id: 'dedicated', label: 'All-In Transformer', subtitle: 'Nothing stops me!', emoji: '🔥' },
               ].map((option) => (
                 <TouchableOpacity
                   key={option.id}
@@ -524,7 +682,7 @@ export default function OnboardingScreen() {
         </Animated.View>
 
         <View style={styles.header}>
-          {step > 0 && (
+          {step >= 0 && (
             <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
               <ArrowLeft size={24} color={palette.textPrimary} strokeWidth={2} />
             </TouchableOpacity>
@@ -534,7 +692,7 @@ export default function OnboardingScreen() {
               <Animated.View 
                 style={[
                   styles.progressFill,
-                  { width: `${((step + 1) / 7) * 100}%` }
+                  { width: step === -1 ? '0%' : `${((step + 1) / 7) * 100}%` }
                 ]} 
               >
                 <LinearGradient 
@@ -583,13 +741,13 @@ export default function OnboardingScreen() {
               style={styles.primaryGradient}
             >
               <Text style={styles.primaryButtonText}>
-                {step === 6 ? 'Complete' : 'Continue'}
+                {step === -1 ? 'Start Your Journey' : step === 6 ? 'Complete' : 'Continue'}
               </Text>
               <ChevronRight color={palette.textLight} size={24} strokeWidth={3} />
             </LinearGradient>
           </TouchableOpacity>
 
-          {step === 0 && (
+          {step === -1 && (
             <TouchableOpacity 
               style={styles.signinButton} 
               onPress={() => router.replace('/login')}
@@ -608,6 +766,109 @@ export default function OnboardingScreen() {
 }
 
 const createStyles = (palette: ReturnType<typeof getPalette>, height: number) => StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  splashContent: {
+    alignItems: 'center',
+    gap: spacing.xxxl + spacing.lg,
+  },
+  splashLogoWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splashGlowRing: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    opacity: 0.3,
+  },
+  splashGlowGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 110,
+  },
+  splashTextSection: {
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  splashTitle: {
+    fontSize: 48,
+    fontWeight: '900' as const,
+    color: palette.textPrimary,
+    letterSpacing: -2,
+    textAlign: 'center',
+  },
+  splashSubtitle: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: palette.textSecondary,
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
+  splashTagline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    backgroundColor: palette.overlayGold,
+    borderRadius: radii.pill,
+  },
+  splashTaglineText: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: palette.gold,
+    letterSpacing: 0.5,
+  },
+  splashFeatures: {
+    width: '100%',
+    gap: spacing.lg,
+    marginTop: spacing.xl,
+  },
+  splashFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
+  splashFeatureIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: palette.overlayGold,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splashFeatureText: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  splashFeatureTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: palette.textPrimary,
+  },
+  splashFeatureDesc: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: palette.textSecondary,
+  },
+  particle: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+  },
+  particleGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 4,
+  },
   container: { 
     flex: 1, 
   },
