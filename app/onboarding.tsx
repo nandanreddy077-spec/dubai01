@@ -1,13 +1,13 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Dimensions, Animated, TouchableOpacity, StatusBar, TextInput, Easing, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Animated, TouchableOpacity, StatusBar, TextInput, Easing, KeyboardAvoidingView, Platform, ScrollView, ImageBackground } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { useUser } from '@/contexts/UserContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { ChevronRight, Sparkles, Star, Zap, Heart, Check, ArrowLeft, Crown, TrendingUp, Users } from 'lucide-react-native';
+import { ChevronRight, Sparkles, Star, Zap, Heart, Check, ArrowLeft, Crown, TrendingUp, Users, Shield, Award, Play } from 'lucide-react-native';
 import Logo from '@/components/Logo';
-import { getPalette, getGradient, shadow, spacing, radii } from '@/constants/theme';
+import { getPalette, getGradient, shadow, spacing, radii, typography } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -22,21 +22,27 @@ interface OnboardingData {
 }
 
 const skinConcerns = [
-  { id: 'acne', label: 'Acne', emoji: '🔴' },
-  { id: 'dryness', label: 'Dryness', emoji: '💧' },
-  { id: 'aging', label: 'Fine Lines', emoji: '⏳' },
-  { id: 'dark-spots', label: 'Dark Spots', emoji: '⚫' },
-  { id: 'redness', label: 'Redness', emoji: '🌹' },
-  { id: 'texture', label: 'Texture', emoji: '✨' },
-  { id: 'pores', label: 'Large Pores', emoji: '🔍' },
-  { id: 'dullness', label: 'Dullness', emoji: '🌙' },
+  { id: 'acne', label: 'Acne & Blemishes', emoji: '🔴' },
+  { id: 'dryness', label: 'Dryness & Flaking', emoji: '💧' },
+  { id: 'aging', label: 'Fine Lines & Wrinkles', emoji: '⏳' },
+  { id: 'dark-spots', label: 'Dark Spots & Scars', emoji: '⚫' },
+  { id: 'redness', label: 'Redness & Sensitivity', emoji: '🌹' },
+  { id: 'texture', label: 'Uneven Texture', emoji: '✨' },
+  { id: 'pores', label: 'Enlarged Pores', emoji: '🔍' },
+  { id: 'dullness', label: 'Dullness & Fatigue', emoji: '🌙' },
 ];
 
 const goals = [
-  { id: 'clear-skin', label: 'Clear Skin', icon: Sparkles },
-  { id: 'anti-aging', label: 'Anti-Aging', icon: Star },
-  { id: 'hydration', label: 'Hydration', icon: Heart },
-  { id: 'glow', label: 'Natural Glow', icon: Zap },
+  { id: 'clear-skin', label: 'Glass Skin', icon: Sparkles, desc: 'Achieve flawless, transparent texture' },
+  { id: 'anti-aging', label: 'Youthful Radiance', icon: Star, desc: 'Reverse signs of aging effectively' },
+  { id: 'hydration', label: 'Deep Hydration', icon: Heart, desc: 'Restore moisture barrier balance' },
+  { id: 'glow', label: 'Natural Glow', icon: Zap, desc: 'Radiate health from within' },
+];
+
+const commitmentLevels = [
+  { id: 'casual', label: 'The Explorer', subtitle: 'Curious about skincare basics', emoji: '🌱' },
+  { id: 'serious', label: 'The Enthusiast', subtitle: 'Ready to build a solid routine', emoji: '✨' },
+  { id: 'dedicated', label: 'The Perfectionist', subtitle: 'Committed to flawless results', emoji: '👑' },
 ];
 
 export default function OnboardingScreen() {
@@ -54,172 +60,133 @@ export default function OnboardingScreen() {
     commitment: '',
   });
   
-  const [sparkleAnim] = useState(new Animated.Value(0));
-  const [pulseAnim] = useState(new Animated.Value(0));
-  const [floatAnim] = useState(new Animated.Value(0));
-  const [scaleInAnim] = useState(new Animated.Value(0));
-  const [slideInAnim] = useState(new Animated.Value(0));
-  const [splashFadeIn] = useState(new Animated.Value(0));
-  const [splashScale] = useState(new Animated.Value(0.8));
-  const [rotateAnim] = useState(new Animated.Value(0));
-  const particleAnims = useRef(Array.from({ length: 8 }, () => new Animated.Value(0))).current;
-  
+  // Animation Values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const bgFloatAnim = useRef(new Animated.Value(0)).current;
+  const logoScaleAnim = useRef(new Animated.Value(0.8)).current;
+  const logoRotateAnim = useRef(new Animated.Value(0)).current;
+  const contentFadeAnim = useRef(new Animated.Value(0)).current;
+  const contentSlideAnim = useRef(new Animated.Value(30)).current;
+  const buttonPulseAnim = useRef(new Animated.Value(1)).current;
+
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
-  
+
+  // Authentication Check
   useEffect(() => {
     const checkAuthStatus = async () => {
       if (loading) return;
-      
       if (user && session) {
-        console.log('✅ User already authenticated, redirecting to home');
         router.replace('/(tabs)');
         return;
       }
-      
       const hasCompletedOnboarding = await AsyncStorage.getItem('@onboarding_completed');
       if (hasCompletedOnboarding === 'true') {
-        console.log('⚠️ Onboarding completed, redirecting to login');
         router.replace('/login');
         return;
       }
     };
-    
     checkAuthStatus();
   }, [user, session, loading]);
-  
+
+  // Background Floating Animation
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bgFloatAnim, {
+          toValue: 1,
+          duration: 8000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bgFloatAnim, {
+          toValue: 0,
+          duration: 8000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Subtle logo rotation
+    Animated.loop(
+      Animated.timing(logoRotateAnim, {
+        toValue: 1,
+        duration: 20000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    // Button pulse
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(buttonPulseAnim, {
+          toValue: 1.05,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(buttonPulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  // Intro Animation
   useEffect(() => {
     if (step === -1) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       Animated.parallel([
-        Animated.timing(splashFadeIn, {
+        Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 800,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.spring(logoScaleAnim, {
+          toValue: 1,
+          tension: 20,
+          friction: 6,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [step]);
+
+  // Step Transition Animation
+  useEffect(() => {
+    if (step >= 0) {
+      contentFadeAnim.setValue(0);
+      contentSlideAnim.setValue(30);
+      scaleAnim.setValue(0.95);
+
+      Animated.parallel([
+        Animated.timing(contentFadeAnim, {
+          toValue: 1,
+          duration: 600,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
-        Animated.spring(splashScale, {
+        Animated.spring(contentSlideAnim, {
+          toValue: 0,
+          tension: 40,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
           toValue: 1,
           tension: 40,
           friction: 8,
           useNativeDriver: true,
         }),
       ]).start();
-
-      particleAnims.forEach((anim, index) => {
-        Animated.loop(
-          Animated.sequence([
-            Animated.delay(index * 200),
-            Animated.timing(anim, {
-              toValue: 1,
-              duration: 2000 + index * 200,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
-            }),
-            Animated.timing(anim, {
-              toValue: 0,
-              duration: 2000 + index * 200,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
-            }),
-          ])
-        ).start();
-      });
     }
-
-    const sparkleAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(sparkleAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(sparkleAnim, {
-          toValue: 0,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    
-    const pulseAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 0,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    const floatAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: 1,
-          duration: 3000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 3000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    const rotateAnimation = Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 20000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    
-    sparkleAnimation.start();
-    pulseAnimation.start();
-    floatAnimation.start();
-    rotateAnimation.start();
-    
-    return () => {
-      sparkleAnimation.stop();
-      pulseAnimation.stop();
-      floatAnimation.stop();
-      rotateAnimation.stop();
-    };
-  }, [step, sparkleAnim, pulseAnim, floatAnim, splashFadeIn, splashScale, rotateAnim, particleAnims]);
-
-  useEffect(() => {
-    if (step >= 0) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      scaleInAnim.setValue(0);
-      slideInAnim.setValue(0);
-
-      slideInAnim.setValue(1);
-
-      Animated.parallel([
-        Animated.spring(scaleInAnim, {
-          toValue: 1,
-          tension: 50,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideInAnim, {
-          toValue: 1,
-          duration: 400,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [step, scaleInAnim, slideInAnim]);
+  }, [step]);
 
   const handleNext = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -243,7 +210,7 @@ export default function OnboardingScreen() {
   }, [step]);
 
   const toggleSkinConcern = (id: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.selectionAsync();
     setData(prev => ({
       ...prev,
       skinConcerns: prev.skinConcerns.includes(id)
@@ -253,7 +220,7 @@ export default function OnboardingScreen() {
   };
 
   const toggleGoal = (id: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.selectionAsync();
     setData(prev => ({
       ...prev,
       goals: prev.goals.includes(id)
@@ -276,487 +243,341 @@ export default function OnboardingScreen() {
     }
   };
 
-  const floatY = floatAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-10, 10],
-  });
+  // Styles
+  const styles = createStyles(palette, height, width);
 
-  const scaleIn = scaleInAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.8, 1],
-  });
+  // Render Helpers
+  const renderOption = (label: string, isSelected: boolean, onPress: () => void) => (
+    <TouchableOpacity
+      style={[styles.optionCard, isSelected && styles.optionCardSelected]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View style={styles.optionContent}>
+        <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>{label}</Text>
+        {isSelected && (
+          <View style={styles.checkIcon}>
+            <Check size={14} color={palette.textInverse} strokeWidth={3} />
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
 
-  const slideIn = slideInAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [50, 0],
-  });
-
-  const styles = createStyles(palette, height);
-
-  const rotation = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
-  const renderStep = () => {
+  const renderContent = () => {
     switch(step) {
       case -1:
         return (
-          <Animated.View style={[styles.splashContainer, { opacity: splashFadeIn }]}>
-            <Animated.View style={[styles.splashContent, { transform: [{ scale: splashScale }] }]}>
-              <View style={styles.splashLogoWrapper}>
-                <Animated.View style={[styles.splashGlowRing, { transform: [{ rotate: rotation }] }]}>
-                  <LinearGradient
-                    colors={gradient.gold}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.splashGlowGradient}
-                  />
+          <View style={styles.splashContainer}>
+            <Animated.View style={[styles.splashContent, { opacity: fadeAnim, transform: [{ scale: logoScaleAnim }] }]}>
+              <View style={styles.logoWrapper}>
+                <Animated.View style={[styles.logoGlow, { 
+                  transform: [
+                    { rotate: logoRotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) },
+                    { scale: bgFloatAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.1] }) }
+                  ] 
+                }]}>
+                  <LinearGradient colors={gradient.gold} style={StyleSheet.absoluteFillObject} start={{x:0, y:0}} end={{x:1, y:1}} />
                 </Animated.View>
-                <Logo size={140} />
+                <Logo size={160} />
               </View>
               
-              <View style={styles.splashTextSection}>
-                <Text style={styles.splashTitle}>GlowCheck</Text>
-                <Text style={styles.splashSubtitle}>Your AI-Powered Beauty Companion</Text>
-                <View style={styles.splashTagline}>
-                  <Crown size={18} color={palette.gold} strokeWidth={2.5} />
-                  <Text style={styles.splashTaglineText}>Unlock Your Best Self</Text>
+              <View style={styles.splashTextContainer}>
+                <Text style={styles.appName}>GlowCheck</Text>
+                <Text style={styles.appTagline}>Luxury AI Skincare Analysis</Text>
+                <View style={styles.premiumBadge}>
+                  <Crown size={14} color={palette.gold} fill={palette.gold} />
+                  <Text style={styles.premiumBadgeText}>PREMIUM EXPERIENCE</Text>
                 </View>
               </View>
 
-              <View style={styles.splashFeatures}>
-                <View style={styles.splashFeature}>
-                  <View style={styles.splashFeatureIcon}>
-                    <Sparkles size={20} color={palette.gold} strokeWidth={2.5} />
-                  </View>
-                  <View style={styles.splashFeatureText}>
-                    <Text style={styles.splashFeatureTitle}>AI-Powered Analysis</Text>
-                    <Text style={styles.splashFeatureDesc}>Get instant personalized insights</Text>
-                  </View>
+              <View style={styles.featurePills}>
+                <View style={styles.pill}>
+                  <Sparkles size={14} color={palette.gold} />
+                  <Text style={styles.pillText}>AI Analysis</Text>
                 </View>
-                <View style={styles.splashFeature}>
-                  <View style={styles.splashFeatureIcon}>
-                    <TrendingUp size={20} color={palette.gold} strokeWidth={2.5} />
-                  </View>
-                  <View style={styles.splashFeatureText}>
-                    <Text style={styles.splashFeatureTitle}>Track Progress</Text>
-                    <Text style={styles.splashFeatureDesc}>See your glow-up journey unfold</Text>
-                  </View>
-                </View>
-                <View style={styles.splashFeature}>
-                  <View style={styles.splashFeatureIcon}>
-                    <Users size={20} color={palette.gold} strokeWidth={2.5} />
-                  </View>
-                  <View style={styles.splashFeatureText}>
-                    <Text style={styles.splashFeatureTitle}>Join Community</Text>
-                    <Text style={styles.splashFeatureDesc}>Connect with beauty enthusiasts</Text>
-                  </View>
+                <View style={styles.pill}>
+                  <Award size={14} color={palette.gold} />
+                  <Text style={styles.pillText}>Expert Plans</Text>
                 </View>
               </View>
             </Animated.View>
+          </View>
+        );
 
-            {particleAnims.map((anim, index) => {
-              const angle = (index / particleAnims.length) * Math.PI * 2;
-              const radius = width * 0.35;
-              const translateY = anim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, -30],
-              });
-              const particleOpacity = anim.interpolate({
-                inputRange: [0, 0.5, 1],
-                outputRange: [0, 1, 0],
-              });
-              return (
-                <Animated.View
-                  key={index}
-                  style={[
-                    styles.particle,
-                    {
-                      left: width / 2 + Math.cos(angle) * radius,
-                      top: height / 2 + Math.sin(angle) * radius,
-                      opacity: particleOpacity,
-                      transform: [{ translateY }],
-                    },
-                  ]}
-                >
-                  <LinearGradient
-                    colors={[palette.gold, 'transparent']}
-                    style={styles.particleGradient}
-                  />
-                </Animated.View>
-              );
-            })}
-          </Animated.View>
-        );
-      
-      case 0:
+      case 0: // Welcome
         return (
-          <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
-            <View style={styles.logoSection}>
-              <Animated.View style={{ transform: [{ scale: scaleIn }] }}>
-                <Logo size={120} />
-              </Animated.View>
-            </View>
-            <View style={styles.contentCenter}>
-              <Text style={styles.stepTitle}>Transform Your{' \n'}Beauty Journey</Text>
-              <Text style={styles.stepSubtitle}>
-                Join thousands who unlocked their glow with personalized AI insights
-              </Text>
-              <View style={styles.statsRow}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>Expert</Text>
-                  <Text style={styles.statLabel}>AI Tech</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>24/7</Text>
-                  <Text style={styles.statLabel}>Access</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>89%</Text>
-                  <Text style={styles.statLabel}>See Results</Text>
-                </View>
+          <View style={styles.stepContent}>
+            <View style={styles.heroImageContainer}>
+              <Logo size={120} />
+              <View style={styles.heroBadge}>
+                <Award size={16} color={palette.gold} />
+                <Text style={styles.heroBadgeText}>#1 Beauty AI</Text>
               </View>
             </View>
-          </Animated.View>
-        );
-      
-      case 1:
-        return (
-          <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
-            <View style={styles.contentTop}>
-              <Text style={styles.stepTitle}>Welcome to Your{' \n'}Glow Journey</Text>
-              <Text style={styles.stepSubtitle}>First, what&apos;s your name?</Text>
-            </View>
-            <View style={styles.inputSection}>
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Your name"
-                  placeholderTextColor={palette.textMuted}
-                  value={data.name}
-                  onChangeText={(text) => setData(prev => ({ ...prev, name: text }))}
-                  autoFocus={false}
-                  returnKeyType="next"
-                />
+            <Text style={styles.title}>Unlock Your Ultimate{"\n"}Glow Potential</Text>
+            <Text style={styles.subtitle}>
+              Experience the future of personalized skincare with professional-grade AI analysis.
+            </Text>
+            
+            <View style={styles.statsRow}>
+              <View style={styles.stat}>
+                <Text style={styles.statValue}>98%</Text>
+                <Text style={styles.statLabel}>Accuracy</Text>
               </View>
-              <Text style={styles.inputHint}>We&apos;ll use this to personalize your experience</Text>
+              <View style={styles.statDivider} />
+              <View style={styles.stat}>
+                <Text style={styles.statValue}>50k+</Text>
+                <Text style={styles.statLabel}>Users</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.stat}>
+                <Text style={styles.statValue}>4.9</Text>
+                <Text style={styles.statLabel}>Rating</Text>
+              </View>
             </View>
-          </Animated.View>
+          </View>
         );
-      
-      case 2:
+
+      case 1: // Name
         return (
-          <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
-            <View style={styles.contentTop}>
-              <Text style={styles.stepTitle}>Perfect, {data.name}! 👋</Text>
-              <Text style={styles.stepSubtitle}>How do you identify? This helps us personalize your experience.</Text>
+          <View style={styles.stepContent}>
+            <Text style={styles.title}>Let's Make This Personal</Text>
+            <Text style={styles.subtitle}>What should we call you on your journey?</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Your Name"
+                placeholderTextColor={palette.textMuted}
+                value={data.name}
+                onChangeText={(t) => setData(p => ({ ...p, name: t }))}
+                autoFocus
+              />
             </View>
-            <View style={styles.optionsGrid}>
-              {['Woman', 'Man', 'Non-binary', 'Prefer not to say'].map((option) => (
+          </View>
+        );
+
+      case 2: // Gender
+        return (
+          <View style={styles.stepContent}>
+            <Text style={styles.title}>Personal Profile</Text>
+            <Text style={styles.subtitle}>To tailor your analysis perfectly.</Text>
+            <View style={styles.optionsList}>
+              {['Woman', 'Man', 'Non-binary', 'Prefer not to say'].map(opt => 
+                renderOption(opt, data.gender === opt, () => setData(p => ({ ...p, gender: opt })))
+              )}
+            </View>
+          </View>
+        );
+
+      case 3: // Age
+        return (
+          <View style={styles.stepContent}>
+            <Text style={styles.title}>Age Range</Text>
+            <Text style={styles.subtitle}>Skincare needs evolve with time.</Text>
+            <View style={styles.optionsList}>
+              {['Under 18', '18-24', '25-34', '35-44', '45-54', '55+'].map(opt => 
+                renderOption(opt, data.ageRange === opt, () => setData(p => ({ ...p, ageRange: opt })))
+              )}
+            </View>
+          </View>
+        );
+
+      case 4: // Concerns
+        return (
+          <View style={styles.stepContent}>
+            <Text style={styles.title}>Target Your Troubles</Text>
+            <Text style={styles.subtitle}>Select areas you'd like to improve.</Text>
+            <View style={styles.grid}>
+              {skinConcerns.map(c => (
                 <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.optionCard,
-                    data.gender === option && styles.optionCardSelected
-                  ]}
-                  onPress={() => setData(prev => ({ ...prev, gender: option }))}
-                  activeOpacity={0.7}
+                  key={c.id}
+                  style={[styles.gridItem, data.skinConcerns.includes(c.id) && styles.gridItemSelected]}
+                  onPress={() => toggleSkinConcern(c.id)}
+                  activeOpacity={0.8}
                 >
-                  {data.gender === option && (
+                  <Text style={styles.gridEmoji}>{c.emoji}</Text>
+                  <Text style={[styles.gridLabel, data.skinConcerns.includes(c.id) && styles.gridLabelSelected]}>
+                    {c.label}
+                  </Text>
+                  {data.skinConcerns.includes(c.id) && (
                     <View style={styles.checkBadge}>
-                      <Check size={16} color={palette.textLight} strokeWidth={3} />
+                      <Check size={10} color={palette.textInverse} strokeWidth={4} />
                     </View>
                   )}
-                  <Text style={[
-                    styles.optionText,
-                    data.gender === option && styles.optionTextSelected
-                  ]}>{option}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-          </Animated.View>
+          </View>
         );
-      
-      case 3:
+
+      case 5: // Goals
         return (
-          <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
-            <View style={styles.contentTop}>
-              <Text style={styles.stepTitle}>Tell Us Your Age Range</Text>
-              <Text style={styles.stepSubtitle}>Age-appropriate skincare is the secret to lasting results</Text>
-            </View>
-            <View style={styles.optionsGrid}>
-              {['Under 18', '18-24', '25-34', '35-44', '45-54', '55+'].map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.optionCard,
-                    data.ageRange === option && styles.optionCardSelected
-                  ]}
-                  onPress={() => setData(prev => ({ ...prev, ageRange: option }))}
-                  activeOpacity={0.7}
-                >
-                  {data.ageRange === option && (
-                    <View style={styles.checkBadge}>
-                      <Check size={16} color={palette.textLight} strokeWidth={3} />
-                    </View>
-                  )}
-                  <Text style={[
-                    styles.optionText,
-                    data.ageRange === option && styles.optionTextSelected
-                  ]}>{option}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </Animated.View>
-        );
-      
-      case 4:
-        return (
-          <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
-            <View style={styles.contentTop}>
-              <Text style={styles.stepTitle}>What Are Your{' \n'}Skin Goals?</Text>
-              <Text style={styles.stepSubtitle}>Choose everything you want to improve—we&apos;ve got you covered</Text>
-            </View>
-            <View style={styles.concernsGrid}>
-              {skinConcerns.map((concern) => (
-                <TouchableOpacity
-                  key={concern.id}
-                  style={[
-                    styles.concernCard,
-                    data.skinConcerns.includes(concern.id) && styles.concernCardSelected
-                  ]}
-                  onPress={() => toggleSkinConcern(concern.id)}
-                  activeOpacity={0.7}
-                >
-                  {data.skinConcerns.includes(concern.id) && (
-                    <View style={styles.checkBadge}>
-                      <Check size={14} color={palette.textLight} strokeWidth={3} />
-                    </View>
-                  )}
-                  <Text style={styles.concernEmoji}>{concern.emoji}</Text>
-                  <Text style={[
-                    styles.concernText,
-                    data.skinConcerns.includes(concern.id) && styles.concernTextSelected
-                  ]}>{concern.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </Animated.View>
-        );
-      
-      case 5:
-        return (
-          <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
-            <View style={styles.contentTop}>
-              <Text style={styles.stepTitle}>Your Dream{' \n'}Skin Results</Text>
-              <Text style={styles.stepSubtitle}>Pick what matters most to you right now</Text>
-            </View>
-            <View style={styles.goalsContainer}>
-              {goals.map((goal) => {
-                const IconComponent = goal.icon;
+          <View style={styles.stepContent}>
+            <Text style={styles.title}>Your Aspirations</Text>
+            <Text style={styles.subtitle}>What does your dream skin look like?</Text>
+            <View style={styles.cardsList}>
+              {goals.map(g => {
+                const Icon = g.icon;
+                const isSelected = data.goals.includes(g.id);
                 return (
                   <TouchableOpacity
-                    key={goal.id}
-                    style={[
-                      styles.goalCard,
-                      data.goals.includes(goal.id) && styles.goalCardSelected
-                    ]}
-                    onPress={() => toggleGoal(goal.id)}
-                    activeOpacity={0.7}
+                    key={g.id}
+                    style={[styles.card, isSelected && styles.cardSelected]}
+                    onPress={() => toggleGoal(g.id)}
+                    activeOpacity={0.9}
                   >
-                    <LinearGradient
-                      colors={data.goals.includes(goal.id) ? gradient.primary : [palette.surface, palette.surfaceAlt]}
-                      style={styles.goalCardGradient}
-                    >
-                      {data.goals.includes(goal.id) && (
-                        <View style={styles.checkBadgeGoal}>
-                          <Check size={16} color={palette.textLight} strokeWidth={3} />
-                        </View>
-                      )}
-                      <View style={[
-                        styles.goalIcon,
-                        data.goals.includes(goal.id) && styles.goalIconSelected
-                      ]}>
-                        <IconComponent 
-                          size={28} 
-                          color={data.goals.includes(goal.id) ? palette.textLight : palette.textSecondary}
-                          strokeWidth={2}
-                        />
+                    <View style={[styles.cardIcon, isSelected && styles.cardIconSelected]}>
+                      <Icon size={24} color={isSelected ? palette.gold : palette.textSecondary} />
+                    </View>
+                    <View style={styles.cardText}>
+                      <Text style={[styles.cardTitle, isSelected && styles.cardTitleSelected]}>{g.label}</Text>
+                      <Text style={styles.cardDesc}>{g.desc}</Text>
+                    </View>
+                    {isSelected && (
+                      <View style={styles.cardCheck}>
+                        <Check size={16} color={palette.textInverse} strokeWidth={3} />
                       </View>
-                      <Text style={[
-                        styles.goalText,
-                        data.goals.includes(goal.id) && styles.goalTextSelected
-                      ]}>{goal.label}</Text>
-                    </LinearGradient>
+                    )}
                   </TouchableOpacity>
                 );
               })}
             </View>
-          </Animated.View>
+          </View>
         );
-      
-      case 6:
+
+      case 6: // Commitment
         return (
-          <Animated.View style={[styles.stepContainer, { opacity: slideInAnim, transform: [{ translateY: slideIn }] }]}>
-            <View style={styles.contentTop}>
-              <Text style={styles.stepTitle}>Ready to{' \n'}Transform?</Text>
-              <Text style={styles.stepSubtitle}>Your commitment level helps us create your perfect plan</Text>
-            </View>
-            <View style={styles.commitmentContainer}>
-              {[
-                { id: 'casual', label: 'Curious Explorer', subtitle: 'Just starting my journey', emoji: '🌱' },
-                { id: 'serious', label: 'Results Focused', subtitle: 'Ready for real change', emoji: '🎯' },
-                { id: 'dedicated', label: 'All-In Transformer', subtitle: 'Nothing stops me!', emoji: '🔥' },
-              ].map((option) => (
-                <TouchableOpacity
-                  key={option.id}
-                  style={[
-                    styles.commitmentCard,
-                    data.commitment === option.id && styles.commitmentCardSelected
-                  ]}
-                  onPress={() => setData(prev => ({ ...prev, commitment: option.id }))}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.commitmentContent}>
-                    <Text style={styles.commitmentEmoji}>{option.emoji}</Text>
-                    <View style={styles.commitmentTextContainer}>
-                      <Text style={[
-                        styles.commitmentLabel,
-                        data.commitment === option.id && styles.commitmentLabelSelected
-                      ]}>{option.label}</Text>
-                      <Text style={styles.commitmentSubtitle}>{option.subtitle}</Text>
+          <View style={styles.stepContent}>
+            <Text style={styles.title}>Commitment Level</Text>
+            <Text style={styles.subtitle}>How dedicated are you to your transformation?</Text>
+            <View style={styles.cardsList}>
+              {commitmentLevels.map(c => {
+                const isSelected = data.commitment === c.id;
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.bigCard, isSelected && styles.bigCardSelected]}
+                    onPress={() => setData(p => ({ ...p, commitment: c.id }))}
+                    activeOpacity={0.9}
+                  >
+                    <Text style={styles.bigCardEmoji}>{c.emoji}</Text>
+                    <View style={styles.bigCardContent}>
+                      <Text style={[styles.bigCardTitle, isSelected && styles.bigCardTitleSelected]}>{c.label}</Text>
+                      <Text style={styles.bigCardSubtitle}>{c.subtitle}</Text>
                     </View>
-                  </View>
-                  {data.commitment === option.id && (
-                    <View style={styles.checkBadgeCommitment}>
-                      <Check size={16} color={palette.textLight} strokeWidth={3} />
+                    <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
+                      {isSelected && <View style={styles.radioInner} />}
                     </View>
-                  )}
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-          </Animated.View>
+          </View>
         );
-      
+
       default:
         return null;
     }
   };
 
+  const translateY = bgFloatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -20]
+  });
+
+  const translateYReverse = bgFloatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 20]
+  });
+
   return (
     <ErrorBoundary>
       <View style={styles.container} testID="onboarding-screen">
-        <StatusBar barStyle={theme === 'light' ? 'dark-content' : 'light-content'} />
-        <LinearGradient 
-          colors={[palette.backgroundStart, palette.backgroundEnd]} 
+        <StatusBar barStyle="dark-content" />
+        {/* Cinematic Background */}
+        <LinearGradient
+          colors={[palette.background, palette.surfaceAlt, '#FDFBF7']}
           style={StyleSheet.absoluteFillObject}
+          start={{x: 0, y: 0}}
+          end={{x: 1, y: 1}}
         />
+        
+        {/* Decorative Elements */}
+        <Animated.View style={[styles.orb, styles.orb1, { transform: [{ translateY }] }]} />
+        <Animated.View style={[styles.orb, styles.orb2, { transform: [{ translateY: translateYReverse }] }]} />
 
-        <Animated.View 
-          style={[
-            styles.floatingElement,
-            styles.floatingElement1,
-            { transform: [{ translateY: floatY }] },
-          ]}
-        >
-          <LinearGradient 
-            colors={gradient.gold} 
-            style={styles.decorCircle}
-          />
-        </Animated.View>
-
-        <Animated.View 
-          style={[
-            styles.floatingElement,
-            styles.floatingElement2,
-            { transform: [{ translateY: floatAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [10, -10],
-            }) }] },
-          ]}
-        >
-          <View style={styles.decorRing} />
-        </Animated.View>
-
+        {/* Header */}
         <View style={styles.header}>
-          {step >= 0 && (
-            <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
-              <ArrowLeft size={24} color={palette.textPrimary} strokeWidth={2} />
+          {step > -1 && (
+            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+              <ArrowLeft size={24} color={palette.textPrimary} />
             </TouchableOpacity>
           )}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <Animated.View 
-                style={[
-                  styles.progressFill,
-                  { width: step === -1 ? '0%' : `${((step + 1) / 7) * 100}%` }
-                ]} 
-              >
-                <LinearGradient 
-                  colors={gradient.primary} 
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={StyleSheet.absoluteFillObject}
-                />
-              </Animated.View>
-            </View>
-            <Text style={styles.progressText}>{step + 1} of 7</Text>
-          </View>
+          {step > -1 && (
+             <View style={styles.progressBarContainer}>
+               <View style={[styles.progressBarFill, { width: `${((step + 1) / 7) * 100}%` }]} />
+             </View>
+          )}
         </View>
 
+        {/* Content Area */}
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardAvoid}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
           <ScrollView 
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.content}>
-              {renderStep()}
-            </View>
+            <Animated.View 
+              style={[
+                styles.contentWrapper, 
+                step >= 0 && { 
+                  opacity: contentFadeAnim, 
+                  transform: [
+                    { translateY: contentSlideAnim }, 
+                    { scale: scaleAnim }
+                  ] 
+                }
+              ]}
+            >
+              {renderContent()}
+            </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
 
+        {/* Footer */}
         <View style={styles.footer}>
-          <TouchableOpacity 
-            onPress={handleNext} 
-            style={[
-              styles.primaryButton,
-              !canProceed() && styles.primaryButtonDisabled
-            ]}
-            activeOpacity={0.85}
-            disabled={!canProceed()}
-            testID="onboarding-next"
-          >
-            <LinearGradient 
-              colors={canProceed() ? gradient.primary : [palette.disabled, palette.disabled]} 
-              start={{ x: 0, y: 0 }} 
-              end={{ x: 1, y: 1 }} 
-              style={styles.primaryGradient}
+          <Animated.View style={canProceed() ? { transform: [{ scale: buttonPulseAnim }] } : {}}>
+            <TouchableOpacity 
+              style={[styles.primaryButton, !canProceed() && styles.primaryButtonDisabled]}
+              onPress={handleNext}
+              disabled={!canProceed()}
+              activeOpacity={0.9}
+              testID="onboarding-next"
             >
-              <Text style={styles.primaryButtonText}>
-                {step === -1 ? 'Start Your Journey' : step === 6 ? 'Complete' : 'Continue'}
-              </Text>
-              <ChevronRight color={palette.textLight} size={24} strokeWidth={3} />
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={canProceed() ? [palette.textPrimary, '#2A2A2A'] : [palette.disabled, palette.disabled]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.primaryButtonGradient}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {step === -1 ? 'Start Your Journey' : step === 6 ? 'Complete Profile' : 'Continue'}
+                </Text>
+                <ChevronRight size={20} color={palette.textInverse} />
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
 
           {step === -1 && (
             <TouchableOpacity 
-              style={styles.signinButton} 
+              style={styles.loginLink}
               onPress={() => router.replace('/login')}
-              activeOpacity={0.7}
             >
-              <Text style={styles.signinText}>
-                Already have an account?{' '}
-                <Text style={styles.signinTextBold}>Sign In</Text>
-              </Text>
+              <Text style={styles.loginText}>Already a member? <Text style={styles.loginTextBold}>Log In</Text></Text>
             </TouchableOpacity>
           )}
         </View>
@@ -765,483 +586,465 @@ export default function OnboardingScreen() {
   );
 }
 
-const createStyles = (palette: ReturnType<typeof getPalette>, height: number) => StyleSheet.create({
-  splashContainer: {
+const createStyles = (palette: any, height: number, width: number) => StyleSheet.create({
+  container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
+    backgroundColor: palette.background,
   },
-  splashContent: {
-    alignItems: 'center',
-    gap: spacing.xxxl + spacing.lg,
-  },
-  splashLogoWrapper: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  splashGlowRing: {
+  orb: {
     position: 'absolute',
-    width: 220,
-    height: 220,
-    opacity: 0.3,
+    borderRadius: 999,
+    opacity: 0.4,
+    backgroundColor: palette.gold,
+    // Note: blurRadius is not standard on View, using low opacity for soft look
   },
-  splashGlowGradient: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 110,
+  orb1: {
+    width: width * 0.8,
+    height: width * 0.8,
+    top: -width * 0.2,
+    right: -width * 0.2,
+    backgroundColor: 'rgba(212, 165, 116, 0.15)',
   },
-  splashTextSection: {
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  splashTitle: {
-    fontSize: 48,
-    fontWeight: '900' as const,
-    color: palette.textPrimary,
-    letterSpacing: -2,
-    textAlign: 'center',
-  },
-  splashSubtitle: {
-    fontSize: 18,
-    fontWeight: '600' as const,
-    color: palette.textSecondary,
-    textAlign: 'center',
-    letterSpacing: 0.2,
-  },
-  splashTagline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.xs,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    backgroundColor: palette.overlayGold,
-    borderRadius: radii.pill,
-  },
-  splashTaglineText: {
-    fontSize: 15,
-    fontWeight: '700' as const,
-    color: palette.gold,
-    letterSpacing: 0.5,
-  },
-  splashFeatures: {
-    width: '100%',
-    gap: spacing.lg,
-    marginTop: spacing.xl,
-  },
-  splashFeature: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.lg,
-    paddingHorizontal: spacing.lg,
-  },
-  splashFeatureIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: palette.overlayGold,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  splashFeatureText: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  splashFeatureTitle: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: palette.textPrimary,
-  },
-  splashFeatureDesc: {
-    fontSize: 14,
-    fontWeight: '500' as const,
-    color: palette.textSecondary,
-  },
-  particle: {
-    position: 'absolute',
-    width: 8,
-    height: 8,
-  },
-  particleGradient: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 4,
-  },
-  container: { 
-    flex: 1, 
-  },
-  floatingElement: {
-    position: 'absolute',
-    zIndex: 0,
-  },
-  floatingElement1: {
-    top: height * 0.15,
-    right: -40,
-  },
-  floatingElement2: {
-    top: height * 0.5,
-    left: -30,
-  },
-  decorCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    opacity: 0.1,
-  },
-  decorRing: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 2,
-    borderColor: palette.gold,
-    opacity: 0.15,
+  orb2: {
+    width: width,
+    height: width,
+    bottom: -width * 0.3,
+    left: -width * 0.3,
+    backgroundColor: 'rgba(201, 175, 233, 0.1)',
   },
   header: {
-    paddingTop: spacing.xxl + 20,
+    height: 100,
+    paddingTop: 50,
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    justifyContent: 'space-between',
+    zIndex: 10,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: palette.surface,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow.soft,
   },
-  progressContainer: {
+  progressBarContainer: {
     flex: 1,
-    gap: spacing.xs,
-  },
-  progressBar: {
-    height: 6,
+    height: 4,
     backgroundColor: palette.border,
-    borderRadius: 3,
+    borderRadius: 2,
+    marginLeft: spacing.lg,
     overflow: 'hidden',
   },
-  progressFill: {
+  progressBarFill: {
     height: '100%',
-    borderRadius: 3,
-  },
-  progressText: {
-    fontSize: 11,
-    fontWeight: '600' as const,
-    color: palette.textMuted,
-    letterSpacing: 0.5,
+    backgroundColor: palette.gold,
+    borderRadius: 2,
   },
   keyboardAvoid: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
+    justifyContent: 'center',
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: spacing.xl,
-    minHeight: '100%',
-  },
-  stepContainer: {
+  contentWrapper: {
     flex: 1,
     justifyContent: 'center',
-    minHeight: 400,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: 40,
   },
-  contentCenter: {
+  splashContainer: {
+    flex: 1,
     alignItems: 'center',
-    gap: spacing.lg,
+    justifyContent: 'center',
+    gap: spacing.xxxl,
+    marginTop: -40,
   },
-  contentTop: {
+  splashContent: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  logoWrapper: {
+    width: 200,
+    height: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xxl,
+  },
+  logoGlow: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 100,
+    opacity: 0.2,
+  },
+  splashTextContainer: {
+    alignItems: 'center',
     marginBottom: spacing.xxxl,
   },
-  logoSection: {
-    alignItems: 'center',
-    marginBottom: spacing.xxxl,
-  },
-  stepTitle: {
-    fontSize: 32,
-    fontWeight: '900' as const,
+  appName: {
+    fontSize: 48,
+    fontWeight: '900',
     color: palette.textPrimary,
+    letterSpacing: -1.5,
+    marginBottom: spacing.sm,
     textAlign: 'center',
-    marginBottom: spacing.md,
-    letterSpacing: -1,
-    lineHeight: 38,
   },
-  stepSubtitle: {
-    fontSize: 16,
+  appTagline: {
+    fontSize: 18,
     color: palette.textSecondary,
+    letterSpacing: 0.5,
+    fontWeight: '500',
     textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(212, 165, 116, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 165, 116, 0.3)',
+  },
+  premiumBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: palette.gold,
+    letterSpacing: 1,
+  },
+  featurePills: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: palette.surface,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 165, 116, 0.2)',
+    ...shadow.soft,
+  },
+  pillText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: palette.textPrimary,
+  },
+  stepContent: {
+    gap: spacing.xl,
+  },
+  heroImageContainer: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  heroBadge: {
+    position: 'absolute',
+    bottom: -15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: palette.surface,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 165, 116, 0.3)',
+    ...shadow.soft,
+  },
+  heroBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.textPrimary,
+  },
+  title: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: palette.textPrimary,
+    letterSpacing: -1,
+    lineHeight: 40,
+    textAlign: 'left',
+  },
+  subtitle: {
+    fontSize: 17,
+    color: palette.textSecondary,
     lineHeight: 24,
-    fontWeight: '500' as const,
+    textAlign: 'left',
   },
   statsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.lg,
+    justifyContent: 'space-between',
     marginTop: spacing.xl,
-  },
-  statItem: {
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: '800' as const,
-    color: palette.textPrimary,
-    letterSpacing: -0.5,
-  },
-  statLabel: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: palette.textSecondary,
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: palette.divider,
-  },
-  inputSection: {
-    gap: spacing.md,
-  },
-  inputWrapper: {
+    padding: spacing.xl,
     backgroundColor: palette.surface,
-    borderRadius: radii.lg,
-    borderWidth: 2,
+    borderRadius: radii.xl,
+    borderWidth: 1,
     borderColor: palette.border,
     ...shadow.soft,
   },
-  textInput: {
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg + 4,
-    fontSize: 17,
-    fontWeight: '600' as const,
+  stat: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statDivider: {
+    width: 1,
+    height: '100%',
+    backgroundColor: palette.divider,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '800',
     color: palette.textPrimary,
   },
-  inputHint: {
-    fontSize: 13,
-    color: palette.textMuted,
-    textAlign: 'center',
-    fontWeight: '500' as const,
+  statLabel: {
+    fontSize: 12,
+    color: palette.textSecondary,
+    marginTop: 4,
+    fontWeight: '600',
   },
-  optionsGrid: {
+  inputContainer: {
+    marginTop: spacing.md,
+  },
+  input: {
+    fontSize: 28,
+    fontWeight: '600',
+    color: palette.textPrimary,
+    borderBottomWidth: 2,
+    borderBottomColor: palette.gold,
+    paddingVertical: spacing.md,
+  },
+  optionsList: {
     gap: spacing.md,
   },
   optionCard: {
     backgroundColor: palette.surface,
+    padding: spacing.xl,
     borderRadius: radii.lg,
-    padding: spacing.lg + 4,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: palette.border,
-    ...shadow.soft,
-    position: 'relative',
+    ...shadow.minimal,
   },
   optionCardSelected: {
-    borderColor: palette.primary,
-    backgroundColor: palette.primary,
+    borderColor: palette.gold,
+    backgroundColor: '#FFFBF5', // Very light gold tint
+    ...shadow.soft,
+  },
+  optionContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   optionText: {
-    fontSize: 16,
-    fontWeight: '700' as const,
+    fontSize: 17,
+    fontWeight: '600',
     color: palette.textPrimary,
-    textAlign: 'center',
   },
   optionTextSelected: {
-    color: palette.textLight,
+    color: '#9A7D46', // Darker gold/brown
   },
-  checkBadge: {
-    position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
+  checkIcon: {
+    backgroundColor: palette.gold,
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  concernsGrid: {
+  grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.md,
   },
-  concernCard: {
+  gridItem: {
     width: '47%',
     backgroundColor: palette.surface,
-    borderRadius: radii.lg,
     padding: spacing.lg,
-    borderWidth: 2,
-    borderColor: palette.border,
+    borderRadius: radii.lg,
     alignItems: 'center',
     gap: spacing.sm,
-    ...shadow.soft,
-    position: 'relative',
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    ...shadow.minimal,
   },
-  concernCardSelected: {
-    borderColor: palette.primary,
-    backgroundColor: palette.surfaceAlt,
+  gridItemSelected: {
+    borderColor: palette.gold,
+    backgroundColor: '#FFFBF5',
   },
-  concernEmoji: {
+  gridEmoji: {
     fontSize: 32,
   },
-  concernText: {
+  gridLabel: {
     fontSize: 14,
-    fontWeight: '700' as const,
+    fontWeight: '600',
     color: palette.textPrimary,
     textAlign: 'center',
   },
-  concernTextSelected: {
-    color: palette.primary,
+  gridLabelSelected: {
+    color: '#9A7D46',
   },
-  goalsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  goalCard: {
-    width: '47%',
-    borderRadius: radii.xl,
-    overflow: 'hidden',
-    ...shadow.medium,
-  },
-  goalCardSelected: {
-    ...shadow.glow,
-  },
-  goalCardGradient: {
-    padding: spacing.xl,
-    alignItems: 'center',
-    gap: spacing.md,
-    minHeight: 140,
-    position: 'relative',
-  },
-  checkBadgeGoal: {
+  checkBadge: {
     position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    top: 8,
+    right: 8,
+    backgroundColor: palette.gold,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  goalIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  cardsList: {
+    gap: spacing.md,
+  },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.lg,
+    backgroundColor: palette.surface,
+    borderRadius: radii.xl,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    gap: spacing.md,
+    ...shadow.minimal,
+  },
+  cardSelected: {
+    borderColor: palette.gold,
+    backgroundColor: '#FFFBF5',
+  },
+  cardIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: palette.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  goalIconSelected: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  cardIconSelected: {
+    backgroundColor: '#F5E6D3',
   },
-  goalText: {
-    fontSize: 15,
-    fontWeight: '800' as const,
+  cardText: {
+    flex: 1,
+    gap: 4,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
     color: palette.textPrimary,
-    textAlign: 'center',
   },
-  goalTextSelected: {
-    color: palette.textLight,
+  cardTitleSelected: {
+    color: '#9A7D46',
   },
-  commitmentContainer: {
-    gap: spacing.md,
+  cardDesc: {
+    fontSize: 13,
+    color: palette.textSecondary,
   },
-  commitmentCard: {
+  cardCheck: {
+    backgroundColor: palette.gold,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bigCard: {
+    padding: spacing.xl,
     backgroundColor: palette.surface,
     borderRadius: radii.xl,
-    padding: spacing.lg + 4,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: palette.border,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: spacing.md,
     ...shadow.soft,
   },
-  commitmentCardSelected: {
-    borderColor: palette.primary,
-    backgroundColor: palette.surfaceAlt,
+  bigCardSelected: {
+    borderColor: palette.gold,
+    backgroundColor: '#FFFBF5',
+    ...shadow.medium,
   },
-  commitmentContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.lg,
-    flex: 1,
-  },
-  commitmentEmoji: {
+  bigCardEmoji: {
     fontSize: 36,
   },
-  commitmentTextContainer: {
+  bigCardContent: {
     flex: 1,
-    gap: spacing.xs,
+    gap: 4,
   },
-  commitmentLabel: {
-    fontSize: 16,
-    fontWeight: '800' as const,
+  bigCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
     color: palette.textPrimary,
   },
-  commitmentLabelSelected: {
-    color: palette.primary,
+  bigCardTitleSelected: {
+    color: '#9A7D46',
   },
-  commitmentSubtitle: {
-    fontSize: 13,
-    fontWeight: '500' as const,
-    color: palette.textMuted,
+  bigCardSubtitle: {
+    fontSize: 14,
+    color: palette.textSecondary,
   },
-  checkBadgeCommitment: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: palette.primary,
+  radioOuter: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: palette.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  footer: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xxl + spacing.lg,
-    gap: spacing.md,
+  radioOuterSelected: {
+    borderColor: palette.gold,
   },
-  primaryButton: { 
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: palette.gold,
+  },
+  footer: {
+    padding: spacing.xl,
+    paddingBottom: Platform.OS === 'ios' ? 40 : spacing.xl,
+  },
+  primaryButton: {
     width: '100%',
-    borderRadius: radii.xl,
+    height: 56,
+    borderRadius: radii.pill,
     overflow: 'hidden',
-    ...shadow.medium,
+    ...shadow.glow,
   },
   primaryButtonDisabled: {
     opacity: 0.6,
+    ...shadow.minimal,
   },
-  primaryGradient: { 
-    paddingVertical: 20, 
-    paddingHorizontal: spacing.xl, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: spacing.md, 
-    justifyContent: 'center',
-  },
-  primaryButtonText: { 
-    color: palette.textLight, 
-    fontWeight: '800' as const, 
-    fontSize: 17,
-    letterSpacing: 0.5,
+  primaryButtonGradient: {
     flex: 1,
-    textAlign: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
   },
-  signinButton: { 
-    alignSelf: 'center',
-    paddingVertical: spacing.lg,
+  primaryButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: palette.textInverse,
+    letterSpacing: 0.5,
   },
-  signinText: { 
-    color: palette.textSecondary,
+  loginLink: {
+    marginTop: spacing.lg,
+    alignItems: 'center',
+  },
+  loginText: {
     fontSize: 15,
-    textAlign: 'center',
-    fontWeight: '500' as const,
+    color: palette.textSecondary,
   },
-  signinTextBold: { 
-    color: palette.primary, 
-    fontWeight: '700' as const,
+  loginTextBold: {
+    color: palette.textPrimary,
+    fontWeight: '700',
   },
 });
