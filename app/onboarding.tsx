@@ -326,13 +326,13 @@ export default function OnboardingScreen() {
               </View>
               <View style={styles.statDivider} />
               <View style={styles.stat}>
-                <Text style={styles.statValue}>50k+</Text>
-                <Text style={styles.statLabel}>Users</Text>
+                <Text style={styles.statValue}>AI</Text>
+                <Text style={styles.statLabel}>Powered</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.stat}>
-                <Text style={styles.statValue}>4.9</Text>
-                <Text style={styles.statLabel}>Rating</Text>
+                <Text style={styles.statValue}>Instant</Text>
+                <Text style={styles.statLabel}>Results</Text>
               </View>
             </View>
           </View>
