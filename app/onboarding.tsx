@@ -1,13 +1,13 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Dimensions, Animated, TouchableOpacity, StatusBar, TextInput, Easing, KeyboardAvoidingView, Platform, ScrollView, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Animated, TouchableOpacity, StatusBar, TextInput, Easing, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { useUser } from '@/contexts/UserContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { ChevronRight, Sparkles, Star, Zap, Heart, Check, ArrowLeft, Crown, TrendingUp, Users, Shield, Award, Play } from 'lucide-react-native';
+import { ChevronRight, Sparkles, Star, Zap, Heart, Check, ArrowLeft, Crown, Award } from 'lucide-react-native';
 import Logo from '@/components/Logo';
-import { getPalette, getGradient, shadow, spacing, radii, typography } from '@/constants/theme';
+import { getPalette, getGradient, shadow, spacing, radii } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -62,7 +62,6 @@ export default function OnboardingScreen() {
   
   // Animation Values
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const bgFloatAnim = useRef(new Animated.Value(0)).current;
   const logoScaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -79,7 +78,7 @@ export default function OnboardingScreen() {
     const checkAuthStatus = async () => {
       if (loading) return;
       if (user && session) {
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/home');
         return;
       }
       const hasCompletedOnboarding = await AsyncStorage.getItem('@onboarding_completed');
@@ -137,7 +136,7 @@ export default function OnboardingScreen() {
         }),
       ])
     ).start();
-  }, []);
+  }, [bgFloatAnim, logoRotateAnim, buttonPulseAnim]);
 
   // Intro Animation
   useEffect(() => {
@@ -156,7 +155,7 @@ export default function OnboardingScreen() {
         }),
       ]).start();
     }
-  }, [step]);
+  }, [step, fadeAnim, logoScaleAnim]);
 
   // Step Transition Animation
   useEffect(() => {
@@ -186,7 +185,7 @@ export default function OnboardingScreen() {
         }),
       ]).start();
     }
-  }, [step]);
+  }, [step, contentFadeAnim, contentSlideAnim, scaleAnim]);
 
   const handleNext = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -342,7 +341,7 @@ export default function OnboardingScreen() {
       case 1: // Name
         return (
           <View style={styles.stepContent}>
-            <Text style={styles.title}>Let's Make This Personal</Text>
+            <Text style={styles.title}>Let&apos;s Make This Personal</Text>
             <Text style={styles.subtitle}>What should we call you on your journey?</Text>
             <View style={styles.inputContainer}>
               <TextInput
@@ -387,7 +386,7 @@ export default function OnboardingScreen() {
         return (
           <View style={styles.stepContent}>
             <Text style={styles.title}>Target Your Troubles</Text>
-            <Text style={styles.subtitle}>Select areas you'd like to improve.</Text>
+            <Text style={styles.subtitle}>Select areas you&apos;d like to improve.</Text>
             <View style={styles.grid}>
               {skinConcerns.map(c => (
                 <TouchableOpacity

@@ -5,7 +5,6 @@ import {
   StyleSheet, 
   ScrollView, 
   TouchableOpacity, 
-  Dimensions,
   Platform,
   Alert,
   Animated,
@@ -73,7 +72,7 @@ const PREMIUM_FEATURES: Feature[] = [
 export default function TrialOfferScreen() {
   const insets = useSafeAreaInsets();
   const subscription = useSubscription();
-  const { processInAppPurchase, startLocalTrial } = subscription || {};
+  const { processInAppPurchase } = subscription || {};
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [isProcessing, setIsProcessing] = useState(false);
   const [pulseAnim] = useState(new Animated.Value(0));
@@ -99,7 +98,7 @@ export default function TrialOfferScreen() {
     pulseAnimation.start();
 
     return () => pulseAnimation.stop();
-  }, []);
+  }, [pulseAnim]);
 
   const handleStartTrial = useCallback(async () => {
     if (isProcessing) return;
@@ -148,7 +147,7 @@ export default function TrialOfferScreen() {
           [
             {
               text: 'Start Glowing ✨',
-              onPress: () => router.replace('/(tabs)'),
+              onPress: () => router.replace('/(tabs)/home'),
             },
           ]
         );
@@ -164,7 +163,7 @@ export default function TrialOfferScreen() {
           result.cancelled ? 'Payment Required' : 'Payment Required',
           errorMessage,
           [
-            { text: 'Maybe Later', style: 'cancel', onPress: () => router.replace('/(tabs)') },
+            { text: 'Maybe Later', style: 'cancel', onPress: () => router.replace('/(tabs)/home') },
             { text: 'Try Again', style: 'default', onPress: () => handleStartTrial() },
           ]
         );
@@ -175,14 +174,14 @@ export default function TrialOfferScreen() {
         'Connection Error',
         'Unable to connect. Please check your internet and try again.',
         [
-          { text: 'Cancel', style: 'cancel', onPress: () => router.replace('/(tabs)') },
+          { text: 'Cancel', style: 'cancel', onPress: () => router.replace('/(tabs)/home') },
           { text: 'Retry', onPress: () => handleStartTrial() },
         ]
       );
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedPlan, processInAppPurchase, startLocalTrial, isProcessing, scaleAnim]);
+  }, [selectedPlan, processInAppPurchase, isProcessing, scaleAnim]);
 
   const handleSkip = useCallback(() => {
     Alert.alert(
@@ -190,7 +189,7 @@ export default function TrialOfferScreen() {
       'Without premium, you\'ll have limited scans and features. Start your free trial anytime!',
       [
         { text: 'Start Free Trial', onPress: handleStartTrial, style: 'default' },
-        { text: 'Continue Anyway', onPress: () => router.replace('/(tabs)'), style: 'cancel' },
+        { text: 'Continue Anyway', onPress: () => router.replace('/(tabs)/home'), style: 'cancel' },
       ]
     );
   }, [handleStartTrial]);

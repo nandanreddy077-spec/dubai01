@@ -113,7 +113,7 @@ export default function LoginScreen() {
       
       Alert.alert('Sign In Issue', errorMessage);
     } else {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/home');
     }
   };
 
@@ -137,7 +137,7 @@ export default function LoginScreen() {
       }
       Alert.alert('Google Sign In', error.message || 'Something went wrong. Please try again.');
     } else {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/home');
     }
   };
 

@@ -129,7 +129,7 @@ export default function StartTrialScreen() {
           [
             {
               text: 'Start Glowing ✨',
-              onPress: () => router.replace('/(tabs)'),
+              onPress: () => router.replace('/(tabs)/home'),
             },
           ]
         );
