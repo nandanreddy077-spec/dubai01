@@ -149,8 +149,17 @@ export default function ProfileScreen() {
         text: "Logout",
         style: "destructive",
         onPress: async () => {
+          try {
+            // Clear onboarding completed flag so user sees onboarding after logout
+            await AsyncStorage.removeItem('@onboarding_completed');
+            console.log('✅ Cleared onboarding flag on logout');
+          } catch (error) {
+            console.error('Error clearing onboarding flag:', error);
+          }
+          
           await signOut();
-          router.replace('/login');
+          // Route to onboarding instead of login
+          router.replace('/onboarding');
         },
       },
     ]);
@@ -443,7 +452,7 @@ export default function ProfileScreen() {
 
             <TouchableOpacity
               style={styles.settingItem}
-              onPress={() => router.push('/subscribe')}
+              onPress={() => router.push('/start-trial')}
               activeOpacity={0.7}
               testID="subscriptionBtn"
             >
