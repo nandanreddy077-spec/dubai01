@@ -6,13 +6,11 @@ interface LogoProps {
   style?: object;
 }
 
-const LOGO_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/zyxej2cms2wm7flx3yj7z';
-
 export default function Logo({ size = 80, style }: LogoProps) {
   return (
     <View style={[styles.container, { width: size, height: size }, style]}>
       <Image
-        source={{ uri: LOGO_URL }}
+        source={require('@/assets/images/logo.png')}
         style={[styles.logo, { width: size * 1.2, height: size * 1.2 }]}
         resizeMode="contain"
       />

@@ -219,7 +219,7 @@ export default function GlowHomeScreen() {
         <View style={styles.topBar}>
           <View style={styles.logoContainer}>
             <Image 
-              source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/zyxej2cms2wm7flx3yj7z' }} 
+              source={require('@/assets/images/logo.png')}
               style={styles.logoImage}
             />
             <View style={styles.logoTextContainer}>
