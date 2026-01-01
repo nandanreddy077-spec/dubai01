@@ -58,6 +58,7 @@ export const [StyleProvider, useStyle] = createContextHook(() => {
     setIsAnalyzing(true);
     
     try {
+
       // Use the unified AI service via Edge Function (with retries)
       let analysisData;
       const MAX_RETRIES = 3;

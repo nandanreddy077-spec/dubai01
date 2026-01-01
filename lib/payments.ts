@@ -4,8 +4,8 @@ import { Platform, Linking, Alert } from 'react-native';
 export const REVENUECAT_CONFIG = {
   // Production RevenueCat API Keys - Configured for production
   API_KEY_IOS: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS || 'appl_UpDZroTEjwQSDDRJdqLgYihNxsh',
-  API_KEY_ANDROID: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID || 'goog_xCXiGuMlJXxLNPQUlodNDLnAAYZ',
-  ENTITLEMENT_ID: 'premium', // This should match your RevenueCat entitlement
+  API_KEY_ANDROID: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID || 'goog_TRwLUJmPNEsGtyrEcfNyZunbTmY',
+  ENTITLEMENT_ID: 'premium_access', // RevenueCat entitlement identifier (matches dashboard)
 } as const;
 
 // Product IDs for App Store and Google Play
@@ -82,11 +82,16 @@ class PaymentService {
   }
 
   async initialize(userId?: string | null): Promise<boolean> {
+    // Prevent multiple initializations
+    if (this.isInitialized) {
+      return true;
+    }
+
     try {
-      console.log('Initializing payment service...', { userId });
+      console.log('🔧 Initializing payment service...', { userId });
       
       if (Platform.OS === 'web') {
-        console.log('Payment service not available on web');
+        console.log('⚠️ Payment service not available on web');
         return false;
       }
 
@@ -95,62 +100,59 @@ class PaymentService {
       const isExpoGo = Constants.default.appOwnership === 'expo';
 
       if (isExpoGo) {
-        console.log('Running in Expo Go - payment service will redirect to stores');
+        console.log('📱 Running in Expo Go - payment service will redirect to stores');
         this.isInitialized = true;
         return true;
       }
 
       // Production build with react-native-purchases:
-      try {
-        const Purchases = await this.loadPurchasesModule();
-        
-        if (!Purchases) {
-          console.log('RevenueCat not available, using fallback mode');
-          this.isInitialized = true;
-          return true;
-        }
-        
-        // Configure RevenueCat if available
-        const apiKey = Platform.OS === 'ios' 
-          ? REVENUECAT_CONFIG.API_KEY_IOS 
-          : REVENUECAT_CONFIG.API_KEY_ANDROID;
-        
-        if (!apiKey || apiKey.includes('YOUR_')) {
-          console.warn('RevenueCat API key not configured properly');
-          this.isInitialized = true;
-          return true;
-        }
-        
-        // Configure RevenueCat with user ID if provided
-        await Purchases.configure({
-          apiKey,
-          appUserID: userId || null, // Sync with Supabase user ID
-        });
-        
-        // Set up subscription status listener
-        Purchases.addCustomerInfoUpdateListener((customerInfo: any) => {
-          console.log('Subscription status updated:', customerInfo);
-          // Notify all listeners
-          this.subscriptionListeners.forEach(listener => {
-            try {
-              listener(customerInfo);
-            } catch (error) {
-              console.error('Error in subscription listener:', error);
-            }
-          });
-        });
-        
-        this.purchasesModule = Purchases;
-        console.log('RevenueCat initialized successfully with user ID:', userId || 'anonymous');
-      } catch (error) {
-        console.log('RevenueCat not available, using fallback mode:', error);
+      const Purchases = await this.loadPurchasesModule();
+      
+      if (!Purchases) {
+        console.log('⚠️ RevenueCat not available, using fallback mode');
+        this.isInitialized = true;
+        return true;
       }
       
+      // Configure RevenueCat if available
+      const apiKey = Platform.OS === 'ios' 
+        ? REVENUECAT_CONFIG.API_KEY_IOS 
+        : REVENUECAT_CONFIG.API_KEY_ANDROID;
+      
+      if (!apiKey || apiKey.includes('YOUR_')) {
+        console.warn('⚠️ RevenueCat API key not configured properly');
+        this.isInitialized = true;
+        return true;
+      }
+      
+      // Configure RevenueCat - this is critical for purchases to work
+      await Purchases.configure({
+        apiKey,
+        appUserID: userId || undefined, // Use undefined instead of null for anonymous users
+      });
+      
+      // Set up subscription status listener
+      Purchases.addCustomerInfoUpdateListener((customerInfo: any) => {
+        console.log('🔄 Subscription status updated:', {
+          entitlements: Object.keys(customerInfo.entitlements?.active || {}),
+        });
+        // Notify all listeners
+        this.subscriptionListeners.forEach(listener => {
+          try {
+            listener(customerInfo);
+          } catch (error) {
+            console.error('❌ Error in subscription listener:', error);
+          }
+        });
+      });
+      
+      this.purchasesModule = Purchases;
       this.isInitialized = true;
-      console.log('Payment service initialized successfully');
+      console.log('✅ RevenueCat initialized successfully');
       return true;
     } catch (error) {
-      console.error('Failed to initialize payment service:', error);
+      console.error('❌ Failed to initialize payment service:', error);
+      this.isInitialized = true; // Mark as initialized to prevent retry loops
       return false;
     }
   }
@@ -279,9 +281,11 @@ class PaymentService {
 
   async purchaseProduct(productId: string): Promise<PurchaseResult> {
     try {
-      console.log(`Attempting to purchase product: ${productId}`);
+      console.log(`🛒 Attempting to purchase product: ${productId}`);
       
+      // Ensure we're initialized first
       if (!this.isInitialized) {
+        console.log('⚠️ Payment service not initialized, initializing now...');
         await this.initialize();
       }
 
@@ -298,8 +302,7 @@ class PaymentService {
 
       if (isExpoGo) {
         // For Expo Go, redirect to store
-        console.log('Running in Expo Go - redirecting to store for subscription...');
-        
+        console.log('📱 Running in Expo Go - redirecting to store for subscription...');
         const storeUrl = this.getStoreSubscriptionUrl();
         const canOpen = await Linking.canOpenURL(storeUrl);
         
@@ -318,169 +321,174 @@ class PaymentService {
         }
       }
 
-      // Production build with react-native-purchases:
-      try {
-        const Purchases = await this.loadPurchasesModule();
+      // Production build - use RevenueCat
+      const Purchases = this.purchasesModule || await this.loadPurchasesModule();
+      
+      if (!Purchases) {
+        console.log('⚠️ RevenueCat not available, redirecting to store');
+        const storeUrl = this.getStoreSubscriptionUrl();
+        const canOpen = await Linking.canOpenURL(storeUrl);
         
-        if (!Purchases) {
-          console.log('RevenueCat not available, redirecting to store');
-          const storeUrl = this.getStoreSubscriptionUrl();
-          const canOpen = await Linking.canOpenURL(storeUrl);
-          
-          if (canOpen) {
-            await Linking.openURL(storeUrl);
-            return {
-              success: false,
-              error: 'STORE_REDIRECT',
-              productId,
-            };
-          } else {
-            return {
-              success: false,
-              error: 'Unable to open app store. Please visit the App Store or Google Play Store manually to subscribe.',
-            };
-          }
-        }
-        
-        const offerings = await Purchases.getOfferings();
-        const currentOffering = offerings.current;
-        
-        if (!currentOffering) {
-          throw new Error('No offerings available');
-        }
-        
-        // Try to find package by product ID (exact match)
-        let packageToPurchase = currentOffering.availablePackages.find(
-          (pkg: any) => pkg.product.identifier === productId
-        );
-        
-        // If not found, try to find by product ID pattern (for Android base plan format)
-        if (!packageToPurchase) {
-          const productIdBase = productId.split(':')[0]; // Remove base plan ID for Android
-          packageToPurchase = currentOffering.availablePackages.find(
-            (pkg: any) => {
-              const pkgProductId = pkg.product.identifier?.split(':')[0];
-              return pkgProductId === productIdBase;
-            }
-          );
-        }
-        
-        // If still not found, try to find by package identifier (RevenueCat standard: $rc_monthly, $rc_annual)
-        if (!packageToPurchase) {
-          const isYearly = productId.includes('yearly') || productId.includes('annual');
-          const packageIdentifier = isYearly ? '$rc_annual' : '$rc_monthly';
-          packageToPurchase = currentOffering.availablePackages.find(
-            (pkg: any) => pkg.identifier === packageIdentifier
-          );
-        }
-        
-        // If still not found, try by package type
-        if (!packageToPurchase) {
-          const packageType = productId.includes('yearly') || productId.includes('annual') 
-            ? 'ANNUAL' 
-            : 'MONTHLY';
-          packageToPurchase = currentOffering.availablePackages.find(
-            (pkg: any) => {
-              const pkgType = pkg.packageType || '';
-              return pkgType === packageType || 
-                     pkg.identifier?.toLowerCase().includes(packageType.toLowerCase()) ||
-                     pkg.identifier?.toLowerCase().includes(productId.includes('yearly') ? 'annual' : 'monthly');
-            }
-          );
-        }
-        
-        // Last resort: use first available package (should not happen in production)
-        if (!packageToPurchase && currentOffering.availablePackages.length > 0) {
-          console.warn(`Product ${productId} not found, using first available package`);
-          console.warn('Available packages:', currentOffering.availablePackages.map((p: any) => ({
-            identifier: p.identifier,
-            productId: p.product.identifier,
-            packageType: p.packageType
-          })));
-          packageToPurchase = currentOffering.availablePackages[0];
-        }
-        
-        if (!packageToPurchase) {
-          throw new Error(`Product ${productId} not found in offerings`);
-        }
-        
-        console.log('Purchasing package:', packageToPurchase.product.identifier, {
-          price: packageToPurchase.product.priceString,
-          trialPeriod: packageToPurchase.product.introPrice?.periodString,
-        });
-        
-        const purchaseResult = await Purchases.purchasePackage(packageToPurchase);
-        
-        console.log('Purchase completed:', {
-          productId: purchaseResult.customerInfo.originalAppUserId,
-          entitlements: Object.keys(purchaseResult.customerInfo.entitlements.active),
-        });
-        
-        // Check if premium entitlement is active
-        const premiumEntitlement = purchaseResult.customerInfo.entitlements.active[REVENUECAT_CONFIG.ENTITLEMENT_ID];
-        
-        if (premiumEntitlement) {
-          const transactionIdentifier = purchaseResult.customerInfo.originalPurchaseDate;
-          
+        if (canOpen) {
+          await Linking.openURL(storeUrl);
           return {
-            success: true,
-            transactionId: transactionIdentifier || 'purchased',
-            purchaseToken: purchaseResult.customerInfo.originalAppUserId || transactionIdentifier,
-            productId: premiumEntitlement.productIdentifier || productId,
+            success: false,
+            error: 'STORE_REDIRECT',
+            productId,
           };
         } else {
           return {
             success: false,
-            error: 'Purchase completed but entitlement not active',
+            error: 'Unable to open app store. Please visit the App Store or Google Play Store manually to subscribe.',
           };
         }
-      } catch (purchaseError: any) {
-        console.log('Purchase error:', purchaseError);
-        
-        if (purchaseError.userCancelled) {
-          return {
-            success: false,
-            cancelled: true,
-            error: 'Purchase cancelled by user',
-          };
-        }
-        
-        // Handle other RevenueCat errors
-        if (purchaseError.code) {
-          switch (purchaseError.code) {
-            case 'PURCHASE_NOT_ALLOWED_ERROR':
-              return {
-                success: false,
-                error: 'Purchases are not allowed on this device',
-              };
-            case 'PAYMENT_PENDING_ERROR':
-              return {
-                success: false,
-                error: 'Payment is pending approval',
-              };
-            case 'PRODUCT_NOT_AVAILABLE_FOR_PURCHASE_ERROR':
-              return {
-                success: false,
-                error: 'Product is not available for purchase',
-              };
-            default:
-              return {
-                success: false,
-                error: purchaseError.message || 'Purchase failed',
-              };
-          }
-        }
-        
+      }
+
+      // Ensure RevenueCat is configured
+      const apiKey = Platform.OS === 'ios' 
+        ? REVENUECAT_CONFIG.API_KEY_IOS 
+        : REVENUECAT_CONFIG.API_KEY_ANDROID;
+      
+      if (!apiKey || apiKey.includes('YOUR_')) {
+        console.error('❌ RevenueCat API key not configured');
         return {
           success: false,
-          error: purchaseError.message || 'Purchase failed',
+          error: 'Payment service is not configured. Please contact support.',
         };
       }
-    } catch (error) {
-      console.error('Purchase failed:', error);
+
+      // Get offerings - this will trigger the native iOS purchase dialog
+      console.log('📦 Fetching offerings from RevenueCat...');
+      const offerings = await Purchases.getOfferings();
+      const currentOffering = offerings.current;
+      
+      if (!currentOffering) {
+        console.error('❌ No offerings available in RevenueCat');
+        return {
+          success: false,
+          error: 'Subscription products are not available. Please try again later.',
+        };
+      }
+
+      console.log('📋 Available packages:', currentOffering.availablePackages.map((p: any) => ({
+        identifier: p.identifier,
+        productId: p.product.identifier,
+        packageType: p.packageType
+      })));
+
+      // Determine which package to use based on product ID
+      // RevenueCat uses $rc_monthly and $rc_annual as package identifiers
+      const isYearly = productId.includes('yearly') || productId.includes('annual');
+      const packageIdentifier = isYearly ? '$rc_annual' : '$rc_monthly';
+      
+      // Try to find package by identifier first (most reliable)
+      let packageToPurchase = currentOffering.availablePackages.find(
+        (pkg: any) => pkg.identifier === packageIdentifier
+      );
+      
+      // If not found, try exact product ID match
+      if (!packageToPurchase) {
+        packageToPurchase = currentOffering.availablePackages.find(
+          (pkg: any) => pkg.product.identifier === productId
+        );
+      }
+      
+      // If still not found, try by product ID base (for Android)
+      if (!packageToPurchase) {
+        const productIdBase = productId.split(':')[0];
+        packageToPurchase = currentOffering.availablePackages.find(
+          (pkg: any) => {
+            const pkgProductId = pkg.product.identifier?.split(':')[0];
+            return pkgProductId === productIdBase;
+          }
+        );
+      }
+      
+      if (!packageToPurchase) {
+        console.error('❌ Package not found for product:', productId);
+        console.error('Expected package identifier:', packageIdentifier);
+        return {
+          success: false,
+          error: 'Subscription product not found. Please contact support.',
+        };
+      }
+
+      console.log('✅ Found package:', {
+        identifier: packageToPurchase.identifier,
+        productId: packageToPurchase.product.identifier,
+        price: packageToPurchase.product.priceString,
+      });
+      
+      // This will show the native iOS purchase dialog with card entry option
+      console.log('💳 Initiating purchase - native dialog will appear...');
+      const purchaseResult = await Purchases.purchasePackage(packageToPurchase);
+      
+      console.log('✅ Purchase completed:', {
+        entitlements: Object.keys(purchaseResult.customerInfo.entitlements.active),
+      });
+      
+      // Check if premium entitlement is active
+      const premiumEntitlement = purchaseResult.customerInfo.entitlements.active[REVENUECAT_CONFIG.ENTITLEMENT_ID];
+      
+      if (premiumEntitlement && premiumEntitlement.isActive) {
+        return {
+          success: true,
+          transactionId: premiumEntitlement.originalTransactionId || 'purchased',
+          purchaseToken: purchaseResult.customerInfo.originalAppUserId,
+          productId: premiumEntitlement.productIdentifier || productId,
+        };
+      } else {
+        return {
+          success: false,
+          error: 'Purchase completed but premium access not granted. Please contact support.',
+        };
+      }
+    } catch (purchaseError: any) {
+      console.error('❌ Purchase error:', purchaseError);
+      
+      // Handle user cancellation
+      if (purchaseError.userCancelled || purchaseError.code === 'USER_CANCELLED') {
+        return {
+          success: false,
+          cancelled: true,
+          error: 'Purchase cancelled',
+        };
+      }
+      
+      // Handle RevenueCat specific errors
+      if (purchaseError.code) {
+        switch (purchaseError.code) {
+          case 'PURCHASE_NOT_ALLOWED_ERROR':
+            return {
+              success: false,
+              error: 'Purchases are not allowed on this device. Please check your device settings.',
+            };
+          case 'PRODUCT_NOT_AVAILABLE_FOR_PURCHASE_ERROR':
+            return {
+              success: false,
+              error: 'This subscription is not available. Please try again later.',
+            };
+          case 'PAYMENT_PENDING_ERROR':
+            return {
+              success: false,
+              error: 'Your payment is pending approval. Premium access will be granted once approved.',
+            };
+          case 'NETWORK_ERROR':
+            return {
+              success: false,
+              error: 'Network error. Please check your internet connection and try again.',
+            };
+          default:
+            return {
+              success: false,
+              error: purchaseError.message || 'Unable to complete purchase. Please try again.',
+            };
+        }
+      }
+      
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Purchase failed',
+        error: purchaseError.message || 'Unable to complete purchase. Please try again.',
       };
     }
   }

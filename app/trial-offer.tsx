@@ -248,7 +248,7 @@ export default function TrialOfferScreen() {
           </Animated.View>
 
           <Text style={styles.heroTitle}>
-            Start Your Free Trial
+            $0 - Start Free
           </Text>
           <Text style={styles.heroSubtitle}>
             7 days free, then {selectedPlan === 'yearly' ? '$99/year' : '$8.99/month'}

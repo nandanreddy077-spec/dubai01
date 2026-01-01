@@ -138,29 +138,69 @@ export default function SkincarePlanSelectionScreen() {
   }, [loadingProgress, progressAnimation]);
 
   const handleSelectTemplate = async (template: PlanTemplate) => {
-    if (!currentResult) return;
+    if (!currentResult) {
+      console.error('❌ No analysis result available for template plan');
+      Alert.alert('Error', 'No analysis result found. Please complete an analysis first.');
+      return;
+    }
+    
+    console.log('📋 Creating plan from template:', template.title);
+    console.log('📊 Analysis result:', {
+      hasResult: !!currentResult,
+      overallScore: currentResult.overallScore,
+      skinType: currentResult.skinType,
+    });
     
     try {
-      await createPlanFromTemplate(template, currentResult);
+      const plan = await createPlanFromTemplate(template, currentResult);
+      console.log('✅ Template plan created successfully:', {
+        planId: plan.id,
+        title: plan.title,
+      });
       router.push('/(tabs)/glow-coach');
-    } catch {
+    } catch (error: any) {
+      console.error('❌ Template plan creation error:', error);
       Alert.alert('Error', 'Failed to create skincare plan. Please try again.');
     }
   };
 
   const handleCustomPlan = async () => {
-    if (!currentResult) return;
+    if (!currentResult) {
+      console.error('❌ No analysis result available');
+      Alert.alert('Error', 'No analysis result found. Please complete an analysis first.');
+      return;
+    }
     
     if (!customGoal.trim()) {
       Alert.alert('Please enter your skincare goal');
       return;
     }
     
+    console.log('🚀 Starting custom plan generation...');
+    console.log('📋 Plan generation request:', {
+      hasResult: !!currentResult,
+      overallScore: currentResult.overallScore,
+      skinType: currentResult.skinType,
+      customGoal: customGoal.trim(),
+    });
+    
     try {
-      await generateCustomPlan(currentResult, customGoal);
+      // Note: setIsGenerating is already handled inside generateCustomPlan
+      const plan = await generateCustomPlan(currentResult, customGoal);
+      console.log('✅ Plan generated successfully:', {
+        planId: plan.id,
+        title: plan.title,
+        hasWeeklyPlans: !!plan.weeklyPlans,
+      });
       router.push('/(tabs)/glow-coach');
-    } catch {
-      Alert.alert('Error', 'Failed to generate custom plan. Please try again.');
+    } catch (error: any) {
+      console.error('❌ Plan generation error in UI:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
+      
+      // Don't show alert - the function already creates a fallback plan
+      // Just navigate to the plan
+      router.push('/(tabs)/glow-coach');
     }
   };
 

@@ -209,7 +209,7 @@ BEAUTY ANALYSIS REQUIREMENTS:
 3. Facial structure analysis ${imageData.multiAngle ? '(3D symmetry, profile proportions)' : '(frontal symmetry)'}
 4. Beauty scoring for cosmetic purposes
 5. General skincare product recommendations (over-the-counter only)
-6. Beauty enhancement tips and suggestions
+6. Beauty enhancement tips and suggestions (provide exactly 7 specific, actionable recommendations)
 
 CRITICAL: This is cosmetic/beauty guidance only. Do NOT provide medical diagnoses, prescription treatments, or medical procedures. Always recommend consulting a licensed dermatologist for medical concerns.
 ${visionContext}
@@ -246,7 +246,7 @@ Respond with ONLY a valid JSON object with this exact structure:
     "skinTightness": 83,
     "facialHarmony": 89
   },
-  "beautyRecommendations": ["5-7 specific beauty enhancement recommendations - consult dermatologist for medical treatments"],
+  "beautyRecommendations": ["Provide exactly 7 specific, actionable beauty enhancement recommendations tailored to the user's skin analysis. Include product suggestions, routine tips, and lifestyle advice. Always recommend consulting a dermatologist for medical treatments"],
   "confidence": 0.95,
   "analysisAccuracy": "${imageData.multiAngle ? 'Professional-grade (multi-angle)' : 'Standard (single-angle)'}"
 }`;

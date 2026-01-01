@@ -12,7 +12,7 @@ import {
   FlatList,
   Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { palette, gradient, shadow, typography, spacing } from '@/constants/theme';
 import { 
@@ -64,6 +64,7 @@ interface DailyReward {
 }
 
 export default function GlowCoachScreen() {
+  const insets = useSafeAreaInsets();
   const { 
     currentPlan, 
     activePlans, 
@@ -94,41 +95,112 @@ export default function GlowCoachScreen() {
     }
   }, [currentPlan, generateRecommendations]);
 
-  // Auto-advance day progression based on time
+  // Check and skip incomplete days when app opens or plan changes
+  // This handles cases where user opens app after midnight and a day was missed
   useEffect(() => {
-    const checkDayProgression = async () => {
+    const checkAndSkipIncompleteDays = async () => {
       if (!currentPlan) return;
       
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      const currentHour = now.getHours();
+      // Don't advance if plan is already complete
+      if (currentPlan.progress.currentDay >= currentPlan.duration) {
+        return;
+      }
       
-      // Check if we should auto-advance to next day
-      // Auto-advance at midnight if user hasn't completed routine
-      if (currentHour === 0 && !hasCompletedToday()) {
-        console.log('🕛 Auto-advancing to next day at midnight');
+      // Check if the current day was completed
+      const currentDayCompleted = hasCompletedForPlanDay(currentPlan.id, currentPlan.progress.currentDay);
+      
+      if (!currentDayCompleted) {
+        // Check if it's past midnight (new day) by comparing with plan creation/access time
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayMidnight = today.getTime();
         
-        // Only advance if not at the end of the plan
-        if (currentPlan.progress.currentDay < currentPlan.duration) {
+        // Get the plan's last accessed time or creation time
+        const planTime = currentPlan.lastAccessedAt || currentPlan.createdAt;
+        const planDate = new Date(planTime);
+        const planDay = new Date(planDate.getFullYear(), planDate.getMonth(), planDate.getDate());
+        const planMidnight = planDay.getTime();
+        
+        // If plan was last accessed before today's midnight, it means a new day has passed
+        // Skip the incomplete day
+        if (planMidnight < todayMidnight) {
+          console.log(`🕛 Day ${currentPlan.progress.currentDay} was not completed and a new day has passed. Auto-skipping to next day.`);
+          
+          // Skip to next day
           const nextDay = currentPlan.progress.currentDay + 1;
-          await updatePlanProgress(currentPlan.id, {
-            currentDay: nextDay,
-            completedSteps: [] // Reset for new day
-          });
-          console.log(`📅 Auto-advanced to day ${nextDay}`);
+          
+          // Only advance if not at the end of the plan
+          if (nextDay <= currentPlan.duration) {
+            await updatePlanProgress(currentPlan.id, {
+              currentDay: nextDay,
+              completedSteps: [] // Reset for new day
+            });
+            console.log(`📅 Auto-skipped incomplete day. Now on day ${nextDay}`);
+          }
         }
       }
     };
 
-    // Check immediately and then every hour
+    // Check immediately when plan changes or app opens
+    // Add a small delay to ensure completion log is loaded
+    const timer = setTimeout(checkAndSkipIncompleteDays, 500);
+    return () => clearTimeout(timer);
+  }, [currentPlan, hasCompletedForPlanDay, updatePlanProgress]);
+
+  // Auto-advance day progression - skip incomplete days at midnight
+  useEffect(() => {
+    const checkDayProgression = async () => {
+      if (!currentPlan) return;
+      
+      // Don't advance if plan is already complete
+      if (currentPlan.progress.currentDay >= currentPlan.duration) {
+        return;
+      }
+      
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      
+      // Check at midnight (00:00 to 00:05) to skip incomplete days
+      // This gives a 5-minute window to catch midnight
+      if (currentHour === 0 && currentMinute <= 5) {
+        // Check if the current day was completed
+        const currentDayCompleted = hasCompletedForPlanDay(currentPlan.id, currentPlan.progress.currentDay);
+        
+        if (!currentDayCompleted) {
+          console.log(`🕛 Day ${currentPlan.progress.currentDay} was not completed. Auto-skipping to next day at midnight.`);
+          
+          // Skip to next day
+          const nextDay = currentPlan.progress.currentDay + 1;
+          
+          // Only advance if not at the end of the plan
+          if (nextDay <= currentPlan.duration) {
+            await updatePlanProgress(currentPlan.id, {
+              currentDay: nextDay,
+              completedSteps: [] // Reset for new day
+            });
+            console.log(`📅 Auto-skipped incomplete day. Now on day ${nextDay}`);
+          }
+        } else {
+          console.log(`✅ Day ${currentPlan.progress.currentDay} was completed. No skip needed.`);
+        }
+      }
+    };
+
+    // Check immediately and then every 5 minutes to catch midnight
     checkDayProgression();
-    const interval = setInterval(checkDayProgression, 60 * 60 * 1000); // Every hour
+    const interval = setInterval(checkDayProgression, 5 * 60 * 1000); // Every 5 minutes
     
     return () => clearInterval(interval);
-  }, [currentPlan, hasCompletedToday, updatePlanProgress]);
+  }, [currentPlan, hasCompletedForPlanDay, updatePlanProgress]);
 
-  const handlePlanSwitch = (plan: SkincarePlan) => {
-    setCurrentPlan(plan);
+  const handlePlanSwitch = async (plan: SkincarePlan) => {
+    // Update lastAccessedAt when switching plans
+    const updatedPlan = {
+      ...plan,
+      lastAccessedAt: Date.now()
+    };
+    setCurrentPlan(updatedPlan);
     setShowPlansModal(false);
   };
 
@@ -382,7 +454,13 @@ export default function GlowCoachScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + 100 } // Tab bar height (~60) + safe area + extra padding
+        ]}
+      >
         {/* Luxurious Header */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
@@ -538,34 +616,6 @@ export default function GlowCoachScreen() {
           )}
         </View>
 
-        {/* Product Recommendations Button */}
-        {recommendations.length > 0 && (
-          <View style={styles.recommendationsSection}>
-            <TouchableOpacity 
-              style={styles.recommendationsButton}
-              onPress={() => router.push('/product-tracking')}
-              activeOpacity={0.9}
-            >
-              <LinearGradient colors={gradient.glow} style={styles.recommendationsButtonGradient}>
-                <View style={styles.recommendationsButtonContent}>
-                  <View style={styles.recommendationsButtonLeft}>
-                    <View style={styles.recommendationsIconWrapper}>
-                      <ShoppingBag color={palette.textLight} size={24} />
-                    </View>
-                    <View>
-                      <Text style={styles.recommendationsButtonTitle}>Product Recommendations</Text>
-                      <Text style={styles.recommendationsButtonSubtitle}>
-                        {recommendations.length} personalized picks for you
-                      </Text>
-                    </View>
-                  </View>
-                  <ArrowRight color={palette.textLight} size={20} />
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        )}
-
         {/* Progress Actions */}
         <View style={styles.actionsSection}>
           <TouchableOpacity 
@@ -595,6 +645,34 @@ export default function GlowCoachScreen() {
           )}
         </View>
 
+        {/* Product Recommendations Button */}
+        {recommendations.length > 0 && (
+          <View style={styles.recommendationsSection}>
+            <TouchableOpacity 
+              style={styles.recommendationsButton}
+              onPress={() => router.push('/product-tracking')}
+              activeOpacity={0.9}
+            >
+              <LinearGradient colors={['#D4A574', '#C8966A']} style={styles.recommendationsButtonGradient}>
+                <View style={styles.recommendationsButtonContent}>
+                  <View style={styles.recommendationsButtonLeft}>
+                    <View style={styles.recommendationsIconWrapper}>
+                      <ShoppingBag color={palette.textLight} size={24} />
+                    </View>
+                    <View>
+                      <Text style={styles.recommendationsButtonTitle}>Product Recommendations</Text>
+                      <Text style={styles.recommendationsButtonSubtitle}>
+                        {recommendations.length} personalized picks for you
+                      </Text>
+                    </View>
+                  </View>
+                  <ArrowRight color={palette.textLight} size={20} />
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Recent Notes */}
         {currentPlan.progress.notes.length > 0 && (
           <View style={styles.notesSection}>
@@ -616,8 +694,6 @@ export default function GlowCoachScreen() {
             }
           </View>
         )}
-
-
 
         {/* Complete Day Button */}
         <View style={styles.completeDaySection}>
@@ -792,6 +868,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: palette.backgroundStart,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   header: {
     paddingHorizontal: spacing.xxl,

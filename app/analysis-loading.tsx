@@ -653,18 +653,31 @@ export default function AnalysisLoadingScreen() {
       },
       personalizedTips: (() => {
         const tips = aiData.beautyRecommendations || aiData.professionalRecommendations || aiData.personalizedAdvice;
-        if (tips && Array.isArray(tips) && tips.length > 0) {
-          console.log('✅ Using AI-generated personalized tips:', tips.length, 'tips');
-          return tips;
-        }
-        console.log('⚠️ Using fallback personalized tips (AI tips not available)');
-        return [
+        const fallbackTips = [
           "Use a vitamin C serum in the morning to enhance your natural glow",
           "Consider facial massage to improve jawline definition",
           "Maintain your excellent hydration routine for continued skin health",
           "Apply broad-spectrum SPF 30+ daily for optimal skin protection",
-          "Consider professional treatments based on your skin analysis"
+          "Consider professional treatments based on your skin analysis",
+          "Use a gentle exfoliant 2-3 times per week to improve skin texture",
+          "Incorporate a hydrating face mask into your weekly routine"
         ];
+        
+        if (tips && Array.isArray(tips) && tips.length > 0) {
+          console.log('✅ Using AI-generated personalized tips:', tips.length, 'tips');
+          // Ensure we have at least 7 tips by padding with fallback if needed
+          if (tips.length < 7) {
+            const additionalTips = fallbackTips.filter(tip => !tips.some(existingTip => 
+              existingTip.toLowerCase().includes(tip.toLowerCase().substring(0, 20))
+            ));
+            const paddedTips = [...tips, ...additionalTips.slice(0, 7 - tips.length)];
+            console.log(`📝 Padded tips from ${tips.length} to ${paddedTips.length} tips`);
+            return paddedTips;
+          }
+          return tips;
+        }
+        console.log('⚠️ Using fallback personalized tips (AI tips not available)');
+        return fallbackTips;
       })(),
       confidence: Math.min(0.98, (aiData.confidence || 0.85) + (isMultiAngle ? 0.1 : 0)),
     };

@@ -33,6 +33,10 @@ interface PlanRequest {
     };
   };
   customGoal?: string;
+  templateId?: string; // Template plan ID (e.g., 'acne_control', 'anti_aging')
+  templateTitle?: string; // Template plan title
+  templateDescription?: string; // Template plan description
+  templateTargetConcerns?: string[]; // Template target concerns
   userId: string;
 }
 
@@ -102,11 +106,14 @@ serve(async (req) => {
     // Parse request body
     console.log('📥 Parsing request body...');
     const body: PlanRequest = await req.json();
-    const { analysisResult, customGoal, userId } = body;
+    const { analysisResult, customGoal, templateId, templateTitle, templateDescription, templateTargetConcerns, userId } = body;
     
     console.log('📋 Request received:', {
       hasAnalysisResult: !!analysisResult,
       hasCustomGoal: !!customGoal,
+      hasTemplate: !!templateId,
+      templateId,
+      templateTitle,
       userId,
       userMatches: userId === user.id,
     });
@@ -131,7 +138,22 @@ serve(async (req) => {
     console.log('✅ OpenAI API key configured');
 
     // Build prompt for plan generation
-    const prompt = `You are a beauty and skincare advisor providing cosmetic guidance. Create a comprehensive 30-day personalized skincare plan based on the beauty analysis results. The plan should be practical, safe, and use only over-the-counter products. IMPORTANT: This is for beauty enhancement only, NOT medical treatment. Always recommend consulting a dermatologist for medical concerns.
+    let planContext = '';
+    if (templateId && templateTitle) {
+      // Template-based plan - personalize based on template focus + user's skin analysis
+      planContext = `Create a comprehensive 30-day personalized skincare plan based on the "${templateTitle}" template, but CUSTOMIZE it specifically for this user's unique skin analysis results. 
+
+Template Focus: ${templateTitle}
+${templateDescription ? `Template Description: ${templateDescription}` : ''}
+${templateTargetConcerns && templateTargetConcerns.length > 0 ? `Template Target Concerns: ${templateTargetConcerns.join(', ')}` : ''}
+
+IMPORTANT: While following the template's focus (${templateTitle}), you MUST personalize every aspect of the plan based on the user's actual skin analysis below. The plan should address their specific skin type, concerns, scores, and needs. Make it feel genuinely tailored to them, not generic.`;
+    } else {
+      // Custom plan
+      planContext = `Create a comprehensive 30-day personalized skincare plan based on the beauty analysis results.`;
+    }
+
+    const prompt = `You are a beauty and skincare advisor providing cosmetic guidance. ${planContext} The plan should be practical, safe, and use only over-the-counter products. IMPORTANT: This is for beauty enhancement only, NOT medical treatment. Always recommend consulting a dermatologist for medical concerns.
 
 IMPORTANT: Return ONLY a valid JSON object. Do not include any markdown formatting, code blocks, or explanatory text. Just the raw JSON object with this exact structure:
 {
@@ -202,45 +224,77 @@ Detailed Scores:
 
 ${customGoal ? `Custom Goal: ${customGoal}` : ''}
 
-Create a progressive 30-day plan with 4 weekly phases. Focus on the lowest scoring areas and address the specific skin concerns. Include morning and evening routines, weekly treatments, and product recommendations with realistic pricing.`;
+${templateId && templateTitle ? `
+TEMPLATE REQUIREMENTS:
+- Follow the "${templateTitle}" approach and focus
+- BUT personalize every step, product, and routine based on the user's actual skin analysis above
+- Address their specific skin type (${analysisResult.skinType}), concerns (${analysisResult.dermatologyInsights.skinConcerns.join(', ')}), and scores
+- Make recommendations that will genuinely help THIS user see real improvements
+- Focus on their lowest scoring areas: ${Object.entries(analysisResult.detailedScores).sort((a, b) => a[1] - b[1]).slice(0, 3).map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1').trim()}: ${value}%`).join(', ')}
+` : ''}
+
+Create a progressive 30-day plan with 4 weekly phases. ${templateId ? 'While following the template focus, ' : ''}Focus on the lowest scoring areas and address the specific skin concerns. Include morning and evening routines, weekly treatments, and product recommendations with realistic pricing. Make it feel personalized and tailored to THIS user's unique skin profile.`;
 
     // Call OpenAI API
     console.log('🤖 Calling OpenAI API for plan generation...');
-    const openaiResponse = await fetch(OPENAI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert beauty and skincare advisor. Always return valid JSON without markdown formatting.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        max_tokens: 3000,
-        temperature: 0.7,
-      }),
-    });
+    console.log('📋 Prompt length:', prompt.length);
+    console.log('🔑 API Key present:', !!OPENAI_API_KEY);
+    console.log('🔑 API Key prefix:', OPENAI_API_KEY ? OPENAI_API_KEY.substring(0, 7) : 'N/A');
+    
+    let openaiResponse;
+    try {
+      openaiResponse = await fetch(OPENAI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert beauty and skincare advisor. Always return valid JSON without markdown formatting.',
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          max_tokens: 3000,
+          temperature: 0.7,
+        }),
+      });
 
-    if (!openaiResponse.ok) {
-      const errorText = await openaiResponse.text();
-      console.error('❌ OpenAI API error:', openaiResponse.status, errorText);
+      console.log('📥 OpenAI response status:', openaiResponse.status);
+      console.log('📥 OpenAI response ok:', openaiResponse.ok);
+
+      if (!openaiResponse.ok) {
+        const errorText = await openaiResponse.text();
+        console.error('❌ OpenAI API error:', openaiResponse.status);
+        console.error('❌ Error response:', errorText);
+        return new Response(
+          JSON.stringify({ 
+            error: `OpenAI API error: ${openaiResponse.status}`,
+            details: errorText.substring(0, 500) // Limit error text length
+          }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    } catch (fetchError) {
+      console.error('❌ Fetch error calling OpenAI:', fetchError);
       return new Response(
-        JSON.stringify({ error: `OpenAI API error: ${openaiResponse.status} - ${errorText}` }),
+        JSON.stringify({ 
+          error: 'Failed to call OpenAI API',
+          details: fetchError instanceof Error ? fetchError.message : 'Unknown fetch error'
+        }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
-    }
+      }
 
-    console.log('✅ OpenAI API response received');
-    const openaiData = await openaiResponse.json();
-    const content = openaiData.choices?.[0]?.message?.content;
+      console.log('✅ OpenAI API response received');
+      const openaiData = await openaiResponse.json();
+      const content = openaiData.choices?.[0]?.message?.content;
 
     if (!content) {
       console.error('❌ No content in OpenAI response');
@@ -301,7 +355,31 @@ Create a progressive 30-day plan with 4 weekly phases. Focus on the lowest scori
       );
     }
 
+    // Validate plan structure before returning
+    if (!planData.title || !planData.weeklyPlans || !Array.isArray(planData.weeklyPlans)) {
+      console.error('❌ Invalid plan structure:', {
+        hasTitle: !!planData.title,
+        hasWeeklyPlans: !!planData.weeklyPlans,
+        weeklyPlansIsArray: Array.isArray(planData.weeklyPlans),
+        planKeys: Object.keys(planData || {}),
+      });
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid plan structure from AI',
+          details: 'Plan missing required fields: title or weeklyPlans',
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log('✅ Plan generation complete, returning result');
+    console.log('📋 Plan structure validated:', {
+      title: planData.title,
+      weeklyPlansCount: planData.weeklyPlans?.length || 0,
+      hasShoppingList: !!planData.shoppingList,
+      hasTargetGoals: !!planData.targetGoals,
+    });
+    
     return new Response(
       JSON.stringify(planData),
       {
@@ -324,6 +402,7 @@ Create a progressive 30-day plan with 4 weekly phases. Focus on the lowest scori
     );
   }
 });
+
 
 
 

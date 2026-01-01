@@ -209,12 +209,50 @@ export default function AIAdvisorScreen() {
         }
       ];
 
-      // Call OpenAI with tools
-      const response = await makeOpenAIRequestWithTools(openAIMessages, tools, {
-        model: 'gpt-4o-mini',
-        temperature: 0.7,
-        maxTokens: 2000,
-      });
+      // Try Edge Function first (secure, server-side)
+      let response: { content: string | null; toolCalls?: any[] };
+      
+      try {
+        const { supabase } = await import('@/lib/supabase');
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          console.log('🤖 Calling ai-advisor Edge Function...');
+          const { data, error } = await supabase.functions.invoke('ai-advisor', {
+            body: {
+              messages: openAIMessages,
+              tools: tools,
+              userId: user.id,
+            },
+          });
+
+          if (error) {
+            console.warn('⚠️ Edge Function error, falling back to direct API:', error.message);
+            throw error;
+          }
+
+          if (data?.error) {
+            console.warn('⚠️ Edge Function returned error, falling back to direct API:', data.error);
+            throw new Error(data.error);
+          }
+
+          console.log('✅ Response received via Edge Function');
+          response = {
+            content: data.content || null,
+            toolCalls: data.toolCalls,
+          };
+        } else {
+          throw new Error('User not authenticated');
+        }
+      } catch (edgeError) {
+        console.warn('⚠️ Edge Function failed, falling back to direct API:', edgeError);
+        // Fallback to direct API
+        response = await makeOpenAIRequestWithTools(openAIMessages, tools, {
+          model: 'gpt-4o-mini',
+          temperature: 0.7,
+          maxTokens: 2000,
+        });
+      }
 
       if (response.toolCalls && response.toolCalls.length > 0) {
         // Handle tool calls
@@ -273,11 +311,49 @@ export default function AIAdvisorScreen() {
         }
 
         // Get final response with tool results
-        const finalResponse = await makeOpenAIRequestWithTools(toolMessages, tools, {
-          model: 'gpt-4o-mini',
-          temperature: 0.7,
-          maxTokens: 2000,
-        });
+        let finalResponse: { content: string | null; toolCalls?: any[] };
+        
+        try {
+          const { supabase } = await import('@/lib/supabase');
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (user) {
+            console.log('🤖 Calling ai-advisor Edge Function for final response...');
+            const { data, error } = await supabase.functions.invoke('ai-advisor', {
+              body: {
+                messages: toolMessages,
+                tools: tools,
+                userId: user.id,
+              },
+            });
+
+            if (error) {
+              console.warn('⚠️ Edge Function error, falling back to direct API:', error.message);
+              throw error;
+            }
+
+            if (data?.error) {
+              console.warn('⚠️ Edge Function returned error, falling back to direct API:', data.error);
+              throw new Error(data.error);
+            }
+
+            console.log('✅ Final response received via Edge Function');
+            finalResponse = {
+              content: data.content || null,
+              toolCalls: data.toolCalls,
+            };
+          } else {
+            throw new Error('User not authenticated');
+          }
+        } catch (edgeError) {
+          console.warn('⚠️ Edge Function failed, falling back to direct API:', edgeError);
+          // Fallback to direct API
+          finalResponse = await makeOpenAIRequestWithTools(toolMessages, tools, {
+            model: 'gpt-4o-mini',
+            temperature: 0.7,
+            maxTokens: 2000,
+          });
+        }
 
         const assistantMsg: ChatMessage = {
           id: (Date.now() + 1).toString(),

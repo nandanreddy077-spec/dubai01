@@ -25,7 +25,7 @@ export default function PremiumPaywall({ onStartTrial, onSubscribe, testID }: Pr
         return `Trial ending — ${hoursLeft} hour${hoursLeft === 1 ? '' : 's'} left`;
       }
     }
-    return 'Start your 3-day free trial';
+    return 'Unlock Everything - $0 to Start';
   }, [inTrial, daysLeft, hoursLeft, isTrialExpired]);
 
   const scanStatus = useMemo(() => {
@@ -73,7 +73,7 @@ export default function PremiumPaywall({ onStartTrial, onSubscribe, testID }: Pr
         {!inTrial && !isTrialExpired && (
           <TouchableOpacity accessibilityRole="button" style={styles.cta} onPress={onStartTrial} testID="start-trial">
             <LinearGradient colors={[palette.gold, palette.blush]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.ctaGradient}>
-              <Text style={styles.ctaText}>Start 3-day free trial</Text>
+              <Text style={styles.ctaText}>$0 - Start Your Free Journey</Text>
             </LinearGradient>
           </TouchableOpacity>
         )}

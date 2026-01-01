@@ -110,3 +110,5 @@ supabase secrets set OPENAI_API_KEY=your-key-here
 
 **Status**: ✅ **FIXED** - Insights AI now works correctly using secure Edge Function
 
+
+

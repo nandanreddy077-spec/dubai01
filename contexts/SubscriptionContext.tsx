@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import { Platform } from 'react-native';
-import { paymentService, PRODUCT_IDS, trackPurchaseEvent, trackTrialStartEvent } from '@/lib/payments';
+import { paymentService, PRODUCT_IDS, REVENUECAT_CONFIG, trackPurchaseEvent, trackTrialStartEvent } from '@/lib/payments';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -30,7 +30,7 @@ export interface SubscriptionContextType {
   isTrialExpired: boolean;
   canViewResults: boolean;
   needsPremium: boolean;
-  startLocalTrial: (days?: number) => Promise<void>;
+  startLocalTrial: (days?: number) => Promise<void>; // DISABLED: Use processInAppPurchase instead (requires payment method)
   setPremium: (value: boolean, type?: 'monthly' | 'yearly') => Promise<void>;
   setSubscriptionData: (data: Partial<SubscriptionState>) => Promise<void>;
   incrementScanCount: () => Promise<void>;
@@ -72,7 +72,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
     try {
       if (!customerInfo) return;
       
-      const entitlement = customerInfo.entitlements?.active?.['premium'];
+      const entitlement = customerInfo.entitlements?.active?.[REVENUECAT_CONFIG.ENTITLEMENT_ID];
       
       if (entitlement && entitlement.isActive) {
         const isTrial = entitlement.isTrialPeriod || 
@@ -117,20 +117,15 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
     }
   }, [setSubscriptionData]);
 
-  const startLocalTrial = useCallback(async (days: number = 7) => {
-    const now = new Date();
-    const ends = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
-    const next: SubscriptionState = {
-      ...state,
-      trialStartedAt: now.toISOString(),
-      trialEndsAt: ends.toISOString(),
-      hasStartedTrial: true,
-      scanCount: 0, // Reset scan count when starting trial
-      isPremium: true, // Grant premium access during trial
-    };
-    await persist(next);
-    trackTrialStartEvent();
-  }, [persist, state]);
+  // DISABLED: Trials must ONLY start through payment flow (RevenueCat)
+  // This function is kept for backwards compatibility but does nothing
+  // iOS subscription trials REQUIRE a payment method - enforced by Apple
+  const startLocalTrial = useCallback(async (days?: number) => {
+    console.warn('⚠️ startLocalTrial is disabled. Trials must start through payment flow (processInAppPurchase).');
+    // Do nothing - trials can only start through RevenueCat payment flow
+    // This ensures payment method is always required
+    return;
+  }, []);
 
   const setPremium = useCallback(async (value: boolean, type: 'monthly' | 'yearly' = 'monthly') => {
     const price = type === 'yearly' ? 99 : 8.99;
@@ -369,16 +364,15 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
     })();
   }, []);
   
-  const processInAppPurchase = useCallback(async (type: 'monthly' | 'yearly'): Promise<{ success: boolean; purchaseToken?: string; originalTransactionId?: string; error?: string }> => {
+  const processInAppPurchase = useCallback(async (type: 'monthly' | 'yearly'): Promise<{ success: boolean; purchaseToken?: string; originalTransactionId?: string; error?: string; cancelled?: boolean }> => {
     try {
-      console.log(`Processing ${type} in-app purchase...`);
+      console.log(`💳 Processing ${type} subscription purchase...`);
       
       if (Platform.OS === 'web') {
-        console.log('In-app purchases not available on web');
         return { success: false, error: 'In-app purchases not supported on web. Please use the mobile app.' };
       }
       
-      // Initialize payment service with user ID
+      // Initialize payment service with user ID (ensure it's ready)
       const initialized = await paymentService.initialize(user?.id || null);
       if (!initialized) {
         return { success: false, error: 'Payment service unavailable. Please try again later.' };
@@ -392,11 +386,12 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
       // Get the product ID for the subscription type
       const productId = type === 'monthly' ? PRODUCT_IDS.MONTHLY : PRODUCT_IDS.YEARLY;
       
-      // Attempt the purchase
+      // Attempt the purchase - this will show native iOS purchase dialog
+      console.log(`🛒 Starting purchase flow for: ${productId}`);
       const result = await paymentService.purchaseProduct(productId);
       
-      if (result.success && result.transactionId && result.purchaseToken) {
-        console.log('Purchase successful:', result);
+      if (result.success) {
+        console.log('✅ Purchase successful:', result);
         
         // Track the purchase event
         const price = type === 'yearly' ? 99 : 8.99;
@@ -405,44 +400,26 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
         // Sync subscription status from RevenueCat (this will update state automatically)
         await syncSubscriptionStatus();
         
-        // Also sync with backend after successful purchase
-        if (user?.id) {
-          try {
-            // Update user's RevenueCat user ID in Supabase
-            await supabase
-              .from('user_profiles')
-              .update({ 
-                revenuecat_user_id: user.id,
-                subscription_status: 'premium',
-                subscription_product_id: productId,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', user.id);
-          } catch (backendError) {
-            console.error('Failed to update backend subscription status:', backendError);
-            // Don't fail the purchase if backend update fails
-          }
-        }
-        
         return { 
           success: true, 
           purchaseToken: result.purchaseToken,
           originalTransactionId: result.transactionId 
         };
       } else if (result.cancelled) {
-        console.log('Purchase cancelled by user');
+        console.log('⚠️ Purchase cancelled by user');
         return { 
           success: false, 
+          cancelled: true,
           error: 'Purchase cancelled' 
         };
       } else if (result.error === 'STORE_REDIRECT') {
-        console.log('User redirected to app store');
+        console.log('📱 User redirected to app store');
         return { 
           success: false, 
           error: 'STORE_REDIRECT' 
         };
       } else {
-        console.log('Purchase failed:', result.error);
+        console.error('❌ Purchase failed:', result.error);
         return { 
           success: false, 
           error: result.error || 'Payment failed. Please try again.' 
@@ -450,7 +427,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
       }
       
     } catch (error) {
-      console.error('In-app purchase error:', error);
+      console.error('❌ In-app purchase error:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.' 

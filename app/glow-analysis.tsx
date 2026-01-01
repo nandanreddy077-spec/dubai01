@@ -150,6 +150,26 @@ export default function GlowAnalysisScreen() {
       });
 
       if (!result.canceled) {
+        // If in quick analysis mode (single photo), navigate directly
+        if (!showInstructions) {
+
+          // Increment scan count before analysis
+          if (incrementScanCount) {
+            await incrementScanCount();
+          }
+
+          router.push({
+            pathname: '/analysis-loading',
+            params: { 
+              frontImage: result.assets[0].uri,
+              multiAngle: 'false'
+            }
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // Multi-angle mode flow
         const newPhoto: CapturedPhoto = {
           uri: result.assets[0].uri,
           angle: currentAngle,
@@ -183,6 +203,7 @@ export default function GlowAnalysisScreen() {
       );
       return;
     }
+
 
     // Increment scan count before analysis
     if (incrementScanCount) {

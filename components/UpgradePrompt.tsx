@@ -114,7 +114,7 @@ export default function UpgradePrompt({
 
             {/* Message */}
             <Text style={styles.message}>
-              {message || `Start your 7-day free trial to access ${feature} and all premium features.`}
+              {message || `$0 to start - unlock ${feature} and all premium features free.`}
             </Text>
 
             {/* Features */}
@@ -154,7 +154,7 @@ export default function UpgradePrompt({
                 end={{ x: 1, y: 1 }}
               >
                 <Sparkles size={20} color="#FFFFFF" fill="#FFFFFF" strokeWidth={2} />
-                <Text style={styles.upgradeButtonText}>Start Free Trial</Text>
+                <Text style={styles.upgradeButtonText}>$0 - Start It Free</Text>
                 <View style={styles.trialBadge}>
                   <Text style={styles.trialBadgeText}>7 DAYS</Text>
                 </View>

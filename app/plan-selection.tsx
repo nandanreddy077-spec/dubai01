@@ -208,11 +208,11 @@ export default function PlanSelectionScreen() {
               style={styles.continueGradient}
             >
               <Text style={[styles.continueText, { color: state.isPremium ? '#666666' : '#FFFFFF' }]}>
-                {state.isPremium ? 'Already Premium' : isProcessing ? 'Processing...' : 'Continue'}
+                {state.isPremium ? 'Already Premium' : isProcessing ? 'Processing...' : '$0 - Start Free'}
               </Text>
               {!state.isPremium && !isProcessing && (
                 <Text style={styles.continuePrice}>
-                  {selectedPlan === 'yearly' ? '$99/year after trial' : '$8.90/month after trial'}
+                  Access everything for free • Cancel anytime
                 </Text>
               )}
             </LinearGradient>

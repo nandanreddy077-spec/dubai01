@@ -38,23 +38,8 @@ env
 *.tsbuildinfo
 .vercel
 
-# iOS (keep directory but ignore build artifacts)
-ios/Pods/
-ios/build/
-ios/*.xcworkspace/xcuserdata/
-ios/*.xcodeproj/xcuserdata/
-ios/*.xcodeproj/project.xcworkspace/xcuserdata/
-ios/Podfile.lock
-ios/.xcode.env.local
-
-# Android (keep directory but ignore build artifacts)
-android/build/
-android/.gradle/
-android/app/build/
-android/.idea/
-android/local.properties
-android/*.iml
-
+ios/
+android/
 .rork
 rork-eslint.config.js
 ios/

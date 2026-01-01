@@ -36,7 +36,7 @@ export default function TrialReminderBanner() {
           <View style={styles.textContainer}>
             <Text style={styles.title}>You&apos;ve Used Your Free Scan!</Text>
             <Text style={styles.subtitle}>
-              Start your 7-day free trial • Card required
+              $0 to start • Access everything for free
             </Text>
           </View>
           <ArrowRight size={20} color="#1A1A1A" strokeWidth={3} />

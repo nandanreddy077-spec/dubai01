@@ -153,55 +153,12 @@ export const [SkincareProvider, useSkincare] = createContextHook((): SkincareCon
   }, [planHistory, currentPlan, activePlans]);
 
   // Utility function for making AI API calls via Edge Function
+  // NOTE: This should NOT be used for plan generation - use plan-generate Edge Function directly
+  // This is kept for backward compatibility but will throw an error
   const makeAIRequest = async (messages: any[], maxRetries = 2): Promise<any> => {
-    // Try Edge Function first (secure, server-side)
-    const { supabase } = await import('../lib/supabase');
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-
-    // For plan generation, use the plan-generate Edge Function
-    // Extract the user message content (the prompt)
-    const userMessage = messages.find(m => m.role === 'user');
-    const systemMessage = messages.find(m => m.role === 'system');
-    
-    if (!userMessage) {
-      throw new Error('No user message found');
-    }
-
-    // Get analysis result from context or extract from message
-    // For now, we'll use the Edge Function approach
-    console.log('🤖 Calling plan-generate Edge Function...');
-    
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        // We need to pass the analysis result, so we'll need to modify this
-        // For now, fallback to direct API if Edge Function approach needs more work
-        const { makeOpenAIRequest, formatMessages } = await import('../lib/openai-service');
-        
-        const formattedMessages = formatMessages(messages);
-        const result = await makeOpenAIRequest(formattedMessages, {
-          model: 'gpt-4o-mini',
-          temperature: 0.7,
-          maxTokens: 2000,
-        }, maxRetries);
-        
-        if (!result) {
-          throw new Error('AI API request failed after all retries');
-        }
-        
-        return result;
-      } catch (error) {
-        if (attempt === maxRetries - 1) {
-          throw error;
-        }
-        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-      }
-    }
-    
-    throw new Error('AI API request failed after all retries');
+    // Don't use direct API calls - they require client-side API key which is invalid
+    // All AI calls should go through Edge Functions
+    throw new Error('Direct AI API calls are disabled. Please use Edge Functions (plan-generate) instead.');
   };
 
   const generateCustomPlan = useCallback(async (analysisResult: AnalysisResult, customGoal?: string): Promise<SkincarePlan> => {
@@ -291,122 +248,231 @@ Create a progressive 30-day plan with 4 weekly phases. Focus on the lowest scori
       try {
         // Try Edge Function first (secure, server-side)
         console.log('🤖 Attempting to generate plan via Edge Function...');
-        const { supabase } = await import('../lib/supabase');
-        const { data: { user } } = await supabase.auth.getUser();
+        console.log('📋 Analysis result:', {
+          hasAnalysisResult: !!analysisResult,
+          overallScore: analysisResult?.overallScore,
+          skinType: analysisResult?.skinType,
+          customGoal,
+        });
         
-        if (user) {
+        const { supabase } = await import('../lib/supabase');
+        console.log('✅ Supabase imported');
+        
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        console.log('🔐 Auth check result:', {
+          hasUser: !!user,
+          userId: user?.id,
+          hasError: !!userError,
+          errorMessage: userError?.message,
+        });
+        
+        if (userError) {
+          console.error('❌ User auth error:', userError);
+          console.error('⚠️ Will use fallback plan due to auth error');
+          throw new Error('User authentication failed');
+        }
+        
+        if (!user) {
+          // No user authenticated - use fallback plan
+          console.warn('⚠️ No user authenticated, using fallback plan');
+          console.warn('💡 User should be logged in to use AI plan generation');
+          throw new Error('User not authenticated - cannot generate plan');
+        }
+
+        console.log('✅ User authenticated:', user.id);
+        
+        // Get Supabase instance to check configuration
+        const supabaseInstance = (await import('../lib/supabase')).supabase;
+        console.log('🔗 Supabase configuration:', {
+          hasUrl: !!supabaseInstance.supabaseUrl,
+          urlPreview: supabaseInstance.supabaseUrl?.substring(0, 50) + '...',
+          hasAnonKey: !!supabaseInstance.supabaseKey,
+        });
+
+        // Retry logic for Edge Function (up to 3 attempts)
+        const MAX_RETRIES = 3;
+        let lastError: any = null;
+        
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
           try {
-            const { data, error } = await supabase.functions.invoke('plan-generate', {
-              body: {
-                analysisResult: {
-                  overallScore: analysisResult.overallScore,
-                  skinType: analysisResult.skinType,
-                  skinTone: analysisResult.skinTone,
-                  skinQuality: analysisResult.skinQuality,
-                  dermatologyInsights: analysisResult.dermatologyInsights,
-                  detailedScores: analysisResult.detailedScores,
-                },
-                customGoal,
-                userId: user.id,
+            console.log(`📤 Calling plan-generate Edge Function (attempt ${attempt}/${MAX_RETRIES})...`);
+            console.log('📋 Request payload:', {
+              hasAnalysisResult: !!analysisResult,
+              overallScore: analysisResult.overallScore,
+              skinType: analysisResult.skinType,
+              skinTone: analysisResult.skinTone,
+              hasCustomGoal: !!customGoal,
+              userId: user.id,
+            });
+            console.log('🌐 About to invoke Edge Function: plan-generate');
+            console.log('🔗 Supabase client:', {
+              hasSupabase: !!supabase,
+              hasFunctions: !!supabase.functions,
+              hasInvoke: typeof supabase.functions.invoke === 'function',
+            });
+
+            const requestBody = {
+              analysisResult: {
+                overallScore: analysisResult.overallScore,
+                skinType: analysisResult.skinType,
+                skinTone: analysisResult.skinTone,
+                skinQuality: analysisResult.skinQuality,
+                dermatologyInsights: analysisResult.dermatologyInsights,
+                detailedScores: analysisResult.detailedScores,
               },
+              customGoal,
+              userId: user.id,
+            };
+            
+            console.log('📦 Request body size:', JSON.stringify(requestBody).length, 'bytes');
+            console.log('📦 Request body preview:', JSON.stringify(requestBody).substring(0, 300));
+
+            console.log('🚀 INVOKING Edge Function NOW...');
+            const startTime = Date.now();
+            
+            const { data, error } = await supabase.functions.invoke('plan-generate', {
+              body: requestBody,
+            });
+            
+            const duration = Date.now() - startTime;
+            console.log(`🌐 Edge Function invoke completed in ${duration}ms`);
+            
+            if (error) {
+              console.error('❌ Edge Function invoke returned error:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack,
+                details: JSON.stringify(error, null, 2),
+              });
+            } else {
+              console.log('✅ Edge Function invoke succeeded (no error object)');
+            }
+
+            console.log(`📥 Edge Function response (attempt ${attempt}):`, {
+              hasData: !!data,
+              hasError: !!error,
+              dataType: typeof data,
+              errorType: typeof error,
+              errorMessage: error?.message,
+              errorName: error?.name,
+              dataKeys: data ? Object.keys(data) : [],
+              dataPreview: data ? JSON.stringify(data).substring(0, 200) : null,
             });
 
             if (error) {
-              console.warn('⚠️ Edge Function error, falling back to direct API:', error.message);
-              throw error;
+              console.error(`❌ Edge Function invoke error (attempt ${attempt}):`, error);
+              console.error('Error name:', error.name);
+              console.error('Error message:', error.message);
+              console.error('Error details:', JSON.stringify(error, null, 2));
+              
+              // Retry on network errors or 5xx errors
+              if (attempt < MAX_RETRIES && (
+                error.message?.includes('network') ||
+                error.message?.includes('timeout') ||
+                error.message?.includes('fetch') ||
+                error.message?.includes('Failed to fetch')
+              )) {
+                console.log(`⏳ Retrying in ${attempt * 1000}ms...`);
+                await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+                lastError = error;
+                continue;
+              }
+              
+              throw new Error(`Plan generation failed: ${error.message || 'Unknown error'}`);
             }
 
             if (data?.error) {
-              console.warn('⚠️ Edge Function returned error, falling back to direct API:', data.error);
-              throw new Error(data.error);
+              console.error(`❌ Edge Function returned error in data (attempt ${attempt}):`, data.error);
+              console.error('Error details:', data.details || 'No additional details');
+              console.error('Full data response:', JSON.stringify(data, null, 2));
+              
+              // Don't retry on application errors (4xx, validation errors, etc.)
+              throw new Error(`Plan generation failed: ${data.error}`);
             }
 
-            // Edge Function returns the plan data directly (already parsed JSON)
+            if (!data) {
+              console.error(`❌ Edge Function returned no data (attempt ${attempt})`);
+              
+              // Retry if no data (might be a transient issue)
+              if (attempt < MAX_RETRIES) {
+                console.log(`⏳ Retrying in ${attempt * 1000}ms...`);
+                await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+                lastError = new Error('No data returned from Edge Function');
+                continue;
+              }
+              
+              throw new Error('Plan generation failed: No data returned from Edge Function');
+            }
+
+            // Edge Function returns the plan data directly (already parsed JSON by Supabase client)
             console.log('✅ Plan generated via Edge Function');
+            console.log('📋 Plan data received:', {
+              hasData: !!data,
+              dataType: typeof data,
+              keys: data ? Object.keys(data) : [],
+              hasTitle: !!data?.title,
+              hasWeeklyPlans: !!data?.weeklyPlans,
+              weeklyPlansCount: data?.weeklyPlans?.length || 0,
+            });
+            
+            // Validate plan structure
+            if (!data || typeof data !== 'object') {
+              throw new Error('Invalid plan data structure from Edge Function');
+            }
+            
+            if (!data.title || !data.weeklyPlans || !Array.isArray(data.weeklyPlans)) {
+              console.error('❌ Plan data missing required fields:', {
+                hasTitle: !!data.title,
+                hasWeeklyPlans: !!data.weeklyPlans,
+                weeklyPlansIsArray: Array.isArray(data.weeklyPlans),
+                dataKeys: Object.keys(data),
+              });
+              throw new Error('Plan data missing required fields (title, weeklyPlans)');
+            }
+            
             planData = data; // Already parsed JSON from Edge Function
-          } catch (edgeError) {
-            console.warn('⚠️ Edge Function failed, falling back to direct API:', edgeError);
-            // Fallback to direct API
-            const completion = await makeAIRequest(messages);
-            console.log('Raw AI response:', completion);
+            break; // Success, exit retry loop
+          } catch (edgeError: any) {
+            console.error(`❌ Edge Function attempt ${attempt} failed:`, edgeError);
+            console.error('Error message:', edgeError?.message);
+            console.error('Error stack:', edgeError?.stack);
             
-            // Extract JSON from the response (handle markdown formatting)
-            let jsonString = completion;
+            lastError = edgeError;
             
-            // Remove markdown code blocks if present
-            if (jsonString.includes('```json')) {
-              const jsonMatch = jsonString.match(/```json\s*([\s\S]*?)\s*```/);
-              if (jsonMatch) {
-                jsonString = jsonMatch[1];
-              }
-            } else if (jsonString.includes('```')) {
-              const jsonMatch = jsonString.match(/```\s*([\s\S]*?)\s*```/);
-              if (jsonMatch) {
-                jsonString = jsonMatch[1];
-              }
+            // Don't retry on validation errors or authentication errors
+            if (edgeError?.message?.includes('missing required fields') ||
+                edgeError?.message?.includes('Invalid plan') ||
+                edgeError?.message?.includes('Unauthorized') ||
+                edgeError?.message?.includes('authentication')) {
+              throw edgeError; // Don't retry, fail immediately
             }
             
-            // Clean up the JSON string
-            jsonString = jsonString.trim();
-            
-            // If the response doesn't start with {, try to find JSON in the response
-            if (!jsonString.startsWith('{')) {
-              const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
-              if (jsonMatch) {
-                jsonString = jsonMatch[0];
-              } else {
-                console.error('No valid JSON found in response:', jsonString);
-                throw new Error('No valid JSON found in AI response');
-              }
+            // If last attempt, throw error
+            if (attempt === MAX_RETRIES) {
+              throw edgeError;
             }
             
-            console.log('Cleaned JSON string:', jsonString);
-            planData = JSON.parse(jsonString);
+            // Wait before retrying
+            console.log(`⏳ Retrying in ${attempt * 1000}ms...`);
+            await new Promise(resolve => setTimeout(resolve, attempt * 1000));
           }
-        } else {
-          // No user, use direct API
-          const completion = await makeAIRequest(messages);
-          console.log('Raw AI response:', completion);
-          
-          // Extract JSON from the response (handle markdown formatting)
-          let jsonString = completion;
-          
-          // Remove markdown code blocks if present
-          if (jsonString.includes('```json')) {
-            const jsonMatch = jsonString.match(/```json\s*([\s\S]*?)\s*```/);
-            if (jsonMatch) {
-              jsonString = jsonMatch[1];
-            }
-          } else if (jsonString.includes('```')) {
-            const jsonMatch = jsonString.match(/```\s*([\s\S]*?)\s*```/);
-            if (jsonMatch) {
-              jsonString = jsonMatch[1];
-            }
-          }
-          
-          // Clean up the JSON string
-          jsonString = jsonString.trim();
-          
-          // If the response doesn't start with {, try to find JSON in the response
-          if (!jsonString.startsWith('{')) {
-            const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              jsonString = jsonMatch[0];
-            } else {
-              console.error('No valid JSON found in response:', jsonString);
-              throw new Error('No valid JSON found in AI response');
-            }
-          }
-          
-          console.log('Cleaned JSON string:', jsonString);
-          planData = JSON.parse(jsonString);
         }
-      } catch (error) {
-        console.error('AI API failed after retries, using fallback:', error);
+        
+        if (!planData) {
+          throw lastError || new Error('Failed to generate plan after all retries');
+        }
+      } catch (error: any) {
+        console.error('❌ AI API failed after retries:', error);
+        console.error('Error message:', error?.message);
+        console.error('Error stack:', error?.stack);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        
         // Use fallback plan immediately if AI fails
+        console.log('🔄 Creating fallback plan...');
         const plan = createFallbackPlan(analysisResult, customGoal);
         await savePlan(plan);
         setCurrentPlan(plan);
+        console.log('✅ Fallback plan created and saved');
         return plan;
       }
       
@@ -438,15 +504,23 @@ Create a progressive 30-day plan with 4 weekly phases. Focus on the lowest scori
       await savePlan(plan);
       setCurrentPlan(plan);
       return plan;
-    } catch (error) {
-      console.error('Error generating custom plan:', error);
+    } catch (error: any) {
+      console.error('❌ Error generating custom plan:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
+      console.error('Full error:', JSON.stringify(error, null, 2));
+      
       // Create fallback plan on any error
+      console.log('🔄 Creating fallback plan due to error...');
       const plan = createFallbackPlan(analysisResult, customGoal);
       await savePlan(plan);
       setCurrentPlan(plan);
+      console.log('✅ Fallback plan created and saved');
       return plan;
     } finally {
       setIsGenerating(false);
+      console.log('🏁 Plan generation process finished');
     }
   }, [savePlan]);
 
@@ -592,130 +666,191 @@ Create a progressive 30-day plan with 4 weekly phases. Focus on the lowest scori
   const createPlanFromTemplate = useCallback(async (template: PlanTemplate, analysisResult: AnalysisResult): Promise<SkincarePlan> => {
     setIsGenerating(true);
     try {
-      const messages = [
-        {
-          role: 'system',
-          content: `You are a beauty and skincare advisor providing cosmetic guidance. Create a detailed 30-day skincare plan based on the template "${template.title}" and customize it for the user's specific beauty analysis results. IMPORTANT: Use only over-the-counter products. This is for beauty enhancement only, NOT medical treatment.
+      console.log('📋 Creating personalized plan from template:', template.title);
+      console.log('📊 Analysis result:', {
+        hasAnalysisResult: !!analysisResult,
+        overallScore: analysisResult?.overallScore,
+        skinType: analysisResult?.skinType,
+        templateId: template.id,
+      });
 
-IMPORTANT: Return ONLY a valid JSON object. Do not include any markdown formatting, code blocks, or explanatory text. Just the raw JSON object with the exact structure:
-{
-  "title": "string",
-  "description": "string",
-  "targetGoals": ["goal1", "goal2"],
-  "weeklyPlans": [
-    {
-      "week": 1,
-      "focus": "string",
-      "description": "string",
-      "steps": [
-        {
-          "id": "unique_id",
-          "name": "step_name",
-          "description": "detailed_description",
-          "products": ["product1", "product2"],
-          "timeOfDay": "morning|evening|both",
-          "frequency": "daily|weekly|bi-weekly|monthly",
-          "order": 1,
-          "duration": "optional_duration",
-          "instructions": ["instruction1", "instruction2"],
-          "benefits": ["benefit1", "benefit2"],
-          "warnings": ["warning1"]
-        }
-      ],
-      "expectedResults": ["result1", "result2"],
-      "tips": ["tip1", "tip2"]
-    }
-  ],
-  "shoppingList": [
-    {
-      "category": "Cleansers",
-      "items": [
-        {
-          "name": "Product Name",
-          "brand": "Brand Name",
-          "price": "$XX",
-          "where": "Where to buy",
-          "priority": "essential|recommended|optional"
-        }
-      ]
-    }
-  ]
-}`
-        },
-        {
-          role: 'user',
-          content: `Template: ${template.title} - ${template.description}
-Target Concerns: ${template.targetConcerns.join(', ')}
-
-User's Skin Analysis:
-- Skin Type: ${analysisResult.skinType}
-- Skin Concerns: ${analysisResult.dermatologyInsights.skinConcerns.join(', ')}
-- Acne Risk: ${analysisResult.dermatologyInsights.acneRisk}
-- Detailed Scores: Hydration ${analysisResult.detailedScores.hydrationLevel}%, Texture ${analysisResult.detailedScores.skinTexture}%, Evenness ${analysisResult.detailedScores.evenness}%
-
-Create a customized 30-day plan with 4 weekly phases following the template focus but adapted to their specific needs.`
-        }
-      ];
-
-      let completion;
-      try {
-        completion = await makeAIRequest(messages);
-        console.log('Raw AI response for template:', completion);
-      } catch (error) {
-        console.error('AI API failed for template, using fallback:', error);
-        // Use fallback plan immediately if AI fails
-        const plan = createFallbackTemplatePlan(template, analysisResult);
-        await savePlan(plan);
-        setCurrentPlan(plan);
-        return plan;
-      }
-      
-      // Extract JSON from the response (handle markdown formatting)
-      let jsonString = completion;
-      
-      // Remove markdown code blocks if present
-      if (jsonString.includes('```json')) {
-        const jsonMatch = jsonString.match(/```json\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-          jsonString = jsonMatch[1];
-        }
-      } else if (jsonString.includes('```')) {
-        const jsonMatch = jsonString.match(/```\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-          jsonString = jsonMatch[1];
-        }
-      }
-      
-      // Clean up the JSON string
-      jsonString = jsonString.trim();
-      
-      // If the response doesn't start with {, try to find JSON in the response
-      if (!jsonString.startsWith('{')) {
-        const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          jsonString = jsonMatch[0];
-        } else {
-          console.error('No valid JSON found in template response:', jsonString);
-          throw new Error('No valid JSON found in AI response');
-        }
-      }
-      
-      console.log('Cleaned JSON string for template:', jsonString);
-      
       let planData;
       try {
-        planData = JSON.parse(jsonString);
-      } catch (parseError) {
-        console.error('JSON parse error for template:', parseError);
-        console.error('Failed to parse:', jsonString);
+        // Try Edge Function first (secure, server-side) - personalized based on user's skin analysis
+        console.log('🤖 Attempting to generate personalized template plan via Edge Function...');
+        const { supabase } = await import('../lib/supabase');
+        console.log('✅ Supabase imported');
         
-        // Fallback: Create a basic plan structure based on template
-        console.log('Creating fallback plan from template due to parse error');
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        console.log('🔐 Auth check result:', {
+          hasUser: !!user,
+          userId: user?.id,
+          hasError: !!userError,
+          errorMessage: userError?.message,
+        });
+        
+        if (userError) {
+          console.error('❌ User auth error:', userError);
+          throw new Error('User authentication failed');
+        }
+        
+        if (!user) {
+          console.warn('⚠️ No user authenticated, using fallback plan');
+          throw new Error('User not authenticated - cannot generate plan');
+        }
+
+        console.log('✅ User authenticated:', user.id);
+
+        // Retry logic for Edge Function (up to 3 attempts)
+        const MAX_RETRIES = 3;
+        let lastError: any = null;
+        
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            console.log(`📤 Calling plan-generate Edge Function for template (attempt ${attempt}/${MAX_RETRIES})...`);
+            console.log('📋 Request payload:', {
+              hasAnalysisResult: !!analysisResult,
+              overallScore: analysisResult.overallScore,
+              skinType: analysisResult.skinType,
+              templateId: template.id,
+              templateTitle: template.title,
+              userId: user.id,
+            });
+
+            const requestBody = {
+              analysisResult: {
+                overallScore: analysisResult.overallScore,
+                skinType: analysisResult.skinType,
+                skinTone: analysisResult.skinTone,
+                skinQuality: analysisResult.skinQuality,
+                dermatologyInsights: analysisResult.dermatologyInsights,
+                detailedScores: analysisResult.detailedScores,
+              },
+              templateId: template.id,
+              templateTitle: template.title,
+              templateDescription: template.description,
+              templateTargetConcerns: template.targetConcerns,
+              userId: user.id,
+            };
+            
+            console.log('🚀 INVOKING Edge Function for template plan...');
+            const startTime = Date.now();
+            
+            const { data, error } = await supabase.functions.invoke('plan-generate', {
+              body: requestBody,
+            });
+            
+            const duration = Date.now() - startTime;
+            console.log(`🌐 Edge Function invoke completed in ${duration}ms`);
+
+            console.log(`📥 Edge Function response (attempt ${attempt}):`, {
+              hasData: !!data,
+              hasError: !!error,
+              dataType: typeof data,
+              errorType: typeof error,
+              errorMessage: error?.message,
+              errorName: error?.name,
+              dataKeys: data ? Object.keys(data) : [],
+            });
+
+            if (error) {
+              console.error(`❌ Edge Function invoke error (attempt ${attempt}):`, error);
+              
+              // Retry on network errors
+              if (attempt < MAX_RETRIES && (
+                error.message?.includes('network') ||
+                error.message?.includes('timeout') ||
+                error.message?.includes('fetch')
+              )) {
+                console.log(`⏳ Retrying in ${attempt * 1000}ms...`);
+                await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+                lastError = error;
+                continue;
+              }
+              
+              throw new Error(`Plan generation failed: ${error.message || 'Unknown error'}`);
+            }
+
+            if (data?.error) {
+              console.error(`❌ Edge Function returned error in data (attempt ${attempt}):`, data.error);
+              throw new Error(`Plan generation failed: ${data.error}`);
+            }
+
+            if (!data) {
+              console.error(`❌ Edge Function returned no data (attempt ${attempt})`);
+              
+              if (attempt < MAX_RETRIES) {
+                console.log(`⏳ Retrying in ${attempt * 1000}ms...`);
+                await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+                lastError = new Error('No data returned from Edge Function');
+                continue;
+              }
+              
+              throw new Error('Plan generation failed: No data returned from Edge Function');
+            }
+
+            // Validate plan structure
+            if (!data || typeof data !== 'object') {
+              throw new Error('Invalid plan data structure from Edge Function');
+            }
+            
+            if (!data.title || !data.weeklyPlans || !Array.isArray(data.weeklyPlans)) {
+              console.error('❌ Plan data missing required fields:', {
+                hasTitle: !!data.title,
+                hasWeeklyPlans: !!data.weeklyPlans,
+                weeklyPlansIsArray: Array.isArray(data.weeklyPlans),
+                dataKeys: Object.keys(data),
+              });
+              throw new Error('Plan data missing required fields (title, weeklyPlans)');
+            }
+            
+            planData = data;
+            console.log('✅ Personalized template plan generated via Edge Function');
+            break; // Success, exit retry loop
+          } catch (edgeError: any) {
+            console.error(`❌ Edge Function attempt ${attempt} failed:`, edgeError);
+            lastError = edgeError;
+            
+            // Don't retry on validation errors
+            if (edgeError?.message?.includes('missing required fields') ||
+                edgeError?.message?.includes('Invalid plan') ||
+                edgeError?.message?.includes('Unauthorized')) {
+              throw edgeError;
+            }
+            
+            if (attempt === MAX_RETRIES) {
+              throw edgeError;
+            }
+            
+            console.log(`⏳ Retrying in ${attempt * 1000}ms...`);
+            await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+          }
+        }
+        
+        if (!planData) {
+          throw lastError || new Error('Failed to generate plan after all retries');
+        }
+      } catch (error: any) {
+        console.error('❌ AI plan generation failed:', error);
+        console.error('Error message:', error?.message);
+        console.error('Error stack:', error?.stack);
+        
+        // Use fallback plan if Edge Function fails
+        console.log('🔄 Creating fallback template plan...');
         const plan = createFallbackTemplatePlan(template, analysisResult);
         await savePlan(plan);
         setCurrentPlan(plan);
+        console.log('✅ Fallback template plan created and saved');
         return plan;
       }
+      
+      // Plan data should already be parsed (from Edge Function)
+      if (!planData || typeof planData !== 'object') {
+        console.error('Invalid plan data received');
+        throw new Error('Invalid plan data from AI');
+      }
+      
+      console.log('✅ Plan data parsed successfully, keys:', Object.keys(planData));
 
       const plan: SkincarePlan = {
         id: `plan_${Date.now()}`,
@@ -735,16 +870,23 @@ Create a customized 30-day plan with 4 weekly phases following the template focu
 
       await savePlan(plan);
       setCurrentPlan(plan);
+      console.log('✅ Personalized template plan created and saved');
       return plan;
-    } catch (error) {
-      console.error('Error creating plan from template:', error);
+    } catch (error: any) {
+      console.error('❌ Error creating plan from template:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
+      
       // Create fallback plan on any error
+      console.log('🔄 Creating fallback template plan due to error...');
       const plan = createFallbackTemplatePlan(template, analysisResult);
       await savePlan(plan);
       setCurrentPlan(plan);
+      console.log('✅ Fallback template plan created and saved');
       return plan;
     } finally {
       setIsGenerating(false);
+      console.log('🏁 Template plan generation process finished');
     }
   }, [savePlan]);
 
