@@ -255,20 +255,21 @@ export default function AnalysisResultsScreen() {
               <Text style={styles.profileTitle}>Your Complete Analysis</Text>
               <View style={styles.confidenceBadge}>
                 <Star color={palette.champagne} size={14} fill={palette.champagne} strokeWidth={2.5} />
-                <Text style={styles.confidenceText}>{Math.round(currentResult.confidence * 100)}% Accuracy</Text>
+                <Text style={styles.confidenceText}>AI-Verified • {Math.round(currentResult.confidence * 100)}% Precision</Text>
               </View>
+              <Text style={styles.analysisNote}>Analyzed using 50+ facial markers and skin quality indicators</Text>
             </View>
             
             <View style={styles.analysisRow}>
               <View style={styles.analysisItem}>
                 <Text style={styles.analysisLabel}>Skin Type</Text>
                 <Text style={styles.analysisValue}>{currentResult.skinType}</Text>
-                <Text style={styles.analysisNote}>Scientifically determined</Text>
+                <Text style={styles.analysisNote}>Dermatological classification</Text>
               </View>
               <View style={styles.analysisItem}>
                 <Text style={styles.analysisLabel}>Skin Quality</Text>
                 <Text style={styles.analysisValue}>{currentResult.skinQuality}</Text>
-                <Text style={styles.analysisNote}>Based on 50+ markers</Text>
+                <Text style={styles.analysisNote}>Multi-factor assessment</Text>
               </View>
             </View>
             
@@ -279,9 +280,9 @@ export default function AnalysisResultsScreen() {
                 <Text style={styles.analysisNote}>Color analysis</Text>
               </View>
               <View style={styles.analysisItem}>
-                <Text style={styles.analysisLabel}>Potential Level</Text>
+                <Text style={styles.analysisLabel}>Glow Potential</Text>
                 <Text style={styles.analysisValue}>{currentResult.skinPotential}</Text>
-                <Text style={styles.analysisNote}>Your unique baseline</Text>
+                <Text style={styles.analysisNote}>Achievable with routine</Text>
               </View>
             </View>
             
@@ -347,7 +348,7 @@ export default function AnalysisResultsScreen() {
             <Text style={styles.sectionTitle}>💎 Expert Recommendations</Text>
             <Sparkles color={palette.primary} size={16} fill={palette.primary} strokeWidth={2.5} />
           </View>
-          <Text style={styles.sectionSubtitle}>Personalized action plan based on your unique analysis</Text>
+          <Text style={styles.sectionSubtitle}>Expert recommendations tailored to your {currentResult.skinType.toLowerCase()} skin</Text>
           <View style={styles.tipsContainer}>
             {currentResult.personalizedTips.map((tip, index) => (
               <View key={index} style={styles.tipItem}>
@@ -690,6 +691,14 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     marginTop: 4,
     fontWeight: '500',
     fontStyle: 'italic',
+  },
+  analysisNoteCenter: {
+    fontSize: 12,
+    color: palette.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
+    fontWeight: '500',
+    opacity: 0.8,
   },
   riskAssessment: {
     marginTop: 12,
