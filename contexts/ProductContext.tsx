@@ -3,29 +3,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import { Product, ProductUsageEntry, ProductRoutine, ProductRecommendation, ProductTier } from '@/types/product';
 import { useUser } from './UserContext';
-import { getUserLocation, formatAmazonAffiliateLink, getLocalizedPrice, type LocationInfo } from '@/lib/location';
+import { getUserLocation, formatAmazonAffiliateLink, type LocationInfo } from '@/lib/location';
 import { useAnalysis, AnalysisResult } from './AnalysisContext';
 import { useSkincare } from './SkincareContext';
 
-interface ProductContextType {
-  products: Product[];
-  usageHistory: ProductUsageEntry[];
-  routines: ProductRoutine[];
-  recommendations: ProductRecommendation[];
-  userLocation: LocationInfo | null;
-  addProduct: (product: Omit<Product, 'id'>) => Promise<Product>;
-  updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
-  deleteProduct: (id: string) => Promise<void>;
-  logUsage: (productId: string, entry: Omit<ProductUsageEntry, 'id' | 'productId' | 'timestamp'>) => Promise<void>;
-  getProductUsage: (productId: string) => ProductUsageEntry[];
-  createRoutine: (routine: Omit<ProductRoutine, 'id' | 'createdAt'>) => Promise<ProductRoutine>;
-  updateRoutine: (id: string, updates: Partial<ProductRoutine>) => Promise<void>;
-  deleteRoutine: (id: string) => Promise<void>;
-  getActiveRoutines: () => ProductRoutine[];
-  generateRecommendations: (analysisResult?: AnalysisResult) => Promise<void>;
-  trackAffiliateTap: (productId: string, url: string) => Promise<void>;
-  getProductById: (id: string) => Product | undefined;
-}
+
 
 const STORAGE_KEYS = {
   PRODUCTS: 'product_tracking_products',
@@ -248,28 +230,28 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
             name: 'Gentle Cleansing',
             description: 'Use a mild, pH-balanced cleanser to remove excess oils without stripping hydration.',
             category: 'cleansers',
-            imageUrl: 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=800&h=600&fit=crop',
+            imageUrl: 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80',
             matchScore: 90,
           },
           {
             name: 'Hydrating Serum',
             description: 'Apply a hyaluronic acid serum to deeply hydrate and plump your skin, improving its overall texture and appearance.',
             category: 'serums',
-            imageUrl: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800&h=600&fit=crop',
+            imageUrl: 'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=800&h=600&fit=crop&q=80',
             matchScore: 88,
           },
           {
             name: 'Daily Moisturizer',
             description: 'Lock in hydration with a lightweight moisturizer formulated for your skin type to maintain a healthy moisture barrier.',
             category: 'moisturizers',
-            imageUrl: 'https://images.unsplash.com/photo-1556228841-7cfb04e5093e?w=800&h=600&fit=crop',
+            imageUrl: 'https://images.unsplash.com/photo-1556229010-6c3f2c9ca5f8?w=800&h=600&fit=crop&q=80',
             matchScore: 90,
           },
           {
             name: 'SPF Sunscreen',
             description: 'Protect your skin with broad-spectrum SPF 30+ sunscreen daily to prevent premature aging and sun damage.',
             category: 'sunscreens',
-            imageUrl: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=800&h=600&fit=crop',
+            imageUrl: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800&h=600&fit=crop&q=80',
             matchScore: 95,
           },
         ];
@@ -279,7 +261,7 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
             name: 'Anti-Aging Night Cream',
             description: 'Target aging signs with retinol or peptides to improve skin elasticity and reduce fine lines while you sleep.',
             category: 'treatments',
-            imageUrl: 'https://images.unsplash.com/photo-1570554886111-e80fcca6a029?w=800&h=600&fit=crop',
+            imageUrl: 'https://images.unsplash.com/photo-1571875257727-256c39da42af?w=800&h=600&fit=crop&q=80',
             matchScore: 87,
           });
         }
@@ -353,18 +335,18 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
 
         // Map category to product images
         const categoryImages: Record<string, string> = {
-          'cleansers': 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=800&h=600&fit=crop',
-          'toners': 'https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=800&h=600&fit=crop',
-          'serums': 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800&h=600&fit=crop',
-          'moisturizers': 'https://images.unsplash.com/photo-1556228841-7cfb04e5093e?w=800&h=600&fit=crop',
-          'sunscreens': 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=800&h=600&fit=crop',
-          'masks': 'https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=800&h=600&fit=crop',
-          'treatments': 'https://images.unsplash.com/photo-1570554886111-e80fcca6a029?w=800&h=600&fit=crop',
+          'cleansers': 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80',
+          'toners': 'https://images.unsplash.com/photo-1611930022073-b7a4ba5fcccd?w=800&h=600&fit=crop&q=80',
+          'serums': 'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=800&h=600&fit=crop&q=80',
+          'moisturizers': 'https://images.unsplash.com/photo-1556229010-6c3f2c9ca5f8?w=800&h=600&fit=crop&q=80',
+          'sunscreens': 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800&h=600&fit=crop&q=80',
+          'masks': 'https://images.unsplash.com/photo-1612817288484-6f916006741a?w=800&h=600&fit=crop&q=80',
+          'treatments': 'https://images.unsplash.com/photo-1571875257727-256c39da42af?w=800&h=600&fit=crop&q=80',
         };
 
         uniqueSteps.forEach((stepData, stepName) => {
           const baseSearchQuery = `${stepName.toLowerCase().replace(/[^a-z ]/g, '')} ${skinType.toLowerCase()} skin`;
-          const imageUrl = categoryImages[stepData.category] || 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=800&h=600&fit=crop';
+          const imageUrl = categoryImages[stepData.category] || 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80';
           
           const recommendation: ProductRecommendation = {
             id: `coach_${stepName.toLowerCase().replace(/\s+/g, '_')}`,

@@ -413,9 +413,13 @@ export default function ProductTrackingScreen() {
                     
                     <View style={styles.productImageContainer}>
                       <Image
-                        source={{ uri: rec.imageUrl || 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=800&h=600&fit=crop' }}
+                        source={{ uri: rec.imageUrl || 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80' }}
                         style={styles.productRecommendationImage}
                         resizeMode="cover"
+                      />
+                      <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.4)']}
+                        style={styles.productImageOverlay}
                       />
                     </View>
                     
@@ -565,9 +569,13 @@ export default function ProductTrackingScreen() {
                     
                     <View style={styles.productImageContainer}>
                       <Image
-                        source={{ uri: rec.imageUrl || 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=800&h=600&fit=crop' }}
+                        source={{ uri: rec.imageUrl || 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80' }}
                         style={styles.productRecommendationImage}
                         resizeMode="cover"
+                      />
+                      <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.4)']}
+                        style={styles.productImageOverlay}
                       />
                     </View>
                     
@@ -1171,12 +1179,20 @@ const createStyles = (palette: ReturnType<typeof getPalette>, gradient: ReturnTy
   },
   productImageContainer: {
     width: '100%',
-    height: 200,
+    height: 240,
     backgroundColor: palette.backgroundStart,
+    position: 'relative',
   },
   productRecommendationImage: {
     width: '100%',
     height: '100%',
+  },
+  productImageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80,
   },
   recHeaderSection: {
     padding: 20,
