@@ -152,98 +152,11 @@ export const [SkincareProvider, useSkincare] = createContextHook((): SkincareCon
     }
   }, [planHistory, currentPlan, activePlans]);
 
-  // Utility function for making AI API calls via Edge Function
-  // NOTE: This should NOT be used for plan generation - use plan-generate Edge Function directly
-  // This is kept for backward compatibility but will throw an error
-  const makeAIRequest = async (messages: any[], maxRetries = 2): Promise<any> => {
-    // Don't use direct API calls - they require client-side API key which is invalid
-    // All AI calls should go through Edge Functions
-    throw new Error('Direct AI API calls are disabled. Please use Edge Functions (plan-generate) instead.');
-  };
+
 
   const generateCustomPlan = useCallback(async (analysisResult: AnalysisResult, customGoal?: string): Promise<SkincarePlan> => {
     setIsGenerating(true);
     try {
-      const messages = [
-        {
-          role: 'system',
-          content: `You are a beauty and skincare advisor providing cosmetic guidance. Create a comprehensive 30-day personalized skincare plan based on the beauty analysis results. The plan should be practical, safe, and use only over-the-counter products. IMPORTANT: This is for beauty enhancement only, NOT medical treatment. Always recommend consulting a dermatologist for medical concerns.
-
-IMPORTANT: Return ONLY a valid JSON object. Do not include any markdown formatting, code blocks, or explanatory text. Just the raw JSON object with this exact structure:
-{
-  "title": "string",
-  "description": "string",
-  "targetGoals": ["goal1", "goal2"],
-  "weeklyPlans": [
-    {
-      "week": 1,
-      "focus": "string",
-      "description": "string",
-      "steps": [
-        {
-          "id": "unique_id",
-          "name": "step_name",
-          "description": "detailed_description",
-          "products": ["product1", "product2"],
-          "timeOfDay": "morning|evening|both",
-          "frequency": "daily|weekly|bi-weekly|monthly",
-          "order": 1,
-          "duration": "optional_duration",
-          "instructions": ["instruction1", "instruction2"],
-          "benefits": ["benefit1", "benefit2"],
-          "warnings": ["warning1"]
-        }
-      ],
-      "expectedResults": ["result1", "result2"],
-      "tips": ["tip1", "tip2"]
-    }
-  ],
-  "shoppingList": [
-    {
-      "category": "Cleansers",
-      "items": [
-        {
-          "name": "Product Name",
-          "brand": "Brand Name",
-          "price": "$XX",
-          "where": "Where to buy",
-          "priority": "essential|recommended|optional"
-        }
-      ]
-    }
-  ]
-}`
-        },
-        {
-          role: 'user',
-          content: `Create a 30-day skincare plan based on this analysis:
-
-Skin Analysis Results:
-- Overall Score: ${analysisResult.overallScore}/100
-- Skin Type: ${analysisResult.skinType}
-- Skin Tone: ${analysisResult.skinTone}
-- Skin Quality: ${analysisResult.skinQuality}
-- Acne Risk: ${analysisResult.dermatologyInsights.acneRisk}
-- Aging Signs: ${analysisResult.dermatologyInsights.agingSigns.join(', ')}
-- Skin Concerns: ${analysisResult.dermatologyInsights.skinConcerns.join(', ')}
-- Recommended Treatments: ${analysisResult.dermatologyInsights.recommendedTreatments.join(', ')}
-
-Detailed Scores:
-- Jawline Sharpness: ${analysisResult.detailedScores.jawlineSharpness}%
-- Brightness & Glow: ${analysisResult.detailedScores.brightnessGlow}%
-- Hydration Level: ${analysisResult.detailedScores.hydrationLevel}%
-- Facial Symmetry: ${analysisResult.detailedScores.facialSymmetry}%
-- Pore Visibility: ${analysisResult.detailedScores.poreVisibility}%
-- Skin Texture: ${analysisResult.detailedScores.skinTexture}%
-- Skin Evenness: ${analysisResult.detailedScores.evenness}%
-- Skin Elasticity: ${analysisResult.detailedScores.elasticity}%
-
-${customGoal ? `Custom Goal: ${customGoal}` : ''}
-
-Create a progressive 30-day plan with 4 weekly phases. Focus on the lowest scoring areas and address the specific skin concerns. Include morning and evening routines, weekly treatments, and product recommendations with realistic pricing.`
-        }
-      ];
-
       let planData;
       try {
         // Try Edge Function first (secure, server-side)
@@ -281,13 +194,7 @@ Create a progressive 30-day plan with 4 weekly phases. Focus on the lowest scori
 
         console.log('✅ User authenticated:', user.id);
         
-        // Get Supabase instance to check configuration
-        const supabaseInstance = (await import('../lib/supabase')).supabase;
-        console.log('🔗 Supabase configuration:', {
-          hasUrl: !!supabaseInstance.supabaseUrl,
-          urlPreview: supabaseInstance.supabaseUrl?.substring(0, 50) + '...',
-          hasAnonKey: !!supabaseInstance.supabaseKey,
-        });
+        console.log('🔗 Supabase configuration ready');
 
         // Retry logic for Edge Function (up to 3 attempts)
         const MAX_RETRIES = 3;

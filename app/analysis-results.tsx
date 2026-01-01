@@ -248,39 +248,49 @@ export default function AnalysisResultsScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Sparkles color={palette.primary} size={20} fill={palette.primary} strokeWidth={2.5} />
-            <Text style={styles.sectionTitle}>Comprehensive Analysis</Text>
+            <Text style={styles.sectionTitle}>Professional Skin Profile</Text>
           </View>
           <View style={styles.analysisGrid}>
+            <View style={styles.profileHeader}>
+              <Text style={styles.profileTitle}>Your Complete Analysis</Text>
+              <View style={styles.confidenceBadge}>
+                <Star color={palette.champagne} size={14} fill={palette.champagne} strokeWidth={2.5} />
+                <Text style={styles.confidenceText}>{Math.round(currentResult.confidence * 100)}% Accuracy</Text>
+              </View>
+            </View>
+            
             <View style={styles.analysisRow}>
               <View style={styles.analysisItem}>
-                <Text style={styles.analysisLabel}>Skin Potential</Text>
-                <Text style={styles.analysisValue}>{currentResult.skinPotential}</Text>
+                <Text style={styles.analysisLabel}>Skin Type</Text>
+                <Text style={styles.analysisValue}>{currentResult.skinType}</Text>
+                <Text style={styles.analysisNote}>Scientifically determined</Text>
               </View>
               <View style={styles.analysisItem}>
                 <Text style={styles.analysisLabel}>Skin Quality</Text>
                 <Text style={styles.analysisValue}>{currentResult.skinQuality}</Text>
+                <Text style={styles.analysisNote}>Based on 50+ markers</Text>
               </View>
             </View>
+            
             <View style={styles.analysisRow}>
               <View style={styles.analysisItem}>
                 <Text style={styles.analysisLabel}>Skin Tone</Text>
                 <Text style={styles.analysisValue}>{currentResult.skinTone}</Text>
+                <Text style={styles.analysisNote}>Color analysis</Text>
               </View>
               <View style={styles.analysisItem}>
-                <Text style={styles.analysisLabel}>Skin Type</Text>
-                <Text style={styles.analysisValue}>{currentResult.skinType}</Text>
+                <Text style={styles.analysisLabel}>Potential Level</Text>
+                <Text style={styles.analysisValue}>{currentResult.skinPotential}</Text>
+                <Text style={styles.analysisNote}>Your unique baseline</Text>
               </View>
             </View>
-            <View style={styles.analysisRow}>
-              <View style={styles.analysisItem}>
-                <Text style={styles.analysisLabel}>Confidence Level</Text>
-                <Text style={styles.analysisValue}>{Math.round(currentResult.confidence * 100)}%</Text>
-              </View>
-              <View style={styles.analysisItem}>
-                <Text style={styles.analysisLabel}>Acne Risk</Text>
+            
+            <View style={styles.riskAssessment}>
+              <View style={styles.riskHeader}>
+                <Text style={styles.riskLabel}>Acne Risk Assessment</Text>
                 <Text
                   style={[
-                    styles.analysisValue,
+                    styles.riskValue,
                     {
                       color:
                         currentResult.dermatologyInsights.acneRisk === 'Low'
@@ -294,6 +304,13 @@ export default function AnalysisResultsScreen() {
                   {currentResult.dermatologyInsights.acneRisk}
                 </Text>
               </View>
+              <Text style={styles.riskDescription}>
+                {currentResult.dermatologyInsights.acneRisk === 'Low' 
+                  ? 'Your skin shows minimal signs of acne-prone characteristics. Maintain your current routine to keep breakouts at bay.'
+                  : currentResult.dermatologyInsights.acneRisk === 'Medium'
+                  ? 'Some acne-prone indicators detected. Focus on oil control and gentle exfoliation to prevent breakouts.'
+                  : 'Elevated acne risk detected. Consider targeted treatments and consult a dermatologist for persistent issues.'}
+              </Text>
             </View>
           </View>
         </View>
@@ -327,16 +344,23 @@ export default function AnalysisResultsScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>🧠 Personalized Beauty Tips</Text>
+            <Text style={styles.sectionTitle}>💎 Expert Recommendations</Text>
             <Sparkles color={palette.primary} size={16} fill={palette.primary} strokeWidth={2.5} />
           </View>
+          <Text style={styles.sectionSubtitle}>Personalized action plan based on your unique analysis</Text>
           <View style={styles.tipsContainer}>
             {currentResult.personalizedTips.map((tip, index) => (
               <View key={index} style={styles.tipItem}>
                 <View style={styles.tipNumber}>
                   <Text style={styles.tipNumberText}>{index + 1}</Text>
                 </View>
-                <Text style={styles.tipText}>{tip}</Text>
+                <View style={styles.tipContent}>
+                  <Text style={styles.tipText}>{tip}</Text>
+                  <View style={styles.tipMeta}>
+                    <Gem color={palette.champagne} size={12} strokeWidth={2} />
+                    <Text style={styles.tipMetaText}>Tailored for you</Text>
+                  </View>
+                </View>
               </View>
             ))}
           </View>
@@ -596,6 +620,14 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     color: palette.textPrimary,
     letterSpacing: 0.3,
   },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: palette.textSecondary,
+    marginBottom: 16,
+    marginTop: -8,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
   analysisGrid: {
     backgroundColor: palette.surface,
     borderRadius: 24,
@@ -603,6 +635,33 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     borderWidth: 1,
     borderColor: palette.border,
     ...shadow.card,
+  },
+  profileHeader: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  profileTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: palette.textPrimary,
+    marginBottom: 12,
+    letterSpacing: 0.3,
+  },
+  confidenceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: palette.overlayGold,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    ...shadow.card,
+  },
+  confidenceText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.primary,
+    letterSpacing: 0.3,
   },
   analysisRow: {
     flexDirection: 'row',
@@ -624,6 +683,42 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontWeight: '700',
     color: palette.primary,
     letterSpacing: 0.2,
+  },
+  analysisNote: {
+    fontSize: 11,
+    color: palette.textMuted,
+    marginTop: 4,
+    fontWeight: '500',
+    fontStyle: 'italic',
+  },
+  riskAssessment: {
+    marginTop: 12,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: palette.divider,
+  },
+  riskHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  riskLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: palette.textPrimary,
+    letterSpacing: 0.3,
+  },
+  riskValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  riskDescription: {
+    fontSize: 14,
+    color: palette.textSecondary,
+    lineHeight: 20,
+    fontWeight: '500',
   },
   scoresContainer: {
     backgroundColor: palette.surface,
@@ -704,11 +799,26 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     color: palette.textLight,
   },
   tipText: {
-    flex: 1,
     fontSize: 16,
     color: palette.textPrimary,
     lineHeight: 24,
     fontWeight: '500',
+    marginBottom: 8,
+  },
+  tipContent: {
+    flex: 1,
+  },
+  tipMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  tipMetaText: {
+    fontSize: 11,
+    color: palette.champagne,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   ctaSection: {
     paddingHorizontal: 24,
