@@ -283,7 +283,7 @@ export default function OnboardingScreen() {
               
               <View style={styles.splashTextContainer}>
                 <Text style={styles.appName}>GlowCheck</Text>
-                <Text style={styles.appTagline}>Luxury AI Skincare Analysis</Text>
+                <Text style={styles.appTagline}>Track What Works for YOUR Skin</Text>
                 <View style={styles.premiumBadge}>
                   <Crown size={14} color={palette.gold} fill={palette.gold} />
                   <Text style={styles.premiumBadgeText}>PREMIUM EXPERIENCE</Text>
@@ -314,24 +314,24 @@ export default function OnboardingScreen() {
                 <Text style={styles.heroBadgeText}>#1 Beauty AI</Text>
               </View>
             </View>
-            <Text style={styles.title}>Unlock Your Ultimate{"\n"}Glow Potential</Text>
+            <Text style={styles.title}>Discover What Works{"\n"}for YOUR Skin</Text>
             <Text style={styles.subtitle}>
-              Experience the future of personalized skincare with professional-grade AI analysis.
+              Track your journey, spot patterns, and see real results with consistent progress tracking.
             </Text>
             
             <View style={styles.statsRow}>
               <View style={styles.stat}>
-                <Text style={styles.statValue}>98%</Text>
-                <Text style={styles.statLabel}>Accuracy</Text>
+                <Text style={styles.statValue}>30 Day</Text>
+                <Text style={styles.statLabel}>Tracking</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.stat}>
-                <Text style={styles.statValue}>AI</Text>
-                <Text style={styles.statLabel}>Powered</Text>
+                <Text style={styles.statValue}>Daily</Text>
+                <Text style={styles.statLabel}>Progress</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.stat}>
-                <Text style={styles.statValue}>Instant</Text>
+                <Text style={styles.statValue}>Real</Text>
                 <Text style={styles.statLabel}>Results</Text>
               </View>
             </View>

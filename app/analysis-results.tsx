@@ -35,15 +35,9 @@ export default function AnalysisResultsScreen() {
   const gradient = getGradient(theme);
   const styles = createStyles(palette);
 
-  const handleStartPlan = () => {
-    router.push('/skincare-plan-selection');
-  };
-
   const handleViewProducts = () => {
     router.push('/product-tracking');
   };
-
-
 
   const hasCountedRef = React.useRef<string | null>(null);
 
@@ -215,7 +209,7 @@ export default function AnalysisResultsScreen() {
               <View style={styles.imageGlow} />
             </View>
             
-            <Text style={styles.overallLabel}>Your Unique Glow Profile</Text>
+            <Text style={styles.overallLabel}>Your Starting Point</Text>
             
             <View style={styles.strengthCard}>
               <Award color={palette.champagne} size={24} strokeWidth={2.5} />
@@ -255,9 +249,9 @@ export default function AnalysisResultsScreen() {
               <Text style={styles.profileTitle}>Your Complete Analysis</Text>
               <View style={styles.confidenceBadge}>
                 <Star color={palette.champagne} size={14} fill={palette.champagne} strokeWidth={2.5} />
-                <Text style={styles.confidenceText}>AI-Verified • {Math.round(currentResult.confidence * 100)}% Precision</Text>
+                <Text style={styles.confidenceText}>AI Analysis • Starting Point</Text>
               </View>
-              <Text style={styles.analysisNote}>Analyzed using 50+ facial markers and skin quality indicators</Text>
+              <Text style={styles.analysisNote}>Track progress over time to discover what works for YOUR skin</Text>
             </View>
             
             <View style={styles.analysisRow}>
@@ -368,9 +362,9 @@ export default function AnalysisResultsScreen() {
         </View>
 
         <View style={styles.ctaSection}>
-          <TouchableOpacity style={styles.ctaButtonPrimary} onPress={handleStartPlan} testID="start-plan">
-            <Sparkles color={palette.textLight} size={20} fill={palette.textLight} strokeWidth={2.5} />
-            <Text style={styles.ctaButtonPrimaryText}>Start Your Glow Journey</Text>
+          <TouchableOpacity style={styles.ctaButtonPrimary} onPress={() => router.push('/(tabs)/progress')} testID="start-tracking">
+            <TrendingUp color={palette.textLight} size={20} strokeWidth={2.5} />
+            <Text style={styles.ctaButtonPrimaryText}>Start Tracking Progress</Text>
           </TouchableOpacity>
 
           {recommendations.length > 0 && (
