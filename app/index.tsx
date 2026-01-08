@@ -72,7 +72,7 @@ export default function Index() {
           { opacity: fadeAnim }
         ]}
       >
-        <Logo size={120} />
+        <Logo size={120} showText={true} />
         <ActivityIndicator 
           size="large" 
           color={palette.textAccent || "#D4A574"} 

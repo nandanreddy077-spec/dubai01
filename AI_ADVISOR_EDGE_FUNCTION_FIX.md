@@ -139,3 +139,5 @@ App displays AI response
 **All AI features now use secure Edge Functions!** 🎉
 
 
+
+

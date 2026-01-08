@@ -32,8 +32,8 @@ interface CapturedPhoto {
 export default function GlowAnalysisScreen() {
   const { error } = useLocalSearchParams<{ error?: string }>();
   const { theme } = useTheme();
-  const subscription = useSubscription();
-  const { canScan, incrementScanCount } = subscription || {};
+  // Note: Scan count is incremented in analysis-results.tsx AFTER results are shown
+  // This ensures users can complete their scan and see results before paywall appears
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [showError, setShowError] = useState<boolean>(false);
   const [capturedPhotos, setCapturedPhotos] = useState<CapturedPhoto[]>([]);
@@ -45,27 +45,8 @@ export default function GlowAnalysisScreen() {
   const gradient = getGradient(theme);
   const styles = createStyles(palette);
 
-  // Check if user can scan (1 free scan, then require trial)
-  useEffect(() => {
-    if (!canScan) {
-      Alert.alert(
-        '✨ Start Your Free Trial',
-        `You've used your free scan! Start your 7-day free trial to get unlimited scans and unlock all premium features.`,
-        [
-          {
-            text: 'Start Free Trial',
-            onPress: () => router.replace('/start-trial'),
-            style: 'default'
-          },
-          {
-            text: 'Not Now',
-            onPress: () => router.back(),
-            style: 'cancel'
-          }
-        ]
-      );
-    }
-  }, [canScan]);
+  // Note: We don't block scans here - users can always start a scan
+  // The paywall will appear on the results screen after they see their blurred results
 
   useEffect(() => {
     if (error === 'no_face_detected') {
@@ -152,12 +133,8 @@ export default function GlowAnalysisScreen() {
       if (!result.canceled) {
         // If in quick analysis mode (single photo), navigate directly
         if (!showInstructions) {
-
-          // Increment scan count before analysis
-          if (incrementScanCount) {
-            await incrementScanCount();
-          }
-
+          // Don't increment scan count here - it will be incremented in analysis-results.tsx
+          // after results are shown, so users can see their results before paywall appears
           router.push({
             pathname: '/analysis-loading',
             params: { 
@@ -205,11 +182,8 @@ export default function GlowAnalysisScreen() {
     }
 
 
-    // Increment scan count before analysis
-    if (incrementScanCount) {
-      await incrementScanCount();
-    }
-
+    // Don't increment scan count here - it will be incremented in analysis-results.tsx
+    // after results are shown, so users can see their results before paywall appears
     router.push({
       pathname: '/analysis-loading',
       params: { 
@@ -255,11 +229,8 @@ export default function GlowAnalysisScreen() {
       });
 
       if (!result.canceled) {
-        // Increment scan count before analysis
-        if (incrementScanCount) {
-          await incrementScanCount();
-        }
-
+        // Don't increment scan count here - it will be incremented in analysis-results.tsx
+        // after results are shown, so users can see their results before paywall appears
         router.push({
           pathname: '/analysis-loading',
           params: { 

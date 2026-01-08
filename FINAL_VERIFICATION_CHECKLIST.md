@@ -123,3 +123,5 @@ eas build --platform android --profile production
 
 **Your setup looks 99% complete!** Just verify the "current offering" status and you're good to go! 🎉
 
+
+

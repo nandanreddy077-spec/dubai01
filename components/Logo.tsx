@@ -1,32 +1,54 @@
 import React from 'react';
-import { Image, View, StyleSheet } from 'react-native';
+import { Image, View, StyleSheet, Text } from 'react-native';
 
 interface LogoProps {
   size?: number;
   style?: object;
+  showText?: boolean;
 }
 
-export default function Logo({ size = 80, style }: LogoProps) {
+export default function Logo({ size = 80, style, showText = false }: LogoProps) {
+  const logoSize = size * 1.2;
+  const squareSize = logoSize * 1.3;
+
   return (
-    <View style={[styles.container, { width: size, height: size }, style]}>
+    <View style={[styles.wrapper, style]}>
+      <View style={[styles.squareContainer, { width: squareSize, height: squareSize }]}>
       <Image
-        source={require('@/assets/images/logo.png')}
-        style={[styles.logo, { width: size * 1.2, height: size * 1.2 }]}
+          source={require('@/assets/images/logo.png')}
+          style={[styles.logo, { width: logoSize, height: logoSize }]}
         resizeMode="contain"
       />
+      </View>
+      {showText && (
+        <Text style={styles.logoText}>GlowCheck</Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 1000,
-    overflow: 'hidden',
+  },
+  squareContainer: {
+    backgroundColor: '#808080', // Gray square background
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // Slight rotation for tilted effect
+    transform: [{ rotate: '-5deg' }],
   },
   logo: {
     borderRadius: 1000,
+  },
+  logoText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#2C2C2C',
+    marginTop: 16,
+    letterSpacing: 0.5,
   },
 });
 

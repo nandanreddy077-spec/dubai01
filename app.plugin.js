@@ -58,14 +58,9 @@ module.exports = function withTargetedDeviceFamily(config) {
       infoPlist.NSMicrophoneUsageDescription = 'Allow Glow Check to access your microphone';
     }
     if (!infoPlist.NSLocationWhenInUseUsageDescription) {
-      infoPlist.NSLocationWhenInUseUsageDescription = 'Allow Glow Check to use your location.';
+      infoPlist.NSLocationWhenInUseUsageDescription = 'Allow Glow Check to use your location to provide localized product recommendations and affiliate links.';
     }
-    if (!infoPlist.NSLocationAlwaysUsageDescription) {
-      infoPlist.NSLocationAlwaysUsageDescription = 'Allow Glow Check to use your location.';
-    }
-    if (!infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription) {
-      infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription = 'Allow Glow Check to use your location.';
-    }
+    // Removed background location permissions - app only uses location when in use
     
     return config;
   });

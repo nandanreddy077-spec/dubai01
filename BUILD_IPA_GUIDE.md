@@ -132,3 +132,5 @@ Most apps use **standard/exempt encryption** (HTTPS, standard libraries). Answer
 
 
 
+
+

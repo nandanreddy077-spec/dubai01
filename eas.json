@@ -33,7 +33,13 @@
         "EXPO_PUBLIC_SUPABASE_URL": "https://pmroozitldbgnchainxv.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtcm9veml0bGRiZ25jaGFpbnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1NjcxNDYsImV4cCI6MjA4MDE0MzE0Nn0.2a36x2xDZBE9XAmjmzsV_j4ljCp5aq3jx3uAlpFOWlY",
         "EXPO_PUBLIC_OPENAI_API_KEY": "${EXPO_PUBLIC_OPENAI_API_KEY}",
-        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG": "glowcheck-20"
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG": "glowcheck-20",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_US": "glowcheck-20",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_UK": "glowcheck0c-21",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_DE": "glowcheck07-21",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_FR": "glowcheck03-21",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_IT": "glowcheck05-21",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_ES": "glowcheck01-21"
       }
     },
     "production": {
@@ -53,7 +59,13 @@
         "EXPO_PUBLIC_SUPABASE_URL": "https://pmroozitldbgnchainxv.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtcm9veml0bGRiZ25jaGFpbnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1NjcxNDYsImV4cCI6MjA4MDE0MzE0Nn0.2a36x2xDZBE9XAmjmzsV_j4ljCp5aq3jx3uAlpFOWlY",
         "EXPO_PUBLIC_OPENAI_API_KEY": "${EXPO_PUBLIC_OPENAI_API_KEY}",
-        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG": "glowcheck-20"
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG": "glowcheck-20",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_US": "glowcheck-20",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_UK": "glowcheck0c-21",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_DE": "glowcheck07-21",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_FR": "glowcheck03-21",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_IT": "glowcheck05-21",
+        "EXPO_PUBLIC_AMAZON_AFFILIATE_TAG_ES": "glowcheck01-21"
       }
     }
   },

@@ -28,7 +28,7 @@ export default function LoginScreen() {
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'testing' | 'connected' | 'failed'>('unknown');
   const [sparkleAnim] = useState(new Animated.Value(0));
   const [floatingAnim] = useState(new Animated.Value(0));
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle, signInWithApple } = useAuth();
   const { theme } = useTheme();
   
   const palette = getPalette(theme);
@@ -136,6 +136,22 @@ export default function LoginScreen() {
         return;
       }
       Alert.alert('Google Sign In', error.message || 'Something went wrong. Please try again.');
+    } else {
+      router.replace('/(tabs)/home');
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    setIsLoading(true);
+    const { error } = await signInWithApple();
+    setIsLoading(false);
+
+    if (error) {
+      if (error.message === 'Sign-in cancelled' || error.message === 'Authentication cancelled') {
+        // Don't show alert for user cancellation
+        return;
+      }
+      Alert.alert('Apple Sign In', error.message || 'Something went wrong. Please try again.');
     } else {
       router.replace('/(tabs)/home');
     }
@@ -349,6 +365,22 @@ export default function LoginScreen() {
                 </View>
               </TouchableOpacity>
 
+              {Platform.OS === 'ios' && (
+                <TouchableOpacity
+                  style={[styles.appleButton, isLoading && styles.appleButtonDisabled]}
+                  onPress={handleAppleSignIn}
+                  disabled={isLoading}
+                  testID="apple-signin-button"
+                >
+                  <View style={styles.appleButtonContent}>
+                    <Text style={styles.appleIcon}>🍎</Text>
+                    <Text style={styles.appleButtonText}>
+                      {isLoading ? 'Signing in...' : 'Continue with Apple'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+
               <View style={styles.signupContainer}>
                 <Text style={styles.signupText}>New here? </Text>
                 <TouchableOpacity onPress={navigateToSignup} testID="signup-link">
@@ -545,6 +577,34 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   googleButtonText: {
     color: palette.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  appleButton: {
+    backgroundColor: '#000000',
+    borderRadius: radii.lg,
+    height: 52,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: '#000000',
+    ...shadow.card,
+  },
+  appleButtonDisabled: {
+    opacity: 0.6,
+  },
+  appleButtonContent: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  appleIcon: {
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  appleButtonText: {
+    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
   },

@@ -146,3 +146,5 @@ Try this in Supabase Edge Function logs:
 This will help pinpoint exactly where it's failing!
 
 
+
+

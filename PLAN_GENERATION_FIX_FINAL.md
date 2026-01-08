@@ -94,3 +94,5 @@ The issue is that:
 **Next Step:** Verify `OPENAI_API_KEY` is set correctly in Supabase secrets!
 
 
+
+

@@ -177,3 +177,5 @@ console.log('User authenticated:', !!user, user?.id);
 If `user` is `null`, that's why the Edge Function is never called!
 
 
+
+
