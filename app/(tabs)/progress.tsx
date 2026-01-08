@@ -18,7 +18,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   Camera,
   TrendingUp,
-  TrendingDown,
   Calendar,
   Droplets,
   Moon as Sleep,
@@ -46,7 +45,6 @@ import { useGamification } from '@/contexts/GamificationContext';
 import { useProducts } from '@/contexts/ProductContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import AnimatedProgressBar from '@/components/AnimatedProgressBar';
-// All features free - UpgradePrompt removed
 import { generateInsights, AIInsightResult, checkMinimumRequirements } from '@/lib/insights-engine';
 import { analyzeProgressPhoto, compareProgressPhotos, ProgressPhotoAnalysis } from '@/lib/ai-helpers';
 
@@ -102,16 +100,18 @@ const STORAGE_KEYS = {
 };
 
 export default function ProgressTrackerScreen() {
-  const { user } = useUser();
+  useUser();
   const { dailyCompletions } = useGamification();
   const { products, usageHistory, routines } = useProducts();
   // All features free - no subscription checks needed
+  const { state: subscriptionState, inTrial, hasAnyAccess } = useSubscription();
   const params = useLocalSearchParams<{ tab?: string }>();
   
+  const canAccessInsights = hasAnyAccess || subscriptionState.isPremium || inTrial;
   const [activeTab, setActiveTab] = useState<Tab>((params.tab as Tab) || 'photos');
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
-  const [insights, setInsights] = useState<WeeklyInsight[]>([]);
+  const [, setInsights] = useState<WeeklyInsight[]>([]);
   const [aiInsights, setAiInsights] = useState<AIInsightResult | null>(null);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
   
@@ -501,9 +501,6 @@ export default function ProgressTrackerScreen() {
       avgStress: (last30.reduce((sum, e) => sum + e.stressLevel, 0) / last30.length).toFixed(1),
     };
   }, [journalEntries]);
-
-  // Check if insights are unlocked
-  const canUnlockInsights = journalEntries.length >= 5 || photos.length >= 3;
 
   // Organize photos by day (last 30 days max)
   const organizedPhotos = useMemo(() => {
@@ -896,7 +893,174 @@ export default function ProgressTrackerScreen() {
     );
   };
 
+  const renderInsightsPaywall = () => {
+    return (
+      <View style={styles.tabContent}>
+        {/* Premium Insights Paywall */}
+        <View style={styles.insightsPaywallContainer}>
+          <LinearGradient
+            colors={['#FFF9E6', '#FFF3CC', '#FFECB3']}
+            style={styles.insightsPaywallGradient}
+          >
+            {/* Crown Icon */}
+            <View style={styles.insightsPaywallIcon}>
+              <LinearGradient
+                colors={['#FFD700', '#FFA500']}
+                style={styles.insightsPaywallIconBg}
+              >
+                <Sparkles color="#FFF" size={40} strokeWidth={2.5} fill="#FFF" />
+              </LinearGradient>
+            </View>
+
+            <Text style={styles.insightsPaywallTitle}>Unlock AI Insights</Text>
+            <Text style={styles.insightsPaywallSubtitle}>
+              Your personal beauty scientist that discovers what truly works for YOUR skin
+            </Text>
+
+            {/* Value Props */}
+            <View style={styles.insightsValueSection}>
+              <Text style={styles.insightsValueTitle}>Why Insights Changes Everything:</Text>
+              
+              <View style={styles.insightsValueItem}>
+                <View style={styles.insightsValueIconBg}>
+                  <Target color={palette.primary} size={20} strokeWidth={2.5} />
+                </View>
+                <View style={styles.insightsValueContent}>
+                  <Text style={styles.insightsValueHeading}>Pattern Discovery</Text>
+                  <Text style={styles.insightsValueText}>AI finds hidden connections between your habits, products, and skin changes</Text>
+                </View>
+              </View>
+
+              <View style={styles.insightsValueItem}>
+                <View style={styles.insightsValueIconBg}>
+                  <CheckCircle color={palette.success} size={20} strokeWidth={2.5} />
+                </View>
+                <View style={styles.insightsValueContent}>
+                  <Text style={styles.insightsValueHeading}>Product Effectiveness Report</Text>
+                  <Text style={styles.insightsValueText}>Know exactly which products work for YOU — stop wasting money on guesses</Text>
+                </View>
+              </View>
+
+              <View style={styles.insightsValueItem}>
+                <View style={styles.insightsValueIconBg}>
+                  <TrendingUp color={palette.gold} size={20} strokeWidth={2.5} />
+                </View>
+                <View style={styles.insightsValueContent}>
+                  <Text style={styles.insightsValueHeading}>30-Day Transformation Report</Text>
+                  <Text style={styles.insightsValueText}>See your actual progress with before/after analysis and improvement scores</Text>
+                </View>
+              </View>
+
+              <View style={styles.insightsValueItem}>
+                <View style={styles.insightsValueIconBg}>
+                  <Heart color={palette.rose} size={20} strokeWidth={2.5} />
+                </View>
+                <View style={styles.insightsValueContent}>
+                  <Text style={styles.insightsValueHeading}>Personalized Recommendations</Text>
+                  <Text style={styles.insightsValueText}>Get advice based on YOUR data, not generic tips — tailored to your unique skin</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Social Proof */}
+            <View style={styles.insightsSocialProof}>
+              <Text style={styles.insightsSocialText}>💎 Users who track daily see <Text style={styles.insightsSocialHighlight}>3x faster results</Text></Text>
+            </View>
+
+            {/* Your Progress Preview */}
+            <View style={styles.insightsProgressPreview}>
+              <Text style={styles.insightsProgressTitle}>Your Progress So Far:</Text>
+              <View style={styles.insightsProgressStats}>
+                <View style={styles.insightsProgressStat}>
+                  <Camera color={palette.primary} size={18} />
+                  <Text style={styles.insightsProgressValue}>{photos.length}</Text>
+                  <Text style={styles.insightsProgressLabel}>Photos</Text>
+                </View>
+                <View style={styles.insightsProgressStat}>
+                  <Calendar color={palette.primary} size={18} />
+                  <Text style={styles.insightsProgressValue}>{journalEntries.length}</Text>
+                  <Text style={styles.insightsProgressLabel}>Journals</Text>
+                </View>
+              </View>
+              <Text style={styles.insightsProgressMessage}>
+                {photos.length >= 5 && journalEntries.length >= 5 
+                  ? "🎉 You have enough data! Unlock to see your personalized insights now."
+                  : `Keep tracking! ${Math.max(0, 5 - photos.length)} more photos and ${Math.max(0, 5 - journalEntries.length)} more journal entries to unlock full insights.`}
+              </Text>
+            </View>
+
+            {/* CTA Button */}
+            <TouchableOpacity
+              style={styles.insightsPaywallCTA}
+              onPress={() => router.push('/start-trial')}
+              activeOpacity={0.9}
+            >
+              <LinearGradient
+                colors={['#FFD700', '#FFA500']}
+                style={styles.insightsPaywallCTAGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Trophy color="#000" size={22} strokeWidth={2.5} />
+                <View style={styles.insightsPaywallCTAContent}>
+                  <Text style={styles.insightsPaywallCTAMain}>Unlock AI Insights</Text>
+                  <Text style={styles.insightsPaywallCTASub}>7-day free trial • Cancel anytime</Text>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <Text style={styles.insightsPaywallDisclaimer}>
+              Start free, then $8.99/month. Cancel before Day 8 to avoid charges.
+            </Text>
+          </LinearGradient>
+        </View>
+
+        {/* Continue Tracking Section */}
+        <View style={styles.continueTrackingSection}>
+          <Text style={styles.continueTrackingTitle}>Keep Building Your Data</Text>
+          <Text style={styles.continueTrackingText}>
+            Photos and journal entries are free! The more you track, the better your insights will be.
+          </Text>
+          <View style={styles.continueTrackingButtons}>
+            <TouchableOpacity
+              style={styles.continueTrackingButton}
+              onPress={() => {
+                setActiveTab('photos');
+                pickImage();
+              }}
+              activeOpacity={0.9}
+            >
+              <LinearGradient colors={gradient.primary} style={styles.continueTrackingButtonGradient}>
+                <Camera color={palette.textLight} size={18} />
+                <Text style={styles.continueTrackingButtonText}>Add Photo</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.continueTrackingButton}
+              onPress={() => {
+                setActiveTab('journal');
+                setShowJournalModal(true);
+              }}
+              activeOpacity={0.9}
+            >
+              <LinearGradient colors={gradient.success} style={styles.continueTrackingButtonGradient}>
+                <Calendar color={palette.textLight} size={18} />
+                <Text style={styles.continueTrackingButtonText}>Log Journal</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   const renderInsightsTab = () => {
+    // Show paywall if user doesn't have premium access
+    if (!canAccessInsights) {
+      return renderInsightsPaywall();
+    }
+
     // Check minimum requirements
     const requirements = checkMinimumRequirements(photos, journalEntries);
 
@@ -969,14 +1133,14 @@ export default function ProgressTrackerScreen() {
 
           {/* What You'll Get */}
           <View style={styles.featuresCard}>
-            <Text style={styles.featuresTitle}>What You'll Get</Text>
+            <Text style={styles.featuresTitle}>What You&apos;ll Get</Text>
             <View style={styles.featureItem}>
               <CheckCircle color={palette.success} size={18} />
               <Text style={styles.featureText}>Daily consistency tracking with visual calendar</Text>
             </View>
             <View style={styles.featureItem}>
               <CheckCircle color={palette.success} size={18} />
-              <Text style={styles.featureText}>Product performance analysis (what's working, what's not)</Text>
+              <Text style={styles.featureText}>Product performance analysis (what&apos;s working, what&apos;s not)</Text>
             </View>
             <View style={styles.featureItem}>
               <CheckCircle color={palette.success} size={18} />
@@ -1037,7 +1201,7 @@ export default function ProgressTrackerScreen() {
             <Sparkles color={palette.textMuted} size={64} strokeWidth={1.5} />
             <Text style={styles.emptyTitle}>Ready to Generate Insights</Text>
             <Text style={styles.emptyText}>
-              You've met the minimum requirements! Click below to analyze your progress
+              You&apos;ve met the minimum requirements! Click below to analyze your progress
             </Text>
             <TouchableOpacity
               style={styles.generateButton}
@@ -2651,5 +2815,231 @@ const styles = StyleSheet.create({
     color: palette.blush,
     fontWeight: typography.semibold,
     textAlign: 'center',
+  },
+  insightsPaywallContainer: {
+    marginBottom: spacing.xl,
+    borderRadius: 28,
+    overflow: 'hidden',
+    ...shadow.elevated,
+    shadowColor: palette.gold,
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  insightsPaywallGradient: {
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  insightsPaywallIcon: {
+    marginBottom: spacing.lg,
+  },
+  insightsPaywallIconBg: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadow.elevated,
+    shadowColor: '#FFD700',
+    shadowOpacity: 0.5,
+  },
+  insightsPaywallTitle: {
+    fontSize: 28,
+    fontWeight: '900' as const,
+    color: palette.textPrimary,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+  insightsPaywallSubtitle: {
+    fontSize: 15,
+    color: palette.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
+  },
+  insightsValueSection: {
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderRadius: 20,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  insightsValueTitle: {
+    fontSize: 16,
+    fontWeight: '800' as const,
+    color: palette.textPrimary,
+    marginBottom: spacing.md,
+  },
+  insightsValueItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  insightsValueIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadow.card,
+  },
+  insightsValueContent: {
+    flex: 1,
+  },
+  insightsValueHeading: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: palette.textPrimary,
+    marginBottom: 2,
+  },
+  insightsValueText: {
+    fontSize: 13,
+    color: palette.textSecondary,
+    lineHeight: 18,
+  },
+  insightsSocialProof: {
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: 16,
+    marginBottom: spacing.lg,
+  },
+  insightsSocialText: {
+    fontSize: 13,
+    color: palette.textSecondary,
+    fontWeight: '600' as const,
+    textAlign: 'center',
+  },
+  insightsSocialHighlight: {
+    color: palette.primary,
+    fontWeight: '800' as const,
+  },
+  insightsProgressPreview: {
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 20,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
+    borderWidth: 2,
+    borderColor: palette.primary,
+  },
+  insightsProgressTitle: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: palette.textPrimary,
+    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
+  insightsProgressStats: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.xxl,
+    marginBottom: spacing.md,
+  },
+  insightsProgressStat: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  insightsProgressValue: {
+    fontSize: 28,
+    fontWeight: '900' as const,
+    color: palette.primary,
+  },
+  insightsProgressLabel: {
+    fontSize: 12,
+    color: palette.textSecondary,
+    fontWeight: '600' as const,
+  },
+  insightsProgressMessage: {
+    fontSize: 13,
+    color: palette.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  insightsPaywallCTA: {
+    width: '100%',
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: spacing.md,
+    ...shadow.elevated,
+    shadowColor: '#FFD700',
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+  },
+  insightsPaywallCTAGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm,
+  },
+  insightsPaywallCTAContent: {
+    alignItems: 'flex-start',
+  },
+  insightsPaywallCTAMain: {
+    fontSize: 18,
+    fontWeight: '900' as const,
+    color: '#000',
+    letterSpacing: 0.3,
+  },
+  insightsPaywallCTASub: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: 'rgba(0, 0, 0, 0.7)',
+    marginTop: 2,
+  },
+  insightsPaywallDisclaimer: {
+    fontSize: 12,
+    color: palette.textMuted,
+    textAlign: 'center',
+  },
+  continueTrackingSection: {
+    backgroundColor: palette.surface,
+    borderRadius: 24,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: palette.border,
+    ...shadow.card,
+  },
+  continueTrackingTitle: {
+    fontSize: 18,
+    fontWeight: '800' as const,
+    color: palette.textPrimary,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  continueTrackingText: {
+    fontSize: 14,
+    color: palette.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: spacing.lg,
+  },
+  continueTrackingButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  continueTrackingButton: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...shadow.card,
+  },
+  continueTrackingButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
+  },
+  continueTrackingButtonText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: palette.textLight,
   },
 });
