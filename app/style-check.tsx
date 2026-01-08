@@ -14,25 +14,31 @@ import * as ImagePicker from "expo-image-picker";
 import { useStyle } from "@/contexts/StyleContext";
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
-// All features free - subscription checks removed
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import FeaturePaywall from '@/components/FeaturePaywall';
 import { getPalette, getGradient, shadow } from '@/constants/theme';
 
 export default function StyleCheckScreen() {
   const [isLoading, setIsLoading] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
   const { setCurrentImage, resetAnalysis } = useStyle();
   const { theme } = useTheme();
+  const subscription = useSubscription();
+  const { canAccessStyleCheck } = subscription || { canAccessStyleCheck: false };
   
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
   const styles = createStyles(palette);
-  // All features free - no subscription checks needed
 
   React.useEffect(() => {
     resetAnalysis();
   }, [resetAnalysis]);
 
   const handleTakePhoto = async () => {
-    // All features free - no checks needed
+    if (!canAccessStyleCheck) {
+      setShowPaywall(true);
+      return;
+    }
 
     if (Platform.OS === 'web') {
       Alert.alert('Camera not available', 'Camera not available on web. Please use upload photo instead.');
@@ -72,7 +78,10 @@ export default function StyleCheckScreen() {
   };
 
   const handleUploadPhoto = async () => {
-    // All features free - no checks needed
+    if (!canAccessStyleCheck) {
+      setShowPaywall(true);
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -160,7 +169,13 @@ export default function StyleCheckScreen() {
 
       </View>
 
-      {/* All features free - UpgradePrompt removed */}
+      {showPaywall && (
+        <FeaturePaywall
+          featureType="style-check"
+          onDismiss={() => setShowPaywall(false)}
+          showDismiss={true}
+        />
+      )}
       </SafeAreaView>
   );
 }

@@ -26,7 +26,12 @@
           "fr"
         ],
         "NSLocationWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to use your location to provide localized product recommendations and affiliate links.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to use your location.",
+        "NSLocationAlwaysUsageDescription": "Allow $(PRODUCT_NAME) to use your location.",
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -52,7 +57,10 @@
         "WRITE_EXTERNAL_STORAGE",
         "INTERNET",
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
       ]
     },
     "web": {
@@ -77,14 +85,21 @@
       [
         "expo-notifications",
         {
+          "icon": "./local/assets/notification_icon.png",
           "color": "#ffffff",
           "defaultChannel": "default",
+          "sounds": [
+            "./local/assets/notification_sound.wav"
+          ],
           "enableBackgroundRemoteNotifications": false
         }
       ],
       [
         "expo-location",
         {
+          "isAndroidForegroundServiceEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isIosBackgroundLocationEnabled": true,
           "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location to provide localized product recommendations and affiliate links."
         }
       ],

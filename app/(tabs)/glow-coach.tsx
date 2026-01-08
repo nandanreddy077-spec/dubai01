@@ -5,12 +5,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   Alert,
   Modal,
   TextInput,
-  FlatList,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,15 +19,10 @@ import {
   Camera,
   Plus,
   Target,
-  TrendingUp,
-  Award,
-  Clock,
   Droplets,
   Sun,
   Moon,
   X,
-  Settings,
-  Trash2,
   Play,
   Pause,
   Crown,
@@ -41,8 +33,6 @@ import {
   ArrowRight,
   ShoppingBag
 } from 'lucide-react-native';
-
-const { width } = Dimensions.get('window');
 import { useSkincare } from '@/contexts/SkincareContext';
 import { useGamification } from '@/contexts/GamificationContext';
 import { SkincareStep, WeeklyPlan, SkincarePlan } from '@/types/skincare';
@@ -50,8 +40,8 @@ import { router } from 'expo-router';
 import DailyRewardsModal from '@/components/DailyRewardsModal';
 import AnimatedProgressBar from '@/components/AnimatedProgressBar';
 import { useProducts } from '@/contexts/ProductContext';
-// All features free - SubscriptionGuard removed
-import { Linking } from 'react-native';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import FeaturePaywall from '@/components/FeaturePaywall';
 
 interface DailyReward {
   id: string;
@@ -74,8 +64,10 @@ export default function GlowCoachScreen() {
     canAddMorePlans 
   } = useSkincare();
   const { completeDailyRoutine, hasCompletedToday, hasCompletedForPlanDay } = useGamification();
-  const { recommendations, generateRecommendations, trackAffiliateTap } = useProducts();
-  // All features free - no subscription checks needed
+  const { recommendations, generateRecommendations } = useProducts();
+  const subscription = useSubscription();
+  const { canAccessAICoach } = subscription || { canAccessAICoach: false };
+  const [showPaywall, setShowPaywall] = useState(!canAccessAICoach);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [selectedMood, setSelectedMood] = useState<'great' | 'good' | 'okay' | 'bad' | null>(null);
@@ -217,7 +209,8 @@ export default function GlowCoachScreen() {
             try {
               await deactivatePlan(planId);
               setShowPlansModal(false);
-            } catch (error) {
+            } catch (err) {
+              console.error('Failed to deactivate plan:', err);
               Alert.alert('Error', 'Failed to deactivate plan');
             }
           }
@@ -238,7 +231,7 @@ export default function GlowCoachScreen() {
           </LinearGradient>
           <Text style={styles.emptyTitle}>Your Glow Journey Awaits</Text>
           <Text style={styles.emptySubtitle}>
-            Discover your skin's potential with our AI-powered analysis. Create up to 3 personalized beauty plans and watch your radiance transform.
+            Discover your skin&apos;s potential with our AI-powered analysis. Create up to 3 personalized beauty plans and watch your radiance transform.
           </Text>
           <TouchableOpacity 
             style={styles.startButton}
@@ -860,6 +853,15 @@ export default function GlowCoachScreen() {
         rewards={dailyRewards}
         onClose={() => setShowRewardsModal(false)}
       />
+
+      {/* Feature Paywall */}
+      {showPaywall && (
+        <FeaturePaywall
+          featureType="ai-coach"
+          onDismiss={() => setShowPaywall(false)}
+          showDismiss={true}
+        />
+      )}
     </SafeAreaView>
   );
 }

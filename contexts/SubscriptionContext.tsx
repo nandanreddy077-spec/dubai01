@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import { Platform } from 'react-native';
-import { paymentService, PRODUCT_IDS, REVENUECAT_CONFIG, trackPurchaseEvent, trackTrialStartEvent } from '@/lib/payments';
+import { paymentService, PRODUCT_IDS, REVENUECAT_CONFIG, trackPurchaseEvent } from '@/lib/payments';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -30,6 +30,12 @@ export interface SubscriptionContextType {
   isTrialExpired: boolean;
   canViewResults: boolean;
   needsPremium: boolean;
+  // Feature access flags - ALL features require trial/subscription
+  canAccessStyleCheck: boolean;
+  canAccessAICoach: boolean;
+  canAccessProgress: boolean;
+  canAccessCommunity: boolean;
+  hasAnyAccess: boolean; // True if user has trial or premium
   startLocalTrial: (days?: number) => Promise<void>; // DISABLED: Use processInAppPurchase instead (requires payment method)
   setPremium: (value: boolean, type?: 'monthly' | 'yearly') => Promise<void>;
   setSubscriptionData: (data: Partial<SubscriptionState>) => Promise<void>;
@@ -447,6 +453,16 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
     return !state.isPremium && !inTrial && state.scanCount >= state.maxScansInTrial;
   }, [state.isPremium, inTrial, state.scanCount, state.maxScansInTrial]);
 
+  // ALL FEATURES require trial or subscription - no free features
+  const hasAnyAccess = useMemo(() => {
+    return state.isPremium || inTrial;
+  }, [state.isPremium, inTrial]);
+
+  const canAccessStyleCheck = hasAnyAccess;
+  const canAccessAICoach = hasAnyAccess;
+  const canAccessProgress = hasAnyAccess;
+  const canAccessCommunity = hasAnyAccess;
+
   return useMemo(() => ({
     state,
     inTrial,
@@ -457,6 +473,11 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
     isTrialExpired,
     canViewResults,
     needsPremium,
+    canAccessStyleCheck,
+    canAccessAICoach,
+    canAccessProgress,
+    canAccessCommunity,
+    hasAnyAccess,
     startLocalTrial,
     setPremium,
     setSubscriptionData,
@@ -473,6 +494,11 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
     isTrialExpired,
     canViewResults,
     needsPremium,
+    canAccessStyleCheck,
+    canAccessAICoach,
+    canAccessProgress,
+    canAccessCommunity,
+    hasAnyAccess,
     startLocalTrial,
     setPremium,
     setSubscriptionData,
