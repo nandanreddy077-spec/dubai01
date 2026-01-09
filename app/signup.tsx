@@ -18,6 +18,8 @@ import { router } from 'expo-router';
 import { Eye, EyeOff, Mail, Lock, User, Heart, Sparkles, Star } from 'lucide-react-native';
 import Logo from '@/components/Logo';
 import { getPalette, getGradient, shadow, spacing, radii } from '@/constants/theme';
+import AppleLogo from '@/components/AppleLogo';
+import GoogleLogo from '@/components/GoogleLogo';
 
 export default function SignupScreen() {
   const [fullName, setFullName] = useState('');
@@ -297,7 +299,7 @@ export default function SignupScreen() {
                 ]}
               >
                 <View style={styles.logoCircle}>
-                  <Logo size={100} />
+                  <Logo size={100} hideBackground={true} />
                 </View>
                 
                 <Text style={styles.title}>Join GlowCheck</Text>
@@ -455,7 +457,7 @@ export default function SignupScreen() {
                   >
                     <View style={styles.appleButtonContent}>
                       <View style={styles.appleLogoContainer}>
-                        <Text style={styles.appleLogo}></Text>
+                        <AppleLogo size={20} color="#FFFFFF" />
                       </View>
                       <Text style={styles.appleButtonText}>
                         {isLoading ? 'Signing in...' : 'Continue with Apple'}
@@ -473,9 +475,7 @@ export default function SignupScreen() {
                 >
                   <View style={styles.googleButtonContent}>
                     <View style={styles.googleLogoContainer}>
-                      <View style={styles.googleLogoInner}>
-                        <Text style={styles.googleLogoG}>G</Text>
-                      </View>
+                      <GoogleLogo size={20} />
                     </View>
                     <Text style={styles.googleButtonText}>
                       {isLoading ? 'Signing in...' : 'Continue with Google'}
@@ -526,14 +526,9 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   logoCircle: {
     width: 100,
     height: 100,
-    borderRadius: 50,
-    backgroundColor: palette.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
-    ...shadow.elevated,
-    borderWidth: 3,
-    borderColor: palette.primary,
   },
   title: {
     fontSize: 32,
@@ -703,11 +698,6 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     justifyContent: 'center',
     marginRight: spacing.md,
   },
-  appleLogo: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    marginTop: -2,
-  },
   appleButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -743,22 +733,6 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
-  },
-  googleLogoInner: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#4285F4',
-  },
-  googleLogoG: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#4285F4',
-    marginLeft: 1,
   },
   googleButtonText: {
     color: '#3C4043',

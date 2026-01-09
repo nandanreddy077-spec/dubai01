@@ -8,6 +8,7 @@ import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { makeRedirectUri } from 'expo-auth-session';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 interface AuthContextType {
   user: User | null;
@@ -521,87 +522,60 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         return { error: { message: 'Apple Sign In is only available on iOS devices.' } };
       }
 
-      // Use Supabase callback URL - Supabase handles the OAuth flow
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-      const redirectUrl = `${supabaseUrl}/auth/v1/callback`;
+      // Check if Apple Authentication is available
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+      if (!isAvailable) {
+        return { error: { message: 'Apple Sign In is not available on this device.' } };
+      }
 
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      console.log('[Auth] Starting native Apple Sign In...');
+
+      // Use native Apple Sign In
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      console.log('[Auth] Apple credential received:', {
+        user: credential.user,
+        email: credential.email,
+        identityToken: credential.identityToken ? 'present' : 'missing',
+      });
+
+      if (!credential.identityToken) {
+        return { error: { message: 'Failed to get identity token from Apple.' } };
+      }
+
+      console.log('[Auth] Signing in with Supabase using identity token...');
+
+      // Sign in with Supabase using the identity token
+      const { data, error } = await supabase.auth.signInWithIdToken({
         provider: 'apple',
-        options: {
-          redirectTo: redirectUrl,
-        },
+        token: credential.identityToken,
       });
 
       if (error) {
-        console.error('Apple sign in error:', error);
+        console.error('[Auth] Supabase sign in error:', error);
+        console.error('[Auth] Error details:', JSON.stringify(error, null, 2));
         return { error };
       }
 
-      if (data?.url) {
-        // Complete any pending auth session first
-        WebBrowser.maybeCompleteAuthSession();
-        
-        // Open the OAuth URL - Supabase will redirect back to redirectUrl with session
-        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
-
-        if (result.type === 'success') {
-          // Extract the URL from the result
-          const url = result.url;
-          if (url) {
-            // Parse the URL to get the code or access_token
-            const parsedUrl = Linking.parse(url);
-            const code = parsedUrl.queryParams?.code as string;
-            const accessToken = parsedUrl.queryParams?.access_token as string;
-            const errorParam = parsedUrl.queryParams?.error as string;
-            
-            if (errorParam) {
-              return { error: { message: `Authentication error: ${errorParam}` } };
-            }
-            
-            if (code) {
-              const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-              if (exchangeError) {
-                console.error('Error exchanging code for session:', exchangeError);
-                return { error: exchangeError };
-              }
-            } else if (accessToken) {
-              // If we have an access token directly, set the session
-              const { error: sessionError } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: parsedUrl.queryParams?.refresh_token as string || '',
-              });
-              if (sessionError) {
-                console.error('Error setting session:', sessionError);
-                return { error: sessionError };
-              }
-            } else {
-              // Wait for auth state change to pick up the session
-              // The redirect URL should contain the session info
-              await new Promise(resolve => setTimeout(resolve, 2000));
-              // Check if we have a session now
-              const { data: { session } } = await supabase.auth.getSession();
-              if (!session) {
-                return { error: { message: 'Failed to establish session. Please try again.' } };
-              }
-            }
-          } else {
-            // Wait for auth state change
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-              return { error: { message: 'Failed to establish session. Please try again.' } };
-            }
-          }
-        } else if (result.type === 'cancel') {
-          return { error: { message: 'Authentication cancelled' } };
-        } else {
-          return { error: { message: 'Authentication failed. Please try again.' } };
-        }
+      if (data?.user) {
+        console.log('[Auth] ✅ Apple sign-in successful:', data.user.email);
+        return { error: null };
       }
 
-      return { error: null };
+      return { error: { message: 'Failed to sign in with Apple. Please try again.' } };
     } catch (error: any) {
-      console.error('Apple sign in exception:', error);
+      console.error('[Auth] Apple sign in exception:', error);
+      
+      // Handle user cancellation
+      if (error.code === 'ERR_CANCELED' || error.message?.includes('cancel')) {
+        return { error: { message: 'Authentication cancelled' } };
+      }
+      
       return { error: { message: error.message || 'Failed to sign in with Apple' } };
     } finally {
       setLoading(false);

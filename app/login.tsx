@@ -19,6 +19,8 @@ import { router } from 'expo-router';
 import { Eye, EyeOff, Mail, Lock, Heart, Sparkles, Star, Wifi } from 'lucide-react-native';
 import { getPalette, getGradient, shadow, spacing, radii } from '@/constants/theme';
 import { testSupabaseConnection } from '@/lib/supabase';
+import AppleLogo from '@/components/AppleLogo';
+import GoogleLogo from '@/components/GoogleLogo';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -361,7 +363,7 @@ export default function LoginScreen() {
                 >
                   <View style={styles.appleButtonContent}>
                     <View style={styles.appleLogoContainer}>
-                      <Text style={styles.appleLogo}></Text>
+                      <AppleLogo size={20} color="#FFFFFF" />
                     </View>
                     <Text style={styles.appleButtonText}>
                       {isLoading ? 'Signing in...' : 'Continue with Apple'}
@@ -377,16 +379,14 @@ export default function LoginScreen() {
                 activeOpacity={0.8}
                 testID="google-signin-button"
               >
-                <View style={styles.googleButtonContent}>
-                  <View style={styles.googleLogoContainer}>
-                    <View style={styles.googleLogoInner}>
-                      <Text style={styles.googleLogoG}>G</Text>
+                  <View style={styles.googleButtonContent}>
+                    <View style={styles.googleLogoContainer}>
+                      <GoogleLogo size={20} />
                     </View>
+                    <Text style={styles.googleButtonText}>
+                      {isLoading ? 'Signing in...' : 'Continue with Google'}
+                    </Text>
                   </View>
-                  <Text style={styles.googleButtonText}>
-                    {isLoading ? 'Signing in...' : 'Continue with Google'}
-                  </Text>
-                </View>
               </TouchableOpacity>
 
               <View style={styles.signupContainer}>
@@ -588,11 +588,6 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     justifyContent: 'center',
     marginRight: spacing.md,
   },
-  appleLogo: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    marginTop: -2,
-  },
   appleButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -628,22 +623,6 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
-  },
-  googleLogoInner: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#4285F4',
-  },
-  googleLogoG: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#4285F4',
-    marginLeft: 1,
   },
   googleButtonText: {
     color: '#3C4043',
