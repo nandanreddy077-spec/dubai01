@@ -78,9 +78,9 @@ function GlassTabBarImpl({ state, descriptors, navigation }: GlassTabBarProps) {
     <View style={containerStyle} pointerEvents="box-none" testID="glass-tabbar">
       <BlurView intensity={Platform.OS === "web" ? 18 : 28} tint="light" style={styles.blur} />
       <LinearGradient
-        colors={["rgba(255,255,255,0.92)", "rgba(255,255,255,0.68)"]}
-        start={{ x: 0.15, y: 0 }}
-        end={{ x: 0.85, y: 1 }}
+        colors={["rgba(255,255,255,0.94)", "rgba(250,251,252,0.72)"]}
+        start={{ x: 0.1, y: 0 }}
+        end={{ x: 0.9, y: 1 }}
         style={styles.chrome}
       />
       <View style={styles.hairline} />
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   iconWrapFocused: {
-    backgroundColor: "rgba(212,165,116,0.14)",
+    backgroundColor: "rgba(201,169,97,0.18)",
   },
   label: {
     marginTop: 4,
