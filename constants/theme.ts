@@ -5,36 +5,36 @@ export type ThemeMode = 'light' | 'dark';
 // $200K Ultra-Premium Design System - Gender-Neutral Luxury Excellence
 // Inspired by: Apple Pro, Porsche Design, Bang & Olufsen, Aesop, Arc'teryx
 const lightPalette = {
-  // Brandbook (Primary combo) — clean white canvas
-  background: "#FFFFFF", // Brand white
+  // Ultra-premium backgrounds - Architectural purity
+  background: "#FAFBFC", // Sophisticated light gray
   backgroundStart: "#FFFFFF", // Pure white
-  backgroundEnd: "#FAFBFC", // Subtle premium light gray
-  surface: "#FFFFFF", // Cards / sheets
-  surfaceAlt: "#FAFBFC", // Premium luxury background
-  surfaceElevated: "#FFFFFF", // Elevated surface
-  surfaceGlass: "rgba(255,255,255,0.78)", // Clean glassmorphism on white
+  backgroundEnd: "#F5F7FA", // Cool architectural gray
+  surface: "#FFFFFF", // Pure white
+  surfaceAlt: "#F8F9FA", // Elevated surface
+  surfaceElevated: "#FFFFFF", // Premium elevation
+  surfaceGlass: "rgba(255,255,255,0.72)", // Advanced glassmorphism
   
-  // Brandbook text
-  primary: "#0A0A0A", // Primary text (black)
-  secondary: "#6B7280", // Secondary text (slate)
-  tertiary: "#E5E7EB", // Subtle separators / neutral surface
+  // Premium accent system - Monochromatic luxury with precise metallics
+  primary: "#0A0A0A", // Pure black - commanding presence
+  secondary: "#6B7280", // Slate gray - sophisticated secondary
+  tertiary: "#E5E7EB", // Light neutral surface
   
-  // Brandbook accents
-  gold: "#C9A961", // Accent gold
-  silver: "#B8BCC8", // Neutral metal (kept for existing UI)
-  bronze: "#CD7F32",
-  copper: "#B87333",
-  emerald: "#059669",
-  sapphire: "#2563EB",
+  // Refined metallics - Ultra-selective accent use
+  gold: "#C9A961", // Rich gold - luxury accent
+  silver: "#B8BCC8", // Brushed platinum - tech elegance
+  bronze: "#CD7F32", // Classic bronze - premium warmth
+  copper: "#B87333", // Refined copper - artisan quality
+  emerald: "#059669", // Deep emerald - premium green
+  sapphire: "#2563EB", // Rich sapphire - premium blue
   
-  // Premium luxury warmth
-  blush: "#E8DDD5", // Warm accent (blush)
-  sage: "#B8C5C2",
-  slate: "#475569",
-  charcoal: "#1F2937",
-  ivory: "#FAFAF9",
-  pearl: "#FFFFFF",
-  obsidian: "#0A0A0A",
+  // Architectural color system - Precision neutrals
+  blush: "#E8DDD5", // Warm stone
+  sage: "#B8C5C2", // Cool concrete
+  slate: "#475569", // Architectural slate
+  charcoal: "#1F2937", // Deep charcoal
+  ivory: "#FAFAF9", // Soft white
+  pearl: "#FFFFFF", // Pure white
+  obsidian: "#0A0A0A", // Deep black - premium depth
   
   // Architectural color aliases
   mint: "#A8B5B2", // Same as sage
@@ -43,13 +43,13 @@ const lightPalette = {
   champagne: "#E8DED2", // Muted gold
   peach: "#D4C4B8", // Same as blush
   
-  // Text hierarchy — brandbook-aligned
-  text: "#0A0A0A", // Primary text
-  textPrimary: "#0A0A0A",
-  textSecondary: "#6B7280",
-  textTertiary: "#9CA3AF",
-  textMuted: "#D1D5DB",
-  textAccent: "#C9A961", // Accent gold
+  // Text hierarchy - Architectural precision
+  text: "#000000", // Pure black
+  textPrimary: "#0A0A0A", // True black
+  textSecondary: "#6B7280", // Slate gray
+  textTertiary: "#9CA3AF", // Light slate
+  textMuted: "#D1D5DB", // Very light
+  textAccent: "#B8956A", // Muted gold accent
   textLight: "#FFFFFF", // Pure white
   textInverse: "#FFFFFF", // White on dark
   
@@ -73,7 +73,7 @@ const lightPalette = {
   overlayLight: "rgba(0,0,0,0.25)",
   overlayWhite: "rgba(255,255,255,0.95)",
   overlayGlass: "rgba(255,255,255,0.72)",
-  overlayGold: "rgba(201,169,97,0.12)",
+  overlayGold: "rgba(212,165,116,0.12)",
   overlaySage: "rgba(184,201,197,0.12)",
   overlaySuccess: "rgba(52,199,89,0.12)",
   overlayError: "rgba(255,59,48,0.12)",
@@ -84,7 +84,7 @@ const lightPalette = {
   
   // Premium effects - Subtle luxury
   shimmer: "rgba(255,255,255,0.9)",
-  glow: "rgba(201,169,97,0.4)",
+  glow: "rgba(212,165,116,0.4)",
   highlight: "rgba(255,255,255,0.8)",
   shadow: "rgba(0,0,0,0.04)",
   shadowMedium: "rgba(0,0,0,0.08)",
@@ -309,18 +309,18 @@ export const shadow = {
     },
   }),
   
-  // Glow - Brandbook gold accent elements
+  // Glow - Premium accent elements
   glow: Platform.select({
     web: {
-      shadowColor: "#C9A961",
-      shadowOpacity: 0.28,
+      shadowColor: "#D4A574",
+      shadowOpacity: 0.3,
       shadowRadius: 24,
       shadowOffset: { width: 0, height: 4 },
       elevation: 0,
     },
     default: {
-      shadowColor: "#C9A961",
-      shadowOpacity: 0.28,
+      shadowColor: "#D4A574",
+      shadowOpacity: 0.3,
       shadowRadius: 20,
       shadowOffset: { width: 0, height: 4 },
       elevation: 6,
@@ -405,9 +405,9 @@ const lightGradient = {
   emerald: ["#ECFDF5", "#10B981", "#059669"] as const, // Premium emerald
   sapphire: ["#EFF6FF", "#3B82F6", "#2563EB"] as const, // Premium sapphire
   
-  // Ambient gradients - Subtle atmosphere (brandbook)
-  sage: ["#F0FDF9", "#E8F5F0", "#B8C5C2"] as const,
-  blush: ["#FFFFFF", "#FAFBFC", "#E8DDD5"] as const,
+  // Ambient gradients - Subtle atmosphere
+  sage: ["#F0FDF9", "#E8F5F0", "#B8C5C2"] as const, // Cool ambient
+  blush: ["#FFF9F5", "#F5EDE7", "#E8DDD5"] as const, // Warm ambient
   slate: ["#F8FAFC", "#E8EAED", "#9CA3AF"] as const, // Neutral ambient
   luxury: ["#1F2937", "#111827", "#0A0A0A"] as const, // Premium dark
   
@@ -416,12 +416,12 @@ const lightGradient = {
   rose: ["#F8F5F2", "#F0E8E0", "#E8D5C4"] as const, // Same as blush
   lavender: ["#F5F6F7", "#E8EAED", "#9CA3AF"] as const, // Cool gray
   card: ["#FFFFFF", "#FCFCFC"] as const, // Legacy card gradient
-  aurora: ["#FFF9E6", "#C9A961", "#E8DDD5", "#9CA3AF"] as const,
+  aurora: ["#F5E6D3", "#D4A574", "#B8C9C5", "#9CA3AF"] as const, // Multi-tone gradient
   paywall: ["#000000", "#1A1A1A"] as const, // Dark overlay
   
   // Special effects
-  shimmer: ["rgba(255,255,255,1)", "rgba(201,169,97,0.42)", "rgba(255,255,255,1)"] as const,
-  glow: ["rgba(201,169,97,0.15)", "rgba(201,169,97,0.08)", "rgba(201,169,97,0)"] as const,
+  shimmer: ["rgba(255,255,255,1)", "rgba(212,165,116,0.4)", "rgba(255,255,255,1)"] as const,
+  glow: ["rgba(212,165,116,0.15)", "rgba(212,165,116,0.08)", "rgba(212,165,116,0)"] as const,
   spotlight: ["rgba(255,255,255,0)", "rgba(255,255,255,0.4)", "rgba(255,255,255,0)"] as const,
   
   // System gradients
