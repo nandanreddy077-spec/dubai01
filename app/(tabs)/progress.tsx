@@ -970,8 +970,7 @@ export default function ProgressTrackerScreen() {
     );
   };
 
-<<<<<<< HEAD
-  const renderInsightsPaywall = () => {
+const renderInsightsPaywall = () => {
     return (
       <View style={styles.tabContent}>
         {/* Premium Insights Paywall */}
@@ -1165,8 +1164,6 @@ export default function ProgressTrackerScreen() {
     );
   };
 
-=======
->>>>>>> 3c726c562abf370a95955556c9e30d4404b6c2c8
   const renderInsightsTab = () => {
     // Check minimum requirements
     const requirements = checkMinimumRequirements(photos, journalEntries);
@@ -2976,7 +2973,6 @@ const styles = StyleSheet.create({
     fontWeight: typography.semibold,
     textAlign: 'center',
   },
-<<<<<<< HEAD
   insightsPaywallContainer: {
     marginBottom: spacing.xl,
     borderRadius: 28,
@@ -3245,6 +3241,4 @@ const styles = StyleSheet.create({
     color: palette.textLight,
     letterSpacing: 0.3,
   },
-=======
->>>>>>> 3c726c562abf370a95955556c9e30d4404b6c2c8
 });
