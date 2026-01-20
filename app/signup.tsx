@@ -447,12 +447,25 @@ export default function SignupScreen() {
                   <View style={styles.dividerLine} />
                 </View>
 
+                <TouchableOpacity
+                  style={[styles.googleButton, isLoading && styles.googleButtonDisabled]}
+                  onPress={handleGoogleSignIn}
+                  disabled={isLoading}
+                  testID="google-signin-button"
+                >
+                  <View style={styles.googleButtonContent}>
+                    <Text style={styles.googleIcon}>G</Text>
+                    <Text style={styles.googleButtonText}>
+                      {isLoading ? 'Signing in...' : 'Continue with Google'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
                 {Platform.OS === 'ios' && (
                   <TouchableOpacity
                     style={[styles.appleButton, isLoading && styles.appleButtonDisabled]}
                     onPress={handleAppleSignIn}
                     disabled={isLoading}
-                    activeOpacity={0.8}
                     testID="apple-signin-button"
                   >
                     <View style={styles.appleButtonContent}>
@@ -465,23 +478,6 @@ export default function SignupScreen() {
                     </View>
                   </TouchableOpacity>
                 )}
-
-                <TouchableOpacity
-                  style={[styles.googleButton, isLoading && styles.googleButtonDisabled]}
-                  onPress={handleGoogleSignIn}
-                  disabled={isLoading}
-                  activeOpacity={0.8}
-                  testID="google-signin-button"
-                >
-                  <View style={styles.googleButtonContent}>
-                    <View style={styles.googleLogoContainer}>
-                      <GoogleLogo size={20} />
-                    </View>
-                    <Text style={styles.googleButtonText}>
-                      {isLoading ? 'Signing in...' : 'Continue with Google'}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
 
                 <TouchableOpacity 
                   style={styles.loginButton}
@@ -705,17 +701,13 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     letterSpacing: 0.3,
   },
   googleButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.surfaceElevated,
     borderRadius: radii.lg,
-    height: 56,
+    height: 52,
     marginBottom: spacing.lg,
     borderWidth: 1,
-    borderColor: '#E8E8E8',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
+    borderColor: palette.borderLight,
+    ...shadow.card,
   },
   googleButtonDisabled: {
     opacity: 0.6,
@@ -725,7 +717,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: spacing.xl,
+    gap: spacing.md,
   },
   googleLogoContainer: {
     width: 24,
@@ -735,10 +727,37 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     marginRight: spacing.md,
   },
   googleButtonText: {
-    color: '#3C4043',
-    fontSize: 16,
+    color: palette.textPrimary,
+    fontSize: 15,
     fontWeight: '600',
-    letterSpacing: 0.3,
+  },
+  appleButton: {
+    backgroundColor: '#000000',
+    borderRadius: radii.lg,
+    height: 52,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: '#000000',
+    ...shadow.card,
+  },
+  appleButtonDisabled: {
+    opacity: 0.6,
+  },
+  appleButtonContent: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  appleIcon: {
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  appleButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
   },
   
   // Background orbs

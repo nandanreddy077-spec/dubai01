@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   Camera,
   TrendingUp,
+  TrendingDown,
   Calendar,
   Droplets,
   Moon as Sleep,
@@ -114,11 +115,10 @@ export default function ProgressTrackerScreen() {
   const params = useLocalSearchParams<{ tab?: string }>();
   const insets = useSafeAreaInsets();
   
-  const canAccessInsights = hasAnyAccess || subscriptionState.isPremium || inTrial;
   const [activeTab, setActiveTab] = useState<Tab>((params.tab as Tab) || 'photos');
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
-  const [, setInsights] = useState<WeeklyInsight[]>([]);
+  const [insights, setInsights] = useState<WeeklyInsight[]>([]);
   const [aiInsights, setAiInsights] = useState<AIInsightResult | null>(null);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
   
@@ -563,6 +563,9 @@ export default function ProgressTrackerScreen() {
     };
   }, [journalEntries]);
 
+  // Check if insights are unlocked
+  const canUnlockInsights = journalEntries.length >= 5 || photos.length >= 3;
+
   // Organize photos by day (last 30 days max)
   const organizedPhotos = useMemo(() => {
     const now = Date.now();
@@ -967,6 +970,7 @@ export default function ProgressTrackerScreen() {
     );
   };
 
+<<<<<<< HEAD
   const renderInsightsPaywall = () => {
     return (
       <View style={styles.tabContent}>
@@ -1161,12 +1165,9 @@ export default function ProgressTrackerScreen() {
     );
   };
 
+=======
+>>>>>>> 3c726c562abf370a95955556c9e30d4404b6c2c8
   const renderInsightsTab = () => {
-    // Show paywall if user doesn't have premium access
-    if (!canAccessInsights) {
-      return renderInsightsPaywall();
-    }
-
     // Check minimum requirements
     const requirements = checkMinimumRequirements(photos, journalEntries);
 
@@ -1239,14 +1240,14 @@ export default function ProgressTrackerScreen() {
 
           {/* What You'll Get */}
           <View style={styles.featuresCard}>
-            <Text style={styles.featuresTitle}>What You&apos;ll Get</Text>
+            <Text style={styles.featuresTitle}>What You'll Get</Text>
             <View style={styles.featureItem}>
               <CheckCircle color={palette.success} size={18} />
               <Text style={styles.featureText}>Daily consistency tracking with visual calendar</Text>
             </View>
             <View style={styles.featureItem}>
               <CheckCircle color={palette.success} size={18} />
-              <Text style={styles.featureText}>Product performance analysis (what&apos;s working, what&apos;s not)</Text>
+              <Text style={styles.featureText}>Product performance analysis (what's working, what's not)</Text>
             </View>
             <View style={styles.featureItem}>
               <CheckCircle color={palette.success} size={18} />
@@ -1307,7 +1308,7 @@ export default function ProgressTrackerScreen() {
             <Sparkles color={palette.textMuted} size={64} strokeWidth={1.5} />
             <Text style={styles.emptyTitle}>Ready to Generate Insights</Text>
             <Text style={styles.emptyText}>
-              You&apos;ve met the minimum requirements! Click below to analyze your progress
+              You've met the minimum requirements! Click below to analyze your progress
             </Text>
             <TouchableOpacity
               style={styles.generateButton}
@@ -2975,6 +2976,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.semibold,
     textAlign: 'center',
   },
+<<<<<<< HEAD
   insightsPaywallContainer: {
     marginBottom: spacing.xl,
     borderRadius: 28,
@@ -3243,4 +3245,6 @@ const styles = StyleSheet.create({
     color: palette.textLight,
     letterSpacing: 0.3,
   },
+=======
+>>>>>>> 3c726c562abf370a95955556c9e30d4404b6c2c8
 });
