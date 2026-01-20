@@ -50,6 +50,7 @@ export default function PostDetailScreen() {
     addComment,
     reportPost,
     createStory,
+    deletePost,
   } = useCommunity();
 
   const [commentText, setCommentText] = useState<string>('');
@@ -182,8 +183,24 @@ export default function PostDetailScreen() {
                           {
                             text: 'Delete',
                             style: 'destructive' as const,
-                            onPress: () => {
-                              Alert.alert('Deleted', 'Post deletion functionality coming soon!');
+                            onPress: async () => {
+                              if (!post) return;
+                              try {
+                                const result = await deletePost(post.circleId, post.id);
+                                if (result?.error) {
+                                  Alert.alert('Error', result.error);
+                                } else {
+                                  Alert.alert('Deleted', 'Post deleted successfully!', [
+                                    {
+                                      text: 'OK',
+                                      onPress: () => router.back(),
+                                    },
+                                  ]);
+                                }
+                              } catch (error) {
+                                console.error('Error deleting post:', error);
+                                Alert.alert('Error', 'Failed to delete post. Please try again.');
+                              }
                             },
                           },
                         ]

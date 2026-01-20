@@ -78,6 +78,7 @@ function RootLayoutNav() {
       <Stack.Screen name="product-tracking" options={{ headerShown: true, headerBackTitle: "Back" }} />
       <Stack.Screen name="user-profile" options={{ headerShown: false }} />
       <Stack.Screen name="post-detail" options={{ headerShown: false }} />
+      <Stack.Screen name="challenge-detail" options={{ headerShown: false }} />
       <Stack.Screen name="notification-settings" options={{ headerShown: true, title: 'Notification Settings', headerBackTitle: 'Back' }} />
       <Stack.Screen name="ai-advisor" options={{ headerShown: true, headerBackTitle: 'Back' }} />
       <Stack.Screen name="beauty-membership" options={{ headerShown: false }} />

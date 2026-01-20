@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Animated,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,6 +38,9 @@ export default function SkincarePlanSelectionScreen() {
   const progressAnimation = useRef(new Animated.Value(0)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
   const shimmerAnimation = useRef(new Animated.Value(0)).current;
+  const fadeAnimation = useRef(new Animated.Value(0)).current;
+  const scaleAnimation = useRef(new Animated.Value(0.9)).current;
+  const textOpacity = useRef(new Animated.Value(0)).current;
 
   const presetPlans = getPresetPlans();
   const palette = getPalette(theme);
@@ -57,37 +61,67 @@ export default function SkincarePlanSelectionScreen() {
       setLoadingProgress(0);
       setLoadingStep(0);
       progressAnimation.setValue(0);
+      fadeAnimation.setValue(0);
+      scaleAnimation.setValue(0.9);
+      textOpacity.setValue(0);
       
-      // Sparkle rotation
+      // Fade in overlay with smooth easing
+      Animated.parallel([
+        Animated.timing(fadeAnimation, {
+          toValue: 1,
+          duration: 400,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnimation, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+        Animated.timing(textOpacity, {
+          toValue: 1,
+          duration: 600,
+          delay: 200,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start();
+      
+      // Sparkle rotation - smoother with easing
       const sparkleRotate = Animated.loop(
         Animated.timing(sparkleRotation, {
           toValue: 1,
-          duration: 3000,
+          duration: 4000,
+          easing: Easing.linear,
           useNativeDriver: true,
         })
       );
       
-      // Pulse animation
+      // Pulse animation - smoother with easing
       const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnimation, {
-            toValue: 1.1,
-            duration: 1000,
+            toValue: 1.08,
+            duration: 1200,
+            easing: Easing.inOut(Easing.ease),
             useNativeDriver: true,
           }),
           Animated.timing(pulseAnimation, {
             toValue: 1,
-            duration: 1000,
+            duration: 1200,
+            easing: Easing.inOut(Easing.ease),
             useNativeDriver: true,
           }),
         ])
       );
       
-      // Shimmer animation
+      // Shimmer animation - smoother continuous loop
       const shimmer = Animated.loop(
         Animated.timing(shimmerAnimation, {
           toValue: 1,
-          duration: 2000,
+          duration: 2500,
+          easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         })
       );
@@ -96,43 +130,104 @@ export default function SkincarePlanSelectionScreen() {
       pulse.start();
       shimmer.start();
       
-      // Progress simulation
-      const progressTimer = setInterval(() => {
-        setLoadingProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(progressTimer);
-            return 100;
-          }
-          return prev + Math.random() * 15;
-        });
-      }, 500);
+      // Progress simulation - ultra-smooth increments with frequent updates
+      let startTime = Date.now();
+      const duration = 8000; // 8 seconds total for smooth progress
       
-      // Step progression
-      const stepTimer = setInterval(() => {
-        setLoadingStep(prev => {
-          if (prev >= loadingSteps.length - 1) {
-            clearInterval(stepTimer);
-            return loadingSteps.length - 1;
-          }
-          return prev + 1;
-        });
-      }, 2000);
+      let progressTimer: NodeJS.Timeout | null = null;
+      let stepTimer: NodeJS.Timeout | null = null;
+      
+      progressTimer = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const rawProgress = Math.min((elapsed / duration) * 100, 99); // Cap at 99% until real completion
+        
+        // Use easing curve for natural progress acceleration/deceleration
+        let easedProgress = rawProgress;
+        if (rawProgress < 50) {
+          // Ease in: slower start, faster later
+          easedProgress = (rawProgress / 50) * (rawProgress / 50) * 50;
+        } else {
+          // Ease out: faster start, slower end
+          const t = (rawProgress - 50) / 50;
+          easedProgress = 50 + (1 - (1 - t) * (1 - t)) * 49;
+        }
+        
+        setLoadingProgress(easedProgress);
+        
+        if (easedProgress >= 99) {
+          if (progressTimer) clearInterval(progressTimer);
+          progressTimer = null;
+        }
+      }, 50); // Update every 50ms for ultra-smooth progress
+      
+      // Step progression - ultra-smooth text transitions with precise timing
+      let currentStep = 0;
+      let stepStartTime = Date.now();
+      
+      stepTimer = setInterval(() => {
+        const elapsed = Date.now() - stepStartTime;
+        
+        if (currentStep < loadingSteps.length - 1 && elapsed >= 2000) {
+          // Smooth fade transition for step change
+          Animated.sequence([
+            Animated.timing(textOpacity, {
+              toValue: 0,
+              duration: 150,
+              easing: Easing.out(Easing.quad),
+              useNativeDriver: true,
+            }),
+            Animated.timing(textOpacity, {
+              toValue: 1,
+              duration: 250,
+              delay: 50,
+              easing: Easing.in(Easing.quad),
+              useNativeDriver: true,
+            }),
+          ]).start();
+          
+          currentStep += 1;
+          setLoadingStep(currentStep);
+          stepStartTime = Date.now();
+        }
+        
+        if (currentStep >= loadingSteps.length - 1) {
+          if (stepTimer) clearInterval(stepTimer);
+          stepTimer = null;
+        }
+      }, 100); // Check every 100ms for precise step transitions
       
       return () => {
         sparkleRotate.stop();
         pulse.stop();
         shimmer.stop();
-        clearInterval(progressTimer);
-        clearInterval(stepTimer);
+        if (progressTimer) clearInterval(progressTimer);
+        if (stepTimer) clearInterval(stepTimer);
       };
+    } else {
+      // Fade out when not generating
+      Animated.parallel([
+        Animated.timing(fadeAnimation, {
+          toValue: 0,
+          duration: 300,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnimation, {
+          toValue: 0.9,
+          duration: 300,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
-  }, [isGenerating, loadingSteps.length, progressAnimation, pulseAnimation, shimmerAnimation, sparkleRotation]);
+  }, [isGenerating, loadingSteps.length, progressAnimation, pulseAnimation, shimmerAnimation, sparkleRotation, fadeAnimation, scaleAnimation, textOpacity]);
   
-  // Animate progress bar
+  // Animate progress bar - ultra-smooth continuous animation
   useEffect(() => {
     Animated.timing(progressAnimation, {
       toValue: loadingProgress / 100,
       duration: 300,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1), // Smooth cubic bezier for natural motion
       useNativeDriver: false,
     }).start();
   }, [loadingProgress, progressAnimation]);
@@ -429,7 +524,14 @@ export default function SkincarePlanSelectionScreen() {
 
         {/* Enhanced Loading Overlay */}
         {isGenerating && (
-          <View style={styles.loadingOverlay}>
+          <Animated.View 
+            style={[
+              styles.loadingOverlay,
+              {
+                opacity: fadeAnimation,
+              }
+            ]}
+          >
             <LinearGradient colors={['rgba(0,0,0,0.95)', 'rgba(0,0,0,0.85)']} style={styles.loadingBackground}>
               {/* Animated Background Elements */}
               <Animated.View 
@@ -470,7 +572,14 @@ export default function SkincarePlanSelectionScreen() {
                 />
               </Animated.View>
               
-              <View style={styles.loadingCard}>
+              <Animated.View 
+                style={[
+                  styles.loadingCard,
+                  {
+                    transform: [{ scale: scaleAnimation }],
+                  }
+                ]}
+              >
                 <LinearGradient colors={gradient.shimmer} style={styles.loadingIconContainer}>
                   <Animated.View
                     style={[
@@ -526,8 +635,22 @@ export default function SkincarePlanSelectionScreen() {
                   </View>
                 </LinearGradient>
                 
-                <Text style={styles.loadingTitle}>Creating your personalized plan...</Text>
-                <Text style={styles.loadingSubtext}>{loadingSteps[loadingStep]}</Text>
+                <Animated.Text 
+                  style={[
+                    styles.loadingTitle,
+                    { opacity: textOpacity }
+                  ]}
+                >
+                  Creating your personalized plan...
+                </Animated.Text>
+                <Animated.Text 
+                  style={[
+                    styles.loadingSubtext,
+                    { opacity: textOpacity }
+                  ]}
+                >
+                  {loadingSteps[loadingStep]}
+                </Animated.Text>
                 
                 {/* Enhanced Progress Bar */}
                 <View style={styles.loadingProgressContainer}>
@@ -550,22 +673,28 @@ export default function SkincarePlanSelectionScreen() {
                         end={{ x: 1, y: 0 }}
                       />
                       
-                      {/* Progress shimmer */}
+                      {/* Progress shimmer - smoother animation */}
                       <Animated.View
                         style={[
                           styles.progressShimmer,
                           {
                             transform: [{
                               translateX: shimmerAnimation.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [-100, 300]
+                                inputRange: [0, 0.5, 1],
+                                outputRange: [-100, 100, 300],
+                                extrapolate: 'clamp'
                               })
-                            }]
+                            }],
+                            opacity: shimmerAnimation.interpolate({
+                              inputRange: [0, 0.3, 0.7, 1],
+                              outputRange: [0, 0.8, 0.8, 0],
+                              extrapolate: 'clamp'
+                            })
                           }
                         ]}
                       >
                         <LinearGradient
-                          colors={['transparent', 'rgba(255,255,255,0.4)', 'transparent']}
+                          colors={['transparent', 'rgba(255,255,255,0.5)', 'rgba(255,255,255,0.3)', 'transparent']}
                           style={styles.shimmerGradient}
                           start={{ x: 0, y: 0 }}
                           end={{ x: 1, y: 0 }}
@@ -577,26 +706,46 @@ export default function SkincarePlanSelectionScreen() {
                   <Text style={styles.progressText}>{Math.round(loadingProgress)}%</Text>
                 </View>
                 
-                {/* Status indicators */}
+                {/* Status indicators - with smooth animations */}
                 <View style={styles.statusContainer}>
-                  {loadingSteps.map((_, index) => (
-                    <View 
-                      key={index}
-                      style={[
-                        styles.statusDot,
-                        {
-                          backgroundColor: index <= loadingStep ? palette.primary : palette.overlayLight,
-                          transform: [{ scale: index === loadingStep ? 1.2 : 1 }]
-                        }
-                      ]}
-                    />
-                  ))}
+                  {loadingSteps.map((_, index) => {
+                    const isActive = index <= loadingStep;
+                    const isCurrent = index === loadingStep;
+                    const scale = isCurrent ? 1.25 : isActive ? 1 : 0.85;
+                    const opacity = isActive ? 1 : 0.5;
+                    
+                    return (
+                      <Animated.View 
+                        key={index}
+                        style={[
+                          styles.statusDot,
+                          {
+                            backgroundColor: isActive ? palette.primary : palette.overlayLight,
+                            transform: [{
+                              scale: pulseAnimation.interpolate({
+                                inputRange: [1, 1.08],
+                                outputRange: isCurrent ? [1.25, 1.3] : [scale, scale * 0.95]
+                              })
+                            }],
+                            opacity: opacity,
+                          }
+                        ]}
+                      />
+                    );
+                  })}
                 </View>
                 
-                <Text style={styles.loadingNote}>✨ This may take a few moments</Text>
-              </View>
+                <Animated.Text 
+                  style={[
+                    styles.loadingNote,
+                    { opacity: textOpacity }
+                  ]}
+                >
+                  ✨ This may take a few moments
+                </Animated.Text>
+              </Animated.View>
             </LinearGradient>
-          </View>
+          </Animated.View>
         )}
       </ScrollView>
     </SafeAreaView>

@@ -1,8 +1,8 @@
 # Demo Account Credentials for App Store Review
 
-**Date**: January 8, 2026  
-**Version**: 1.0.2  
-**Build**: 7
+**Date**: January 12, 2026  
+**Version**: 1.0.3  
+**Build**: 2
 
 ---
 
@@ -55,7 +55,7 @@ Before submitting:
 - [ ] Confirm the account works on a real device
 - [ ] Update credentials in App Store Connect
 - [ ] Add detailed notes in Review Information
-- [ ] Build new version (1.0.2 build 7)
+- [ ] Build new version (1.0.3 build 2)
 - [ ] Submit for review
 
 ---

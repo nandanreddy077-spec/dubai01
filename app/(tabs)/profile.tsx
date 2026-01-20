@@ -12,6 +12,8 @@ import {
   Platform,
   Animated,
   ActivityIndicator,
+  Modal,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -27,6 +29,8 @@ import {
   Heart,
   Flower2,
   Gift,
+  Edit2,
+  X,
 } from "lucide-react-native";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,6 +42,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { getPalette, getGradient, shadow } from "@/constants/theme";
 import { router } from "expo-router";
+import { supabase } from "@/lib/supabase";
 
 
 const formatAnalysisTime = (timestamp: number) => {
@@ -58,7 +63,7 @@ const formatAnalysisTime = (timestamp: number) => {
 };
 
 export default function ProfileScreen() {
-  const { user } = useUser();
+  const { user, setUser } = useUser();
   const { user: authUser, signOut } = useAuth();
   const { theme } = useTheme();
   const { analysisHistory } = useAnalysis();
@@ -68,6 +73,8 @@ export default function ProfileScreen() {
   const [glowAnim] = useState(new Animated.Value(0));
   const [isRestoringPurchases, setIsRestoringPurchases] = useState<boolean>(false);
   const [soulLabel, setSoulLabel] = useState<string>('Beautiful Soul');
+  const [showNameEditModal, setShowNameEditModal] = useState<boolean>(false);
+  const [editedName, setEditedName] = useState<string>('');
   
   const palette = getPalette(theme);
 
@@ -314,7 +321,17 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
           
-          <Text style={styles.name} testID="profileName">{displayName}</Text>
+          <TouchableOpacity 
+            style={styles.nameContainer}
+            onPress={() => {
+              setEditedName(displayName);
+              setShowNameEditModal(true);
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.name} testID="profileName">{displayName}</Text>
+            <Edit2 color={palette.textSecondary} size={18} style={styles.editIcon} />
+          </TouchableOpacity>
           <Text style={styles.email} testID="profileEmail">{displayEmail}</Text>
           
           <LinearGradient colors={getGradient(theme).primary} style={styles.premiumBadge}>
@@ -561,6 +578,95 @@ export default function ProfileScreen() {
           onClose={handlePhotoPickerClose} 
         />
       )}
+
+      {/* Edit Name Modal */}
+      <Modal
+        visible={showNameEditModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        transparent={false}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Edit Name</Text>
+            <TouchableOpacity onPress={() => setShowNameEditModal(false)}>
+              <X color={palette.textSecondary} size={24} />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.modalContent}>
+            <Text style={styles.modalLabel}>Name</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Enter your name"
+              value={editedName}
+              onChangeText={setEditedName}
+              placeholderTextColor={palette.textMuted}
+              autoFocus
+              maxLength={50}
+            />
+            
+            <TouchableOpacity 
+              style={[
+                styles.modalSaveButton,
+                { opacity: editedName.trim() ? 1 : 0.5 }
+              ]}
+              onPress={async () => {
+                if (!editedName.trim()) {
+                  Alert.alert('Invalid Name', 'Please enter a valid name.');
+                  return;
+                }
+                
+                try {
+                  const newName = editedName.trim();
+                  console.log('[Profile] Updating name to:', newName);
+                  
+                  // Update user in UserContext
+                  if (user) {
+                    const updatedUser = { ...user, name: newName };
+                    console.log('[Profile] Before setUser - user.name:', user.name);
+                    console.log('[Profile] After setUser will have - updatedUser.name:', updatedUser.name);
+                    await setUser(updatedUser);
+                    console.log('[Profile] ✅ UserContext updated with name:', newName);
+                  } else {
+                    console.warn('[Profile] No user object found, cannot update UserContext');
+                  }
+                  
+                  // Update Supabase user metadata if available
+                  if (authUser) {
+                    const { data: updateData, error } = await supabase.auth.updateUser({
+                      data: { full_name: newName, name: newName }
+                    });
+                    
+                    if (error) {
+                      console.error('[Profile] Error updating Supabase metadata:', error);
+                    } else if (updateData?.user) {
+                      // Refresh the session to get updated metadata immediately
+                      await supabase.auth.refreshSession();
+                      console.log('[Profile] ✅ Name updated in Supabase metadata:', updateData.user.user_metadata);
+                      console.log('[Profile] ✅ Session refreshed, auth user should have updated metadata');
+                    }
+                  } else {
+                    console.warn('[Profile] No authUser found, cannot update Supabase metadata');
+                  }
+                  
+                  setShowNameEditModal(false);
+                  Alert.alert('Success', 'Name updated successfully!');
+                  
+                  // Log what we expect to see when posting
+                  console.log('[Profile] ✅ Name update complete. When you create a post, it should show:', newName);
+                } catch (error) {
+                  console.error('[Profile] Error updating name:', error);
+                  Alert.alert('Error', 'Failed to update name. Please try again.');
+                }
+              }}
+              disabled={!editedName.trim()}
+            >
+              <Text style={styles.modalSaveButtonText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -637,12 +743,21 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontSize: 16,
     color: "#9CA3AF",
   },
+  nameContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+    gap: 8,
+  },
   name: {
     fontSize: 28,
     fontWeight: "900",
     color: palette.textPrimary,
-    marginBottom: 6,
     letterSpacing: -0.5,
+  },
+  editIcon: {
+    marginTop: 2,
   },
   email: {
     fontSize: 16,
@@ -964,5 +1079,57 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontWeight: "700",
     color: palette.error,
     letterSpacing: 0.3,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: palette.backgroundStart,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.borderLight,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: palette.textPrimary,
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+  },
+  modalLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: palette.textPrimary,
+    marginBottom: 12,
+  },
+  modalInput: {
+    backgroundColor: palette.surface,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: palette.textPrimary,
+    borderWidth: 1,
+    borderColor: palette.borderLight,
+    marginBottom: 24,
+  },
+  modalSaveButton: {
+    backgroundColor: palette.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalSaveButtonText: {
+    color: palette.textLight,
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

@@ -249,3 +249,23 @@ export interface PostTag {
   x: number; // position on image (0-1)
   y: number; // position on image (0-1)
 }
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  receiverId: string;
+  text: string;
+  createdAt: number;
+  readAt?: number;
+  imageUrl?: string;
+}
+
+export interface Conversation {
+  id: string;
+  participantIds: string[];
+  lastMessage?: Message;
+  lastMessageAt: number;
+  unreadCount: number;
+  createdAt: number;
+}

@@ -42,6 +42,7 @@ import AnimatedProgressBar from '@/components/AnimatedProgressBar';
 import { useProducts } from '@/contexts/ProductContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import FeaturePaywall from '@/components/FeaturePaywall';
+import Logo from '@/components/Logo';
 
 interface DailyReward {
   id: string;
@@ -61,7 +62,8 @@ export default function GlowCoachScreen() {
     updatePlanProgress, 
     setCurrentPlan, 
     deactivatePlan, 
-    canAddMorePlans 
+    canAddMorePlans,
+    savePlan
   } = useSkincare();
   const { completeDailyRoutine, hasCompletedToday, hasCompletedForPlanDay } = useGamification();
   const { recommendations, generateRecommendations } = useProducts();
@@ -69,8 +71,10 @@ export default function GlowCoachScreen() {
   const { canAccessAICoach } = subscription || { canAccessAICoach: false };
   const [showPaywall, setShowPaywall] = useState(!canAccessAICoach);
   const [showNoteModal, setShowNoteModal] = useState(false);
-  const [noteText, setNoteText] = useState('');
-  const [selectedMood, setSelectedMood] = useState<'great' | 'good' | 'okay' | 'bad' | null>(null);
+  const [itemName, setItemName] = useState('');
+  const [itemDescription, setItemDescription] = useState('');
+  const [itemProduct, setItemProduct] = useState('');
+  const [selectedTimeOfDay, setSelectedTimeOfDay] = useState<'morning' | 'evening'>('morning');
   const [showPlansModal, setShowPlansModal] = useState(false);
   const [showRewardsModal, setShowRewardsModal] = useState(false);
   const [dailyRewards, setDailyRewards] = useState<DailyReward[]>([]);
@@ -293,22 +297,65 @@ export default function GlowCoachScreen() {
     });
   };
 
-  const handleAddNote = async () => {
-    if (!noteText.trim()) return;
+  const handleAddItem = async () => {
+    if (!itemName.trim() || !itemDescription.trim()) {
+      Alert.alert('Missing Information', 'Please enter both item name and description.');
+      return;
+    }
     
-    const newNote = {
-      day: currentPlan.progress.currentDay,
-      content: noteText,
-      mood: selectedMood || undefined
+    if (!currentPlan) return;
+    
+    // Create a custom step
+    const currentWeek = Math.ceil(currentPlan.progress.currentDay / 7);
+    const weekIndex = Math.min(currentWeek - 1, currentPlan.weeklyPlans.length - 1);
+    const currentWeekPlan = currentPlan.weeklyPlans[weekIndex];
+    
+    // Find the maximum order for the selected time of day
+    const existingSteps = currentWeekPlan.steps.filter(
+      (step: SkincareStep) => 
+        step.timeOfDay === selectedTimeOfDay || step.timeOfDay === 'both'
+    );
+    const maxOrder = existingSteps.length > 0 
+      ? Math.max(...existingSteps.map((s: SkincareStep) => s.order))
+      : 0;
+    
+    const newStep: SkincareStep = {
+      id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: itemName.trim(),
+      description: itemDescription.trim(),
+      products: itemProduct.trim() ? [itemProduct.trim()] : [],
+      timeOfDay: selectedTimeOfDay,
+      frequency: 'daily',
+      order: maxOrder + 1,
+      instructions: [itemDescription.trim()],
+      benefits: ['Custom step added by you'],
     };
     
-    await updatePlanProgress(currentPlan.id, {
-      notes: [...currentPlan.progress.notes, newNote]
-    });
+    // Add the step to the current week's plan
+    const updatedWeeklyPlans = [...currentPlan.weeklyPlans];
+    updatedWeeklyPlans[weekIndex] = {
+      ...currentWeekPlan,
+      steps: [...currentWeekPlan.steps, newStep]
+    };
     
-    setNoteText('');
-    setSelectedMood(null);
+    // Save the updated plan
+    const updatedPlan = {
+      ...currentPlan,
+      weeklyPlans: updatedWeeklyPlans
+    };
+    
+    // Save the updated plan
+    await savePlan(updatedPlan);
+    setCurrentPlan(updatedPlan);
+    
+    // Reset form
+    setItemName('');
+    setItemDescription('');
+    setItemProduct('');
+    setSelectedTimeOfDay('morning');
     setShowNoteModal(false);
+    
+    Alert.alert('Success', `Added "${itemName}" to ${selectedTimeOfDay === 'morning' ? 'Morning Glow' : 'Evening Renewal'}`);
   };
 
   const handleCompleteDailyRoutine = async () => {
@@ -458,9 +505,9 @@ export default function GlowCoachScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.titleContainer}>
-              <LinearGradient colors={gradient.glow} style={styles.titleIcon}>
-                <Crown color={palette.textLight} size={20} />
-              </LinearGradient>
+              <View style={styles.logoIconContainer}>
+                <Logo size={32} hideBackground={true} />
+              </View>
               <Text style={styles.headerTitle}>Your Glow Coach</Text>
             </View>
             <TouchableOpacity 
@@ -616,12 +663,12 @@ export default function GlowCoachScreen() {
             onPress={() => setShowNoteModal(true)}
           >
             <Plus color="#D4A574" size={20} />
-            <Text style={styles.actionButtonText}>Add Note</Text>
+            <Text style={styles.actionButtonText}>Add Item</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => Alert.alert('Photo Feature', 'Progress photo feature coming soon!')}
+            onPress={() => router.push('/(tabs)/progress')}
           >
             <Camera color="#D4A574" size={20} />
             <Text style={styles.actionButtonText}>Progress Photo</Text>
@@ -646,11 +693,11 @@ export default function GlowCoachScreen() {
               onPress={() => router.push('/product-tracking')}
               activeOpacity={0.9}
             >
-              <LinearGradient colors={['#D4A574', '#C8966A']} style={styles.recommendationsButtonGradient}>
+              <LinearGradient colors={['#FFFFFF', '#F3F4F6', '#E5E7EB']} style={styles.recommendationsButtonGradient}>
                 <View style={styles.recommendationsButtonContent}>
                   <View style={styles.recommendationsButtonLeft}>
                     <View style={styles.recommendationsIconWrapper}>
-                      <ShoppingBag color={palette.textLight} size={24} />
+                      <ShoppingBag color={palette.primary} size={24} />
                     </View>
                     <View>
                       <Text style={styles.recommendationsButtonTitle}>Product Recommendations</Text>
@@ -659,7 +706,7 @@ export default function GlowCoachScreen() {
                       </Text>
                     </View>
                   </View>
-                  <ArrowRight color={palette.textLight} size={20} />
+                  <ArrowRight color={palette.primary} size={20} />
                 </View>
               </LinearGradient>
             </TouchableOpacity>
@@ -797,7 +844,7 @@ export default function GlowCoachScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Add Note Modal */}
+      {/* Add Item Modal */}
       <Modal
         visible={showNoteModal}
         animationType="slide"
@@ -805,45 +852,98 @@ export default function GlowCoachScreen() {
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Daily Note</Text>
-            <TouchableOpacity onPress={() => setShowNoteModal(false)}>
+            <Text style={styles.modalTitle}>Add Custom Item</Text>
+            <TouchableOpacity onPress={() => {
+              setShowNoteModal(false);
+              setItemName('');
+              setItemDescription('');
+              setItemProduct('');
+              setSelectedTimeOfDay('morning');
+            }}>
               <X color="#6B7280" size={24} />
             </TouchableOpacity>
           </View>
           
-          <View style={styles.modalContent}>
-            <Text style={styles.modalLabel}>How are you feeling today?</Text>
-            <View style={styles.moodSelector}>
-              {[{ mood: 'great', emoji: '😍' }, { mood: 'good', emoji: '😊' }, { mood: 'okay', emoji: '😐' }, { mood: 'bad', emoji: '😞' }].map(({ mood, emoji }) => (
-                <TouchableOpacity
-                  key={mood}
-                  style={[styles.moodButton, selectedMood === mood && styles.selectedMood]}
-                  onPress={() => setSelectedMood(mood as any)}
-                >
-                  <Text style={styles.moodEmoji}>{emoji}</Text>
-                </TouchableOpacity>
-              ))}
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <Text style={styles.modalLabel}>Add to</Text>
+            <View style={styles.timeOfDaySelector}>
+              <TouchableOpacity
+                style={[
+                  styles.timeOfDayButton,
+                  selectedTimeOfDay === 'morning' && styles.selectedTimeOfDay
+                ]}
+                onPress={() => setSelectedTimeOfDay('morning')}
+              >
+                <Sun color={selectedTimeOfDay === 'morning' ? palette.textPrimary : palette.textLight} size={20} />
+                <Text style={[
+                  styles.timeOfDayButtonText,
+                  selectedTimeOfDay === 'morning' && styles.selectedTimeOfDayText
+                ]}>
+                  Morning Glow
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.timeOfDayButton,
+                  selectedTimeOfDay === 'evening' && styles.selectedTimeOfDay
+                ]}
+                onPress={() => setSelectedTimeOfDay('evening')}
+              >
+                <Moon color={selectedTimeOfDay === 'evening' ? palette.textPrimary : palette.textLight} size={20} />
+                <Text style={[
+                  styles.timeOfDayButtonText,
+                  selectedTimeOfDay === 'evening' && styles.selectedTimeOfDayText
+                ]}>
+                  Evening Renewal
+                </Text>
+              </TouchableOpacity>
             </View>
             
-            <Text style={styles.modalLabel}>Notes</Text>
+            <Text style={styles.modalLabel}>Item Name *</Text>
             <TextInput
-              style={styles.noteInput}
-              placeholder="How did your routine go? Any observations about your skin?"
-              value={noteText}
-              onChangeText={setNoteText}
+              style={styles.modalInput}
+              placeholder="e.g., Serum, Toner, Face Mask"
+              value={itemName}
+              onChangeText={setItemName}
+              placeholderTextColor={palette.textMuted}
+            />
+            
+            <Text style={styles.modalLabel}>Description *</Text>
+            <TextInput
+              style={[styles.modalInput, styles.modalTextArea]}
+              placeholder="Describe how to use this item and its benefits..."
+              value={itemDescription}
+              onChangeText={setItemDescription}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
+              placeholderTextColor={palette.textMuted}
+            />
+            
+            <Text style={styles.modalLabel}>Product Recommendation (Optional)</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g., CeraVe Hydrating Facial Cleanser"
+              value={itemProduct}
+              onChangeText={setItemProduct}
+              placeholderTextColor={palette.textMuted}
             />
             
             <TouchableOpacity 
-              style={[styles.saveButton, { opacity: noteText.trim() ? 1 : 0.5 }]}
-              onPress={handleAddNote}
-              disabled={!noteText.trim()}
+              style={[
+                styles.saveButton, 
+                { 
+                  opacity: (itemName.trim() && itemDescription.trim()) ? 1 : 0.5,
+                  marginTop: spacing.lg
+                }
+              ]}
+              onPress={handleAddItem}
+              disabled={!itemName.trim() || !itemDescription.trim()}
             >
-              <Text style={styles.saveButtonText}>Save Note</Text>
+              <Text style={styles.saveButtonText}>Add Item</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </SafeAreaView>
       </Modal>
 
@@ -879,6 +979,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
   },
+  logoContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -897,6 +1002,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     ...shadow.glow,
+  },
+  logoIconContainer: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: typography.h2,
@@ -1269,20 +1380,20 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(107, 114, 128, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   recommendationsButtonTitle: {
     fontSize: typography.h6,
     fontWeight: typography.bold,
-    color: palette.textLight,
+    color: palette.textPrimary,
     marginBottom: 2,
     letterSpacing: 0.2,
   },
   recommendationsButtonSubtitle: {
     fontSize: typography.bodySmall,
-    color: palette.textLight,
+    color: palette.textSecondary,
     opacity: 0.9,
     fontWeight: typography.medium,
   },
@@ -1422,8 +1533,55 @@ const styles = StyleSheet.create({
   modalLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: palette.textPrimary,
     marginBottom: 12,
+    marginTop: spacing.md,
+  },
+  timeOfDaySelector: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  timeOfDayButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: 16,
+    backgroundColor: '#1C1820',
+    borderWidth: 2,
+    borderColor: '#2B2530',
+  },
+  selectedTimeOfDay: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+    ...shadow.glow,
+  },
+  timeOfDayButtonText: {
+    fontSize: typography.body,
+    fontWeight: typography.semibold,
+    color: palette.textLight,
+  },
+  selectedTimeOfDayText: {
+    color: palette.textPrimary,
+  },
+  modalInput: {
+    backgroundColor: palette.surface,
+    borderRadius: 12,
+    padding: spacing.md,
+    fontSize: typography.body,
+    color: palette.textPrimary,
+    borderWidth: 1,
+    borderColor: palette.borderLight,
+    marginBottom: spacing.md,
+  },
+  modalTextArea: {
+    minHeight: 100,
+    paddingTop: spacing.md,
+    textAlignVertical: 'top',
   },
   moodSelector: {
     flexDirection: 'row',

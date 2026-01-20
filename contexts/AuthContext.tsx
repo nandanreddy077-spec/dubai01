@@ -1,10 +1,10 @@
 import { Session, User } from '@supabase/supabase-js';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import createContextHook from '@nkzw/create-context-hook';
 import { supabase } from '@/lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
-import { Platform } from 'react-native';
+import { Platform, AppState, AppStateStatus } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { makeRedirectUri } from 'expo-auth-session';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,6 +28,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const sessionRef = useRef<Session | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -49,13 +50,30 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         if (error) {
           console.log('Session error detected:', error.message);
           
-          // Handle any refresh token errors by clearing session
+          // Try to refresh the session before clearing
+          // Sometimes the session just needs to be refreshed
+          try {
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            if (!refreshError && refreshData?.session) {
+              console.log('✅ Session refreshed successfully');
+              if (mounted) {
+                setSession(refreshData.session);
+                sessionRef.current = refreshData.session;
+                setUser(refreshData.session?.user ?? null);
+                setLoading(false);
+              }
+              return;
+            }
+          } catch (refreshException) {
+            console.log('Session refresh attempt failed:', refreshException);
+          }
+          
+          // Only clear session if refresh token is truly invalid
+          // Check for specific refresh token errors, not just any JWT/400 error
           if (error.message?.includes('Invalid Refresh Token') || 
               error.message?.includes('Refresh Token Not Found') ||
-              error.message?.includes('refresh_token') ||
-              error.message?.includes('JWT') ||
-              error.status === 400) {
-            console.log('🔄 Clearing invalid session...');
+              (error.message?.includes('refresh_token') && error.message?.includes('expired'))) {
+            console.log('🔄 Refresh token is invalid, clearing session...');
             try {
               // Clear all auth-related storage
               await supabase.auth.signOut({ scope: 'local' });
@@ -77,6 +95,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
             // Continue with no session
             if (mounted) {
               setSession(null);
+              sessionRef.current = null;
               setUser(null);
               setLoading(false);
             }
@@ -99,6 +118,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         
         if (mounted) {
           setSession(session);
+          sessionRef.current = session;
           setUser(session?.user ?? null);
           setLoading(false);
         }
@@ -111,6 +131,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         
         if (mounted) {
           setSession(null);
+          sessionRef.current = null;
           setUser(null);
           setLoading(false);
         }
@@ -127,6 +148,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
           console.log('Auth state changed:', event, session?.user?.email || 'no user');
           if (mounted) {
             setSession(session);
+            sessionRef.current = session;
             setUser(session?.user ?? null);
             setLoading(false);
             
@@ -161,11 +183,38 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
       console.error('Error setting up auth listener:', error);
     }
 
+    // Refresh session when app comes to foreground
+    // This ensures the session stays active even if the user leaves the app for a while
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active' && sessionRef.current) {
+        try {
+          console.log('🔄 App became active, refreshing session...');
+          const { data, error } = await supabase.auth.refreshSession();
+          if (error) {
+            console.log('Session refresh on app active failed:', error.message);
+            // Don't clear session on refresh failure - let Supabase handle it
+          } else if (data?.session) {
+            console.log('✅ Session refreshed on app active');
+            if (mounted) {
+              setSession(data.session);
+              sessionRef.current = data.session;
+              setUser(data.session?.user ?? null);
+            }
+          }
+        } catch (error) {
+          console.warn('Error refreshing session on app active:', error);
+        }
+      }
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
     return () => {
       mounted = false;
       if (subscription) {
         subscription.unsubscribe();
       }
+      appStateSubscription?.remove();
     };
   }, []);
 
@@ -309,6 +358,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
       
       setUser(null);
       setSession(null);
+      sessionRef.current = null;
       
       const { error } = await supabase.auth.signOut();
       if (error) {
@@ -573,9 +623,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
       
       // Handle user cancellation
       if (error.code === 'ERR_CANCELED' || error.message?.includes('cancel')) {
-        return { error: { message: 'Authentication cancelled' } };
+          return { error: { message: 'Authentication cancelled' } };
       }
-      
+
       return { error: { message: error.message || 'Failed to sign in with Apple' } };
     } finally {
       setLoading(false);

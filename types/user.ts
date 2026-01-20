@@ -13,6 +13,8 @@ export interface User {
     lastAnalysisDate?: string;
     bestGlowScore: number;
     improvementStreak: number;
+    challengeStreak?: number;
+    lastChallengePostDate?: string;
   };
   badges: Badge[];
   achievements: Achievement[];

@@ -13,7 +13,7 @@ import {
   Animated,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Camera,
@@ -44,9 +44,13 @@ import { useUser } from '@/contexts/UserContext';
 import { useGamification } from '@/contexts/GamificationContext';
 import { useProducts } from '@/contexts/ProductContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import AnimatedProgressBar from '@/components/AnimatedProgressBar';
+import WeeklySummaryComponent from '@/components/WeeklySummary';
+import FeaturePaywall from '@/components/FeaturePaywall';
 import { generateInsights, AIInsightResult, checkMinimumRequirements } from '@/lib/insights-engine';
 import { analyzeProgressPhoto, compareProgressPhotos, ProgressPhotoAnalysis } from '@/lib/ai-helpers';
+import { generateWeeklySummary, generateWeeklySummaryWithAI, WeeklySummary as WeeklySummaryType } from '@/lib/weekly-summary';
 
 const { width } = Dimensions.get('window');
 
@@ -100,12 +104,15 @@ const STORAGE_KEYS = {
 };
 
 export default function ProgressTrackerScreen() {
-  useUser();
-  const { dailyCompletions } = useGamification();
+  const { user } = useUser();
+  const { dailyCompletions, badges, achievements, glowBoosts } = useGamification();
   const { products, usageHistory, routines } = useProducts();
+  const { theme } = useTheme();
   // All features free - no subscription checks needed
-  const { state: subscriptionState, inTrial, hasAnyAccess } = useSubscription();
+  const subscription = useSubscription();
+  const { state: subscriptionState, inTrial, hasAnyAccess, canAccessProgress } = subscription;
   const params = useLocalSearchParams<{ tab?: string }>();
+  const insets = useSafeAreaInsets();
   
   const canAccessInsights = hasAnyAccess || subscriptionState.isPremium || inTrial;
   const [activeTab, setActiveTab] = useState<Tab>((params.tab as Tab) || 'photos');
@@ -116,6 +123,9 @@ export default function ProgressTrackerScreen() {
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
   
   const [showJournalModal, setShowJournalModal] = useState(false);
+  const [showWeeklySummary, setShowWeeklySummary] = useState(false);
+  const [showWeeklySummaryPaywall, setShowWeeklySummaryPaywall] = useState(false);
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummaryType | null>(null);
   const [photoNotes, setPhotoNotes] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d'>('30d');
   // All features free - UpgradePrompt removed
@@ -215,10 +225,61 @@ export default function ProgressTrackerScreen() {
       if (photosData) setPhotos(JSON.parse(photosData));
       if (journalData) setJournalEntries(JSON.parse(journalData));
       if (insightsData) setInsights(JSON.parse(insightsData));
+      
+      // Generate weekly summary when data loads
+      generateWeeklySummaryData();
     } catch (error) {
       console.error('Error loading progress data:', error);
     }
   };
+
+  const generateWeeklySummaryData = async () => {
+    try {
+      // Use AI-powered weekly summary if user has access
+      if (hasAnyAccess && products && usageHistory && routines) {
+        try {
+          const summary = await generateWeeklySummaryWithAI(
+            new Date(),
+            photos,
+            journalEntries,
+            dailyCompletions,
+            badges,
+            achievements,
+            glowBoosts.map(boost => ({ points: boost.points, timestamp: boost.timestamp })),
+            user?.stats.dayStreak || 0,
+            undefined, // previousWeekStats
+            products,
+            usageHistory,
+            routines
+          );
+          setWeeklySummary(summary);
+          return;
+        } catch (aiError) {
+          console.log('AI weekly summary failed, using rule-based:', aiError);
+          // Fall through to rule-based
+        }
+      }
+
+      // Fallback to rule-based (synchronous)
+      const summary = generateWeeklySummary(
+        new Date(),
+        photos,
+        journalEntries,
+        dailyCompletions,
+        badges,
+        achievements,
+        glowBoosts.map(boost => ({ points: boost.points, timestamp: boost.timestamp })),
+        user?.stats.dayStreak || 0
+      );
+      setWeeklySummary(summary);
+    } catch (error) {
+      console.error('Error generating weekly summary:', error);
+    }
+  };
+
+  useEffect(() => {
+    generateWeeklySummaryData();
+  }, [photos, journalEntries, dailyCompletions, badges, achievements, glowBoosts, user?.stats.dayStreak, hasAnyAccess, products, usageHistory, routines]);
 
   const savePhotos = async (newPhotos: ProgressPhoto[]) => {
     try {
@@ -578,6 +639,19 @@ export default function ProgressTrackerScreen() {
     }
   };
 
+  const handleViewWeeklySummary = () => {
+    // Check if user has access to weekly summary (premium feature)
+    const hasAccess = canAccessProgress ?? (hasAnyAccess || subscriptionState.isPremium || inTrial);
+    
+    if (!hasAccess) {
+      setShowWeeklySummaryPaywall(true);
+      return;
+    }
+    
+    generateWeeklySummaryData();
+    setShowWeeklySummary(true);
+  };
+
   const renderPhotosTab = () => {
     const hasPhotos = photos.length > 0;
     const latestPhoto = photos[0];
@@ -899,16 +973,20 @@ export default function ProgressTrackerScreen() {
         {/* Premium Insights Paywall */}
         <View style={styles.insightsPaywallContainer}>
           <LinearGradient
-            colors={['#FFF9E6', '#FFF3CC', '#FFECB3']}
+            colors={['#1A1A1A', '#2D1B2E', '#1A1A1A']}
             style={styles.insightsPaywallGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
           >
-            {/* Crown Icon */}
+            {/* Icon */}
             <View style={styles.insightsPaywallIcon}>
               <LinearGradient
-                colors={['#FFD700', '#FFA500']}
+                colors={['#C9A961', '#D4B978', '#E8DED2']}
                 style={styles.insightsPaywallIconBg}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
               >
-                <Sparkles color="#FFF" size={40} strokeWidth={2.5} fill="#FFF" />
+                <Sparkles color="#1A1A1A" size={40} strokeWidth={2.5} fill="#1A1A1A" />
               </LinearGradient>
             </View>
 
@@ -923,7 +1001,14 @@ export default function ProgressTrackerScreen() {
               
               <View style={styles.insightsValueItem}>
                 <View style={styles.insightsValueIconBg}>
-                  <Target color={palette.primary} size={20} strokeWidth={2.5} />
+                  <LinearGradient
+                    colors={['rgba(201, 169, 97, 0.3)', 'rgba(212, 185, 120, 0.2)']}
+                    style={styles.insightsValueIconGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Target color="#C9A961" size={20} strokeWidth={2.5} />
+                  </LinearGradient>
                 </View>
                 <View style={styles.insightsValueContent}>
                   <Text style={styles.insightsValueHeading}>Pattern Discovery</Text>
@@ -933,7 +1018,14 @@ export default function ProgressTrackerScreen() {
 
               <View style={styles.insightsValueItem}>
                 <View style={styles.insightsValueIconBg}>
-                  <CheckCircle color={palette.success} size={20} strokeWidth={2.5} />
+                  <LinearGradient
+                    colors={['rgba(201, 169, 97, 0.3)', 'rgba(212, 185, 120, 0.2)']}
+                    style={styles.insightsValueIconGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <CheckCircle color="#C9A961" size={20} strokeWidth={2.5} />
+                  </LinearGradient>
                 </View>
                 <View style={styles.insightsValueContent}>
                   <Text style={styles.insightsValueHeading}>Product Effectiveness Report</Text>
@@ -943,7 +1035,14 @@ export default function ProgressTrackerScreen() {
 
               <View style={styles.insightsValueItem}>
                 <View style={styles.insightsValueIconBg}>
-                  <TrendingUp color={palette.gold} size={20} strokeWidth={2.5} />
+                  <LinearGradient
+                    colors={['rgba(201, 169, 97, 0.3)', 'rgba(212, 185, 120, 0.2)']}
+                    style={styles.insightsValueIconGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <TrendingUp color="#C9A961" size={20} strokeWidth={2.5} />
+                  </LinearGradient>
                 </View>
                 <View style={styles.insightsValueContent}>
                   <Text style={styles.insightsValueHeading}>30-Day Transformation Report</Text>
@@ -953,7 +1052,14 @@ export default function ProgressTrackerScreen() {
 
               <View style={styles.insightsValueItem}>
                 <View style={styles.insightsValueIconBg}>
-                  <Heart color={palette.rose} size={20} strokeWidth={2.5} />
+                  <LinearGradient
+                    colors={['rgba(201, 169, 97, 0.3)', 'rgba(212, 185, 120, 0.2)']}
+                    style={styles.insightsValueIconGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Heart color="#C9A961" size={20} strokeWidth={2.5} />
+                  </LinearGradient>
                 </View>
                 <View style={styles.insightsValueContent}>
                   <Text style={styles.insightsValueHeading}>Personalized Recommendations</Text>
@@ -964,7 +1070,7 @@ export default function ProgressTrackerScreen() {
 
             {/* Social Proof */}
             <View style={styles.insightsSocialProof}>
-              <Text style={styles.insightsSocialText}>💎 Users who track daily see <Text style={styles.insightsSocialHighlight}>3x faster results</Text></Text>
+              <Text style={styles.insightsSocialText}>✨ Users who track daily see <Text style={styles.insightsSocialHighlight}>3x faster results</Text></Text>
             </View>
 
             {/* Your Progress Preview */}
@@ -972,12 +1078,12 @@ export default function ProgressTrackerScreen() {
               <Text style={styles.insightsProgressTitle}>Your Progress So Far:</Text>
               <View style={styles.insightsProgressStats}>
                 <View style={styles.insightsProgressStat}>
-                  <Camera color={palette.primary} size={18} />
+                  <Camera color="#C9A961" size={18} />
                   <Text style={styles.insightsProgressValue}>{photos.length}</Text>
                   <Text style={styles.insightsProgressLabel}>Photos</Text>
                 </View>
                 <View style={styles.insightsProgressStat}>
-                  <Calendar color={palette.primary} size={18} />
+                  <Calendar color="#C9A961" size={18} />
                   <Text style={styles.insightsProgressValue}>{journalEntries.length}</Text>
                   <Text style={styles.insightsProgressLabel}>Journals</Text>
                 </View>
@@ -996,12 +1102,12 @@ export default function ProgressTrackerScreen() {
               activeOpacity={0.9}
             >
               <LinearGradient
-                colors={['#FFD700', '#FFA500']}
+                colors={['#C9A961', '#D4B978', '#E8DED2']}
                 style={styles.insightsPaywallCTAGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
-                <Trophy color="#000" size={22} strokeWidth={2.5} />
+                <Trophy color="#1A1A1A" size={22} strokeWidth={2.5} />
                 <View style={styles.insightsPaywallCTAContent}>
                   <Text style={styles.insightsPaywallCTAMain}>Unlock AI Insights</Text>
                   <Text style={styles.insightsPaywallCTASub}>7-day free trial • Cancel anytime</Text>
@@ -1539,10 +1645,37 @@ export default function ProgressTrackerScreen() {
           </View>
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Progress Tracker</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Progress Tracker</Text>
           <Text style={styles.headerSubtitle}>Track your glow transformation</Text>
         </View>
         <View style={styles.headerSpacer} />
+      </Animated.View>
+
+      {/* Weekly Summary Button */}
+      <Animated.View
+        style={[
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={handleViewWeeklySummary}
+          style={styles.weeklySummaryButton}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={gradient.gold}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.weeklySummaryGradient}
+          >
+            <Calendar color={palette.textLight} size={20} strokeWidth={2.5} />
+            <Text style={styles.weeklySummaryText}>View Weekly Summary</Text>
+            <ArrowRight color={palette.textLight} size={18} strokeWidth={2.5} />
+          </LinearGradient>
+        </TouchableOpacity>
       </Animated.View>
 
       {/* Tab Navigation */}
@@ -1593,12 +1726,36 @@ export default function ProgressTrackerScreen() {
       <ScrollView 
         style={styles.content}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { paddingBottom: Math.max(spacing.xxxxl * 2, insets.bottom + spacing.xxxxl * 2) }
+        ]}
+        bounces={true}
       >
         {activeTab === 'photos' && renderPhotosTab()}
         {activeTab === 'journal' && renderJournalTab()}
         {activeTab === 'insights' && renderInsightsTab()}
       </ScrollView>
+
+      {/* Weekly Summary Modal */}
+      {weeklySummary && (
+        <WeeklySummaryComponent
+          visible={showWeeklySummary}
+          summary={weeklySummary}
+          onClose={() => setShowWeeklySummary(false)}
+          theme={theme}
+        />
+      )}
+
+      {/* Weekly Summary Paywall */}
+      <FeaturePaywall
+        featureType="progress"
+        visible={showWeeklySummaryPaywall}
+        onDismiss={() => {
+          setShowWeeklySummaryPaywall(false);
+        }}
+        showDismiss={true}
+      />
 
       {/* Journal Modal */}
       <Modal
@@ -1747,10 +1904,10 @@ const styles = StyleSheet.create({
     width: 40,
   },
   headerTitle: {
-    fontSize: 34,
+    fontSize: 24,
     fontWeight: '800' as const,
     color: palette.textPrimary,
-    letterSpacing: -0.8,
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 15,
@@ -1804,11 +1961,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingBottom: spacing.xxxxl,
+    paddingBottom: spacing.xxxxl * 2,
+    flexGrow: 1,
   },
   tabContent: {
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxxxl,
+    paddingBottom: spacing.xxxxl * 2,
+    minHeight: '100%',
   },
   sectionContainer: {
     marginTop: spacing.xl,
@@ -2840,20 +2999,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     ...shadow.elevated,
-    shadowColor: '#FFD700',
-    shadowOpacity: 0.5,
+    shadowColor: '#10B981',
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
   },
   insightsPaywallTitle: {
     fontSize: 28,
     fontWeight: '900' as const,
-    color: palette.textPrimary,
+    color: '#FFFFFF',
     marginBottom: spacing.sm,
     textAlign: 'center',
     letterSpacing: -0.5,
+    textShadowColor: 'rgba(201, 169, 97, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   insightsPaywallSubtitle: {
     fontSize: 15,
-    color: palette.textSecondary,
+    color: 'rgba(255, 255, 255, 0.85)',
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: spacing.xl,
@@ -2861,16 +3024,20 @@ const styles = StyleSheet.create({
   },
   insightsValueSection: {
     width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    borderRadius: 20,
+    backgroundColor: 'rgba(201, 169, 97, 0.08)',
+    borderRadius: 24,
     padding: spacing.lg,
     marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(201, 169, 97, 0.15)',
+    backdropFilter: 'blur(10px)',
   },
   insightsValueTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800' as const,
-    color: palette.textPrimary,
+    color: '#FFFFFF',
     marginBottom: spacing.md,
+    letterSpacing: 0.3,
   },
   insightsValueItem: {
     flexDirection: 'row',
@@ -2879,60 +3046,74 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   insightsValueIconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     justifyContent: 'center',
     alignItems: 'center',
-    ...shadow.card,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(201, 169, 97, 0.2)',
+  },
+  insightsValueIconGradient: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 22,
   },
   insightsValueContent: {
     flex: 1,
   },
   insightsValueHeading: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700' as const,
-    color: palette.textPrimary,
-    marginBottom: 2,
+    color: '#FFFFFF',
+    marginBottom: 4,
+    letterSpacing: 0.2,
   },
   insightsValueText: {
     fontSize: 13,
-    color: palette.textSecondary,
-    lineHeight: 18,
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: 20,
   },
   insightsSocialProof: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    paddingVertical: spacing.sm,
+    backgroundColor: 'rgba(201, 169, 97, 0.12)',
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
     borderRadius: 16,
     marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(201, 169, 97, 0.2)',
   },
   insightsSocialText: {
-    fontSize: 13,
-    color: palette.textSecondary,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '600' as const,
     textAlign: 'center',
   },
   insightsSocialHighlight: {
-    color: palette.primary,
+    color: '#C9A961',
     fontWeight: '800' as const,
   },
   insightsProgressPreview: {
     width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 20,
     padding: spacing.lg,
     marginBottom: spacing.xl,
-    borderWidth: 2,
-    borderColor: palette.primary,
+    borderWidth: 1,
+    borderColor: 'rgba(201, 169, 97, 0.25)',
+    ...shadow.card,
   },
   insightsProgressTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700' as const,
-    color: palette.textPrimary,
+    color: '#FFFFFF',
     marginBottom: spacing.md,
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
   insightsProgressStats: {
     flexDirection: 'row',
@@ -2945,29 +3126,27 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   insightsProgressValue: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '900' as const,
-    color: palette.primary,
+    color: '#C9A961',
   },
   insightsProgressLabel: {
     fontSize: 12,
-    color: palette.textSecondary,
+    color: 'rgba(255, 255, 255, 0.7)',
     fontWeight: '600' as const,
   },
   insightsProgressMessage: {
     fontSize: 13,
-    color: palette.textSecondary,
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 20,
   },
   insightsPaywallCTA: {
     width: '100%',
     borderRadius: 24,
     overflow: 'hidden',
     marginBottom: spacing.md,
-    ...shadow.elevated,
-    shadowColor: '#FFD700',
-    shadowOpacity: 0.5,
+    ...shadow.glow,
     shadowRadius: 16,
   },
   insightsPaywallCTAGradient: {
@@ -2982,21 +3161,22 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   insightsPaywallCTAMain: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '900' as const,
-    color: '#000',
+    color: '#1A1A1A',
     letterSpacing: 0.3,
   },
   insightsPaywallCTASub: {
     fontSize: 12,
     fontWeight: '600' as const,
-    color: 'rgba(0, 0, 0, 0.7)',
+    color: 'rgba(26, 26, 26, 0.7)',
     marginTop: 2,
   },
   insightsPaywallDisclaimer: {
     fontSize: 12,
-    color: palette.textMuted,
+    color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
+    marginTop: spacing.sm,
   },
   continueTrackingSection: {
     backgroundColor: palette.surface,
@@ -3041,5 +3221,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700' as const,
     color: palette.textLight,
+  },
+  weeklySummaryButton: {
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.md,
+    borderRadius: 20,
+    overflow: 'hidden',
+    ...shadow.elevated,
+  },
+  weeklySummaryGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+  },
+  weeklySummaryText: {
+    fontSize: typography.body,
+    fontWeight: typography.bold,
+    color: palette.textLight,
+    letterSpacing: 0.3,
   },
 });

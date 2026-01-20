@@ -14,17 +14,12 @@ import * as ImagePicker from "expo-image-picker";
 import { useStyle } from "@/contexts/StyleContext";
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useSubscription } from '@/contexts/SubscriptionContext';
-import FeaturePaywall from '@/components/FeaturePaywall';
 import { getPalette, getGradient, shadow } from '@/constants/theme';
 
 export default function StyleCheckScreen() {
   const [isLoading, setIsLoading] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false);
   const { setCurrentImage, resetAnalysis } = useStyle();
   const { theme } = useTheme();
-  const subscription = useSubscription();
-  const { canAccessStyleCheck } = subscription || { canAccessStyleCheck: false };
   
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
@@ -35,11 +30,6 @@ export default function StyleCheckScreen() {
   }, [resetAnalysis]);
 
   const handleTakePhoto = async () => {
-    if (!canAccessStyleCheck) {
-      setShowPaywall(true);
-      return;
-    }
-
     if (Platform.OS === 'web') {
       Alert.alert('Camera not available', 'Camera not available on web. Please use upload photo instead.');
       return;
@@ -78,11 +68,6 @@ export default function StyleCheckScreen() {
   };
 
   const handleUploadPhoto = async () => {
-    if (!canAccessStyleCheck) {
-      setShowPaywall(true);
-      return;
-    }
-
     setIsLoading(true);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -168,14 +153,6 @@ export default function StyleCheckScreen() {
         </View>
 
       </View>
-
-      {showPaywall && (
-        <FeaturePaywall
-          featureType="style-check"
-          onDismiss={() => setShowPaywall(false)}
-          showDismiss={true}
-        />
-      )}
       </SafeAreaView>
   );
 }

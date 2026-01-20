@@ -41,7 +41,7 @@ export interface SubscriptionContextType {
   setSubscriptionData: (data: Partial<SubscriptionState>) => Promise<void>;
   incrementScanCount: () => Promise<void>;
   reset: () => Promise<void>;
-  processInAppPurchase: (type: 'monthly' | 'yearly') => Promise<{ success: boolean; purchaseToken?: string; originalTransactionId?: string; error?: string; cancelled?: boolean; }>;
+  processInAppPurchase: (type: 'monthly' | 'yearly') => Promise<{ success: boolean; purchaseToken?: string; originalTransactionId?: string; error?: string; cancelled?: boolean; syncCompleted?: boolean; }>;
 }
 
 const STORAGE_KEY = 'glowcheck_subscription_state';
@@ -370,7 +370,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
     })();
   }, []);
   
-  const processInAppPurchase = useCallback(async (type: 'monthly' | 'yearly'): Promise<{ success: boolean; purchaseToken?: string; originalTransactionId?: string; error?: string; cancelled?: boolean }> => {
+  const processInAppPurchase = useCallback(async (type: 'monthly' | 'yearly'): Promise<{ success: boolean; purchaseToken?: string; originalTransactionId?: string; error?: string; cancelled?: boolean; syncCompleted?: boolean }> => {
     try {
       console.log(`💳 Processing ${type} subscription purchase...`);
       
@@ -404,13 +404,64 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
         trackPurchaseEvent(productId, price, 'USD');
         
         // Sync subscription status from RevenueCat (this will update state automatically)
-        await syncSubscriptionStatus();
-        
-        return { 
-          success: true, 
-          purchaseToken: result.purchaseToken,
-          originalTransactionId: result.transactionId 
-        };
+        // Wait for sync to complete - this is critical for the processing screen
+        console.log('🔄 Syncing subscription status...');
+        try {
+          await syncSubscriptionStatus();
+          
+          // Verify subscription was actually activated
+          // Give it a moment for state to update
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Check if subscription is now active
+          const subscriptionInfo = await paymentService.getSubscriptionStatus();
+          if (subscriptionInfo && subscriptionInfo.isActive) {
+            console.log('✅ Subscription verified and active');
+            return { 
+              success: true, 
+              purchaseToken: result.purchaseToken,
+              originalTransactionId: result.transactionId,
+              syncCompleted: true
+            };
+          } else {
+            // Purchase succeeded but subscription not active yet - might need a moment
+            console.log('⚠️ Purchase succeeded but subscription not active yet, waiting...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Try one more sync
+            await syncSubscriptionStatus();
+            const retrySubscriptionInfo = await paymentService.getSubscriptionStatus();
+            
+            if (retrySubscriptionInfo && retrySubscriptionInfo.isActive) {
+              console.log('✅ Subscription verified after retry');
+              return { 
+                success: true, 
+                purchaseToken: result.purchaseToken,
+                originalTransactionId: result.transactionId,
+                syncCompleted: true
+              };
+            } else {
+              console.warn('⚠️ Purchase succeeded but subscription sync incomplete');
+              // Still return success - the purchase went through, sync might complete later
+              return { 
+                success: true, 
+                purchaseToken: result.purchaseToken,
+                originalTransactionId: result.transactionId,
+                syncCompleted: false
+              };
+            }
+          }
+        } catch (syncError) {
+          console.error('❌ Subscription sync failed:', syncError);
+          // Purchase succeeded but sync failed - still return success
+          // The subscription should be active in RevenueCat, sync will happen on next app open
+          return { 
+            success: true, 
+            purchaseToken: result.purchaseToken,
+            originalTransactionId: result.transactionId,
+            syncCompleted: false
+          };
+        }
       } else if (result.cancelled) {
         console.log('⚠️ Purchase cancelled by user');
         return { 
