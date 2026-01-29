@@ -12,8 +12,6 @@ import {
   Platform,
   Animated,
   ActivityIndicator,
-  Modal,
-  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -27,11 +25,8 @@ import {
   Star,
   Sparkles,
   Heart,
+  Flower2,
   Gift,
-  Edit3,
-  X,
-  Crown,
-  Zap,
 } from "lucide-react-native";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -39,36 +34,40 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useAnalysis } from "@/contexts/AnalysisContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import PhotoPickerModal from "@/components/PhotoPickerModal";
-import GlassCard from "@/components/GlassCard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
-import { getPalette, getGradient, shadow, radii } from "@/constants/theme";
+import { getPalette, getGradient, shadow } from "@/constants/theme";
 import { router } from "expo-router";
-import { supabase } from "@/lib/supabase";
+
 
 const formatAnalysisTime = (timestamp: number) => {
   const date = new Date(timestamp);
   const now = new Date();
   const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
   
-  if (diffInHours < 1) return 'Just now';
-  if (diffInHours < 24) return `${diffInHours}h ago`;
-  if (diffInHours < 48) return 'Yesterday';
-  return `${Math.floor(diffInHours / 24)}d ago`;
+  if (diffInHours < 1) {
+    return 'Just now';
+  } else if (diffInHours < 24) {
+    return `${diffInHours} hours ago`;
+  } else if (diffInHours < 48) {
+    return 'Yesterday';
+  } else {
+    const days = Math.floor(diffInHours / 24);
+    return `${days} days ago`;
+  }
 };
 
 export default function ProfileScreen() {
-  const { user, setUser } = useUser();
+  const { user } = useUser();
   const { user: authUser, signOut } = useAuth();
   const { theme } = useTheme();
   const { analysisHistory } = useAnalysis();
   const { state: subscriptionState, inTrial, daysLeft, scansLeft, setSubscriptionData } = useSubscription();
   const [showPhotoPicker, setShowPhotoPicker] = useState<boolean>(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
-  const [scaleAnim] = useState(new Animated.Value(1));
+  const [glowAnim] = useState(new Animated.Value(0));
   const [isRestoringPurchases, setIsRestoringPurchases] = useState<boolean>(false);
-  const [showNameEditModal, setShowNameEditModal] = useState<boolean>(false);
-  const [editedName, setEditedName] = useState<string>('');
+  const [soulLabel, setSoulLabel] = useState<string>('Beautiful Soul');
   
   const palette = getPalette(theme);
 
@@ -77,53 +76,89 @@ export default function ProfileScreen() {
       try {
         const stored = await AsyncStorage.getItem("settings_notifications_enabled");
         if (stored !== null) setNotificationsEnabled(stored === "true");
+        
+        // Load onboarding data to get gender
+        const onboardingData = await AsyncStorage.getItem("onboarding_data");
+        if (onboardingData) {
+          try {
+            const data = JSON.parse(onboardingData);
+            if (data.gender === 'Man') {
+              setSoulLabel('Handsome Soul');
+            } else {
+              setSoulLabel('Beautiful Soul');
+            }
+          } catch (e) {
+            console.log("Failed to parse onboarding data", e);
+          }
+        }
       } catch (e) {
         console.log("Failed to load notifications pref", e);
       }
     };
     load();
     
-    const pulse = Animated.loop(
+    // Gentle glow animation
+    const glowAnimation = Animated.loop(
       Animated.sequence([
-        Animated.timing(scaleAnim, { toValue: 1.02, duration: 2000, useNativeDriver: true }),
-        Animated.timing(scaleAnim, { toValue: 1, duration: 2000, useNativeDriver: true }),
+        Animated.timing(glowAnim, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
       ])
     );
-    pulse.start();
-    return () => pulse.stop();
-  }, [scaleAnim]);
+    glowAnimation.start();
+    
+    return () => glowAnimation.stop();
+  }, [glowAnim]);
 
   const toggleNotifications = useCallback(async () => {
     try {
       const next = !notificationsEnabled;
       setNotificationsEnabled(next);
       await AsyncStorage.setItem("settings_notifications_enabled", String(next));
+      console.log("Notifications preference saved", next);
     } catch (e) {
+      console.log("Failed to save notifications pref", e);
       Alert.alert("Error", "Could not update notifications setting.");
     }
   }, [notificationsEnabled]);
 
   const handleAvatarPress = useCallback(() => {
+    console.log('Avatar button pressed');
+    console.log('Current user avatar:', user?.avatar);
+    console.log('Setting photo picker to true');
     setShowPhotoPicker(true);
-  }, []);
+  }, [user?.avatar]);
 
   const handlePhotoPickerClose = useCallback(() => {
+    console.log('Closing photo picker');
+    console.log('Updated user avatar:', user?.avatar);
     setShowPhotoPicker(false);
-  }, []);
+  }, [user?.avatar]);
 
   const handleLogout = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+    Alert.alert("Logout", "Are you sure you want to logout?", [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Sign Out",
+        text: "Logout",
         style: "destructive",
         onPress: async () => {
           try {
+            // Clear onboarding completed flag so user sees onboarding after logout
             await AsyncStorage.removeItem('@onboarding_completed');
+            console.log('✅ Cleared onboarding flag on logout');
           } catch (error) {
             console.error('Error clearing onboarding flag:', error);
           }
+          
           await signOut();
+          // Route to onboarding instead of login
           router.replace('/onboarding');
         },
       },
@@ -139,28 +174,39 @@ export default function ProfileScreen() {
       if (canOpen) {
         await Linking.openURL(url);
       } else if (Platform.OS === "web") {
-        (globalThis as unknown as { location: { href: string } }).location.href = url;
+        (globalThis as unknown as { location: { href: string } }).location.href = url as unknown as string;
       } else {
-        Alert.alert("Error", "Email app is not available.");
+        Alert.alert("Error", "Email app is not available on this device.");
       }
     } catch (e) {
+      console.log("Failed to open mail link", e);
       Alert.alert("Error", "Could not open email composer.");
     }
   }, []);
 
   const handleRestorePurchases = useCallback(async () => {
     if (Platform.OS === 'web') {
-      Alert.alert('Not Available', 'Restore purchases is only available in the mobile app.');
+      Alert.alert(
+        'Not Available on Web',
+        'Restore purchases is only available in the mobile app.',
+        [{ text: 'OK', style: 'default' }]
+      );
       return;
     }
 
     setIsRestoringPurchases(true);
+    console.log('Restoring purchases from profile...');
+
     try {
       const { paymentService } = await import('@/lib/payments');
       const restored = await paymentService.restorePurchases();
       
+      console.log('Restore result:', restored);
+
       if (restored && restored.length > 0) {
         const activeSubscription = restored[0];
+        console.log('Active subscription found:', activeSubscription);
+        
         await setSubscriptionData({
           isPremium: true,
           subscriptionType: activeSubscription.productId?.includes('annual') ? 'yearly' : 'monthly',
@@ -169,313 +215,352 @@ export default function ProfileScreen() {
           purchaseToken: activeSubscription.purchaseToken,
           originalTransactionId: activeSubscription.originalTransactionId,
         });
-        Alert.alert('Success!', 'Your subscription has been restored.');
+        
+        Alert.alert(
+          '✨ Purchases Restored!',
+          'Your premium subscription has been successfully restored.',
+          [{ text: 'Great!', style: 'default' }]
+        );
       } else {
-        Alert.alert('No Purchases Found', 'We couldn\'t find any purchases for this account.');
+        console.log('No purchases found to restore');
+        Alert.alert(
+          'No Purchases Found',
+          'We couldn\'t find any purchases associated with this account. If you believe this is an error, please contact support.',
+          [{ text: 'OK', style: 'default' }]
+        );
       }
     } catch (error) {
-      Alert.alert('Error', 'Unable to restore purchases. Please try again.');
+      console.error('Restore purchases error:', error);
+      Alert.alert(
+        'Restore Failed',
+        'Unable to restore purchases. Please try again or contact support if the problem persists.',
+        [{ text: 'OK', style: 'default' }]
+      );
     } finally {
       setIsRestoringPurchases(false);
     }
   }, [setSubscriptionData]);
 
   const displayName = useMemo(() => {
-    const nameFromAuth = authUser?.user_metadata && typeof authUser.user_metadata === 'object' 
-      ? (authUser.user_metadata as { full_name?: string; name?: string }).full_name ?? (authUser.user_metadata as { full_name?: string; name?: string }).name 
-      : undefined;
+    const nameFromAuth = authUser?.user_metadata && typeof authUser.user_metadata === 'object' ? (authUser.user_metadata as { full_name?: string; name?: string }).full_name ?? (authUser.user_metadata as { full_name?: string; name?: string }).name : undefined;
     return nameFromAuth ?? user?.name ?? 'Beautiful Soul';
   }, [authUser?.user_metadata, user?.name]);
 
   const displayEmail = useMemo(() => {
-    return authUser?.email ?? user?.email ?? '';
+    return authUser?.email ?? user?.email ?? 'hello@glowcheck.com';
   }, [authUser?.email, user?.email]);
 
   const recentActivities = useMemo(() => {
-    return analysisHistory.slice(0, 3).map((analysis) => ({
+    return analysisHistory.slice(0, 3).map((analysis, index) => ({
       id: analysis.timestamp,
+      type: 'glow',
       title: 'Glow Analysis',
       time: formatAnalysisTime(analysis.timestamp),
       score: Math.round(analysis.overallScore),
+      icon: Camera,
       rating: analysis.rating,
     }));
   }, [analysisHistory]);
 
   const styles = useMemo(() => createStyles(palette), [palette]);
 
-  const handleSaveName = async () => {
-    if (!editedName.trim()) {
-      Alert.alert('Invalid Name', 'Please enter a valid name.');
-      return;
-    }
-    
-    try {
-      const newName = editedName.trim();
-      if (user) {
-        await setUser({ ...user, name: newName });
-      }
-      
-      if (authUser) {
-        await supabase.auth.updateUser({ data: { full_name: newName, name: newName } });
-        await supabase.auth.refreshSession();
-      }
-      
-      setShowNameEditModal(false);
-      Alert.alert('Success', 'Name updated successfully!');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update name.');
-    }
-  };
-
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
-        <LinearGradient colors={['#FAFBFC', '#F5F7FA']} style={StyleSheet.absoluteFillObject} />
+        <LinearGradient colors={[palette.backgroundStart, palette.backgroundEnd]} style={StyleSheet.absoluteFillObject} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={palette.primary} />
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <LinearGradient colors={['#FAFBFC', '#F5F7FA']} style={StyleSheet.absoluteFillObject} />
-      
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+    <SafeAreaView style={styles.container}>
+      <LinearGradient colors={getGradient(theme).hero} style={StyleSheet.absoluteFillObject} />
+      <ScrollView showsVerticalScrollIndicator={false} testID="profileScroll" contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Animated.View style={[styles.avatarSection, { transform: [{ scale: scaleAnim }] }]}>
-            <TouchableOpacity 
-              onPress={handleAvatarPress} 
-              activeOpacity={0.8} 
-              style={styles.avatarContainer}
-            >
-              {user.avatar ? (
-                <Image source={{ uri: user.avatar }} style={styles.avatar} />
-              ) : (
-                <LinearGradient colors={['#E8DDD5', '#D4C4B8']} style={styles.avatarPlaceholder}>
-                  <UserIcon color="#6B7280" size={40} strokeWidth={1.5} />
-                </LinearGradient>
-              )}
-              <View style={styles.cameraButton}>
-                <Camera color="#FFFFFF" size={14} strokeWidth={2.5} />
-              </View>
-            </TouchableOpacity>
-          </Animated.View>
-          
           <TouchableOpacity 
-            style={styles.nameRow}
-            onPress={() => { setEditedName(displayName); setShowNameEditModal(true); }}
-            activeOpacity={0.7}
+            onPress={handleAvatarPress} 
+            activeOpacity={0.7} 
+            testID="avatarButton" 
+            style={styles.avatarContainer}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            accessible={true}
+            accessibilityLabel="Change profile picture"
+            accessibilityHint="Tap to select a new profile picture"
           >
-            <Text style={styles.displayName}>{displayName}</Text>
-            <Edit3 color={palette.textSecondary} size={16} />
+            {user.avatar ? (
+              <Image source={{ uri: user.avatar }} style={styles.avatar} />
+            ) : (
+              <LinearGradient colors={getGradient(theme).rose} style={styles.avatarPlaceholder}>
+                <UserIcon color={palette.pearl} size={36} strokeWidth={2} />
+              </LinearGradient>
+            )}
+            <Animated.View 
+              style={[
+                styles.avatarGlow,
+                {
+                  opacity: glowAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.3, 0.8],
+                  }),
+                }
+              ]} 
+            />
+            <View style={styles.avatarBorder} pointerEvents="none" />
+            <View style={styles.cameraIconOverlay} pointerEvents="none">
+              <Camera color={palette.surface} size={20} strokeWidth={2.5} />
+            </View>
           </TouchableOpacity>
           
-          {displayEmail ? <Text style={styles.email}>{displayEmail}</Text> : null}
+          <Text style={styles.name} testID="profileName">{displayName}</Text>
+          <Text style={styles.email} testID="profileEmail">{displayEmail}</Text>
           
-          <View style={styles.memberBadge}>
-            <Crown color="#C9A961" size={14} />
-            <Text style={styles.memberBadgeText}>
-              {subscriptionState.isPremium ? 'Premium Member' : inTrial ? 'Trial Member' : 'Free Member'}
-            </Text>
+          <LinearGradient colors={getGradient(theme).primary} style={styles.premiumBadge}>
+            <Heart color={palette.textLight} size={18} fill={palette.blush} />
+            <Text style={styles.premiumText}>{soulLabel}</Text>
+            <Sparkles color={palette.textLight} size={14} fill={palette.blush} />
+          </LinearGradient>
+        </View>
+
+        <View style={[styles.statsContainer, shadow.card]}>
+          <View style={styles.statItem}>
+            <View style={[styles.statIconContainer, { backgroundColor: palette.overlayBlush }]}>
+              <Camera color={palette.blush} size={20} strokeWidth={2.5} />
+            </View>
+            <Text style={styles.statNumber}>{user.stats.analyses}</Text>
+            <Text style={styles.statLabel}>ANALYSES</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <View style={[styles.statIconContainer, { backgroundColor: palette.overlayGold }]}>
+              <Heart color={palette.champagne} size={20} fill={palette.champagne} strokeWidth={2.5} />
+            </View>
+            <Text style={styles.statNumber}>{user.stats.dayStreak}</Text>
+            <Text style={styles.statLabel}>DAY STREAK</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <View style={[styles.statIconContainer, { backgroundColor: 'rgba(230,215,240,0.4)' }]}>
+              <Star color={palette.lavender} size={20} fill={palette.lavender} strokeWidth={2.5} />
+            </View>
+            <Text style={styles.statNumber}>{user.stats.glowScore}</Text>
+            <Text style={styles.statLabel}>GLOW SCORE</Text>
           </View>
         </View>
 
         <View style={styles.section}>
-          <GlassCard variant="elevated" borderRadius={20}>
-            <View style={styles.statsRow}>
-              <View style={styles.statBox}>
-                <View style={[styles.statIconBg, { backgroundColor: 'rgba(201,169,97,0.12)' }]}>
-                  <Camera color="#C9A961" size={18} strokeWidth={2.5} />
-                </View>
-                <Text style={styles.statNumber}>{user.stats.analyses}</Text>
-                <Text style={styles.statLabel}>Scans</Text>
-              </View>
-              
-              <View style={styles.statDivider} />
-              
-              <View style={styles.statBox}>
-                <View style={[styles.statIconBg, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
-                  <Zap color="#EF4444" size={18} fill="#EF4444" />
-                </View>
-                <Text style={styles.statNumber}>{user.stats.dayStreak}</Text>
-                <Text style={styles.statLabel}>Streak</Text>
-              </View>
-              
-              <View style={styles.statDivider} />
-              
-              <View style={styles.statBox}>
-                <View style={[styles.statIconBg, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
-                  <Star color="#10B981" size={18} fill="#10B981" />
-                </View>
-                <Text style={styles.statNumber}>{user.stats.glowScore}</Text>
-                <Text style={styles.statLabel}>Score</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Beauty Membership</Text>
+            <View style={styles.sectionDivider} />
+          </View>
+          <LinearGradient colors={['#FFFFFF', '#FFF9F5']} style={[styles.premiumCard, shadow.glow]}>
+            <View style={styles.premiumCardHeader}>
+              <Heart color={palette.blush} size={28} fill={palette.blush} />
+              <View style={styles.premiumCardBadge}>
+                <Flower2 color={palette.lavender} size={16} fill={palette.lavender} />
+                <Text style={styles.premiumCardBadgeText}>GLOW ACCESS</Text>
               </View>
             </View>
-          </GlassCard>
+            <Text style={styles.premiumDescription}>
+              Gentle access to personalized beauty insights, caring coaching, and a loving community of beautiful souls.
+            </Text>
+            <View style={styles.premiumFeatures}>
+              <View style={styles.premiumFeature}>
+                <Sparkles color={palette.gold} size={16} fill={palette.gold} />
+                <Text style={styles.premiumFeatureText}>Unlimited Glow Analysis</Text>
+              </View>
+              <View style={styles.premiumFeature}>
+                <Star color={palette.gold} size={16} fill={palette.gold} />
+                <Text style={styles.premiumFeatureText}>Personal Beauty Guide</Text>
+              </View>
+            </View>
+          </LinearGradient>
         </View>
 
-        {recentActivities.length > 0 && (
-          <View style={styles.section}>
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Activity</Text>
-            <GlassCard variant="elevated" borderRadius={20} padding={0}>
-              {recentActivities.map((activity, index) => (
-                <View 
-                  key={activity.id} 
-                  style={[
-                    styles.activityRow,
-                    index < recentActivities.length - 1 && styles.activityRowBorder
-                  ]}
-                >
-                  <View style={styles.activityIcon}>
-                    <Sparkles color="#C9A961" size={18} />
-                  </View>
-                  <View style={styles.activityInfo}>
-                    <Text style={styles.activityTitle}>{activity.title}</Text>
-                    <Text style={styles.activityTime}>{activity.time}</Text>
-                  </View>
-                  <View style={styles.activityScore}>
-                    <Text style={styles.scoreValue}>{activity.score}</Text>
-                    <Text style={styles.scoreLabel}>score</Text>
+            <View style={styles.sectionDivider} />
+          </View>
+          {recentActivities.length > 0 ? recentActivities.map((activity) => (
+            <TouchableOpacity key={activity.id} activeOpacity={0.8}>
+              <View style={[styles.activityItem, shadow.card]}>
+                <View style={styles.activityIconContainer}>
+                  <View style={[styles.activityIcon, { backgroundColor: palette.overlayBlush }]}>
+                    <activity.icon color={palette.blush} size={22} strokeWidth={2} />
                   </View>
                 </View>
-              ))}
-            </GlassCard>
-          </View>
-        )}
+                <View style={styles.activityContent}>
+                  <Text style={styles.activityTitle}>{activity.title}</Text>
+                  <Text style={styles.activityTime}>{activity.time}</Text>
+                  <View style={styles.activityBadge}>
+                    <Heart color={palette.blush} size={12} fill={palette.blush} />
+                    <Text style={styles.activityBadgeText}>{activity.rating || 'Beautiful'}</Text>
+                  </View>
+                </View>
+                <View style={styles.activityScoreContainer}>
+                  <Text style={styles.activityScore}>{activity.score}</Text>
+                  <Text style={styles.activityScoreLabel}>Glow</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )) : (
+            <View style={[styles.activityItem, shadow.card]}>
+              <View style={styles.activityIconContainer}>
+                <View style={[styles.activityIcon, { backgroundColor: palette.overlayBlush }]}>
+                  <Camera color={palette.blush} size={22} strokeWidth={2} />
+                </View>
+              </View>
+              <View style={styles.activityContent}>
+                <Text style={styles.activityTitle}>No analyses yet</Text>
+                <Text style={styles.activityTime}>Start your glow journey</Text>
+                <View style={styles.activityBadge}>
+                  <Heart color={palette.blush} size={12} fill={palette.blush} />
+                  <Text style={styles.activityBadgeText}>Ready to glow</Text>
+                </View>
+              </View>
+              <View style={styles.activityScoreContainer}>
+                <Text style={styles.activityScore}>--</Text>
+                <Text style={styles.activityScoreLabel}>Glow</Text>
+              </View>
+            </View>
+          )}
+        </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-          <GlassCard variant="elevated" borderRadius={20} padding={0}>
-            <View style={styles.settingRow}>
-              <View style={[styles.settingIcon, { backgroundColor: 'rgba(232,221,213,0.4)' }]}>
-                <Bell color="#8B7355" size={20} strokeWidth={2} />
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Preferences</Text>
+            <View style={styles.sectionDivider} />
+          </View>
+
+          <View style={styles.settingsCard}>
+            <View style={styles.settingItem} testID="notificationsRow">
+              <View style={styles.settingIconContainer}>
+                <Bell color={palette.blush} size={22} strokeWidth={2} />
               </View>
-              <Text style={styles.settingText}>Notifications</Text>
+              <Text style={styles.settingText}>Gentle Notifications</Text>
               <Switch
+                testID="notificationsSwitch"
                 value={notificationsEnabled}
                 onValueChange={toggleNotifications}
-                trackColor={{ false: '#E5E7EB', true: '#C9A961' }}
-                thumbColor="#FFFFFF"
+                trackColor={{ false: palette.surfaceAlt, true: palette.overlayBlush }}
+                thumbColor={notificationsEnabled ? palette.blush : palette.textMuted}
               />
             </View>
 
-            <View style={styles.settingDivider} />
-
-            <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/start-trial')} activeOpacity={0.7}>
-              <View style={[styles.settingIcon, { backgroundColor: 'rgba(201,169,97,0.15)' }]}>
-                <Heart color="#C9A961" size={20} fill="#C9A961" />
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => router.push('/start-trial')}
+              activeOpacity={0.7}
+              testID="subscriptionBtn"
+            >
+              <View style={styles.settingIconContainer}>
+                <Heart color={palette.champagne} size={22} strokeWidth={2} fill={palette.champagne} />
               </View>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingText}>Subscription</Text>
-                <Text style={styles.settingSubtext}>
-                  {subscriptionState.isPremium 
-                    ? `Premium ${subscriptionState.subscriptionType}` 
-                    : inTrial 
-                      ? `Trial • ${daysLeft}d left` 
-                      : 'Free plan'}
-                </Text>
+              <View style={styles.subscriptionInfo}>
+                <Text style={styles.settingText}>Beauty Subscription</Text>
+                {subscriptionState.isPremium ? (
+                  <Text style={styles.subscriptionStatus}>
+                    Premium {subscriptionState.subscriptionType} • ${subscriptionState.subscriptionPrice}
+                  </Text>
+                ) : inTrial ? (
+                  <Text style={styles.subscriptionStatus}>
+                    Trial • {daysLeft} days, {scansLeft} scans left
+                  </Text>
+                ) : (
+                  <Text style={styles.subscriptionStatus}>Free • Upgrade to Premium</Text>
+                )}
               </View>
-              <ChevronRight color="#C9A961" size={20} />
+              <ChevronRight color={palette.gold} size={22} strokeWidth={2.5} />
             </TouchableOpacity>
 
-            <View style={styles.settingDivider} />
-
-            <TouchableOpacity 
-              style={styles.settingRow} 
-              onPress={handleRestorePurchases} 
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={handleRestorePurchases}
               activeOpacity={0.7}
               disabled={isRestoringPurchases}
+              testID="restorePurchasesBtn"
             >
-              <View style={[styles.settingIcon, { backgroundColor: 'rgba(107,114,128,0.1)' }]}>
-                <Shield color="#6B7280" size={20} />
+              <View style={styles.settingIconContainer}>
+                <Shield color={palette.lavender} size={22} strokeWidth={2} />
               </View>
               <Text style={styles.settingText}>Restore Purchases</Text>
               {isRestoringPurchases ? (
-                <ActivityIndicator size="small" color="#6B7280" />
+                <ActivityIndicator size="small" color={palette.lavender} style={{ marginLeft: 8 }} />
               ) : (
-                <ChevronRight color="#9CA3AF" size={20} />
+                <ChevronRight color={palette.gold} size={22} strokeWidth={2.5} />
               )}
             </TouchableOpacity>
 
-            <View style={styles.settingDivider} />
-
-            <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/promo-code')} activeOpacity={0.7}>
-              <View style={[styles.settingIcon, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
-                <Gift color="#10B981" size={20} />
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => router.push('/promo-code')}
+              activeOpacity={0.7}
+              testID="promoCodeBtn"
+            >
+              <View style={styles.settingIconContainer}>
+                <Gift color={palette.blush} size={22} strokeWidth={2} />
               </View>
-              <Text style={styles.settingText}>Promo Code</Text>
-              <ChevronRight color="#9CA3AF" size={20} />
+              <Text style={styles.settingText}>Redeem Promo Code</Text>
+              <ChevronRight color={palette.gold} size={22} strokeWidth={2.5} />
             </TouchableOpacity>
 
-            <View style={styles.settingDivider} />
-
-            <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/privacy-care')} activeOpacity={0.7}>
-              <View style={[styles.settingIcon, { backgroundColor: 'rgba(99,102,241,0.1)' }]}>
-                <Shield color="#6366F1" size={20} />
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => router.push('/privacy-care')}
+              activeOpacity={0.7}
+              testID="privacyBtn"
+            >
+              <View style={styles.settingIconContainer}>
+                <Shield color={palette.lavender} size={22} strokeWidth={2} />
               </View>
-              <Text style={styles.settingText}>Privacy & Terms</Text>
-              <ChevronRight color="#9CA3AF" size={20} />
+              <Text style={styles.settingText}>Privacy & Care</Text>
+              <ChevronRight color={palette.gold} size={22} strokeWidth={2.5} />
             </TouchableOpacity>
 
-            <View style={styles.settingDivider} />
-
-            <TouchableOpacity style={styles.settingRow} onPress={handleHelpSupport} activeOpacity={0.7}>
-              <View style={[styles.settingIcon, { backgroundColor: 'rgba(59,130,246,0.1)' }]}>
-                <HelpCircle color="#3B82F6" size={20} />
+            <TouchableOpacity style={styles.settingItem} onPress={handleHelpSupport} activeOpacity={0.7} testID="helpSupportBtn">
+              <View style={styles.settingIconContainer}>
+                <HelpCircle color={palette.mint} size={22} strokeWidth={2} />
               </View>
-              <Text style={styles.settingText}>Help & Support</Text>
-              <ChevronRight color="#9CA3AF" size={20} />
+              <Text style={styles.settingText}>Caring Support</Text>
+              <ChevronRight color={palette.gold} size={22} strokeWidth={2.5} />
             </TouchableOpacity>
-          </GlassCard>
+          </View>
         </View>
 
-        <View style={styles.section}>
-          <TouchableOpacity style={styles.signOutButton} onPress={handleLogout} activeOpacity={0.8}>
-            <LogOut color="#EF4444" size={20} strokeWidth={2} />
-            <Text style={styles.signOutText}>Sign Out</Text>
+        <View style={styles.logoutSection}>
+          <TouchableOpacity 
+            activeOpacity={0.8} 
+            onPress={() => {
+              console.log('Test button pressed - opening photo picker');
+              setShowPhotoPicker(true);
+            }} 
+            testID="testPhotoBtn"
+            style={{ marginBottom: 16 }}
+          >
+            <View style={[styles.logoutButton, { borderColor: palette.gold, backgroundColor: palette.surface }]}>
+              <Camera color={palette.gold} size={22} strokeWidth={2} />
+              <Text style={[styles.logoutText, { color: palette.gold }]}>Test Photo Picker</Text>
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity activeOpacity={0.8} onPress={handleLogout} testID="logoutBtn">
+            <View style={[styles.logoutButton, shadow.card]}>
+              <LogOut color={palette.error} size={22} strokeWidth={2} />
+              <Text style={styles.logoutText}>Sign Out</Text>
+            </View>
           </TouchableOpacity>
         </View>
-
-        <View style={{ height: 100 }} />
       </ScrollView>
 
       {showPhotoPicker && (
-        <PhotoPickerModal visible={showPhotoPicker} onClose={handlePhotoPickerClose} />
+        <PhotoPickerModal 
+          visible={showPhotoPicker} 
+          onClose={handlePhotoPickerClose} 
+        />
       )}
-
-      <Modal visible={showNameEditModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Edit Name</Text>
-            <TouchableOpacity onPress={() => setShowNameEditModal(false)}>
-              <X color="#6B7280" size={24} />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.modalContent}>
-            <Text style={styles.modalLabel}>Name</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Enter your name"
-              value={editedName}
-              onChangeText={setEditedName}
-              placeholderTextColor="#9CA3AF"
-              autoFocus
-              maxLength={50}
-            />
-            
-            <TouchableOpacity 
-              style={[styles.modalSaveButton, { opacity: editedName.trim() ? 1 : 0.5 }]}
-              onPress={handleSaveName}
-              disabled={!editedName.trim()}
-            >
-              <Text style={styles.modalSaveText}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -483,277 +568,401 @@ export default function ProfileScreen() {
 const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFBFC',
+    backgroundColor: palette.backgroundStart,
   },
   scrollContent: {
-    paddingBottom: 20,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingBottom: 40,
   },
   header: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 28,
-  },
-  avatarSection: {
-    marginBottom: 16,
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 32,
   },
   avatarContainer: {
-    position: 'relative',
+    position: "relative",
+    marginBottom: 20,
   },
   avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
   },
   avatarPlaceholder: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
+    justifyContent: "center",
+    alignItems: "center",
   },
-  cameraButton: {
-    position: 'absolute',
+  avatarGlow: {
+    position: "absolute",
+    top: -8,
+    left: -8,
+    right: -8,
+    bottom: -8,
+    borderRadius: 58,
+    backgroundColor: palette.overlayGold,
+    zIndex: -1,
+  },
+  avatarBorder: {
+    position: "absolute",
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderRadius: 54,
+    borderWidth: 3,
+    borderColor: palette.gold,
+  },
+  cameraIconOverlay: {
+    position: "absolute",
     bottom: 0,
     right: 0,
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#0A0A0A',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: palette.gold,
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: palette.surface,
   },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  displayName: {
-    fontSize: 26,
-    fontWeight: '800' as const,
+  loadingText: {
+    fontSize: 16,
+    color: "#9CA3AF",
+  },
+  name: {
+    fontSize: 28,
+    fontWeight: "900",
     color: palette.textPrimary,
+    marginBottom: 6,
     letterSpacing: -0.5,
   },
   email: {
-    fontSize: 14,
-    color: palette.textSecondary,
-    marginBottom: 12,
-  },
-  memberBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(201,169,97,0.12)',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 6,
-  },
-  memberBadgeText: {
-    fontSize: 12,
-    fontWeight: '700' as const,
-    color: '#C9A961',
-    letterSpacing: 0.3,
-  },
-  section: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  sectionTitle: {
     fontSize: 16,
-    fontWeight: '700' as const,
-    color: palette.textPrimary,
-    marginBottom: 12,
-    letterSpacing: -0.2,
+    color: palette.textSecondary,
+    marginBottom: 16,
+    fontWeight: "500",
   },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
+  premiumBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 25,
+    gap: 8,
+    backgroundColor: palette.surface,
   },
-  statBox: {
-    alignItems: 'center',
+  premiumText: {
+    fontSize: 14,
+    color: palette.textLight,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  statsContainer: {
+    flexDirection: "row",
+    marginHorizontal: 24,
+    borderRadius: 20,
+    padding: 28,
+    marginBottom: 40,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.divider,
+  },
+  statItem: {
     flex: 1,
+    alignItems: "center",
   },
-  statIconBg: {
+  statIconContainer: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
   },
   statNumber: {
-    fontSize: 26,
-    fontWeight: '800' as const,
-    color: palette.textPrimary,
-    marginBottom: 2,
-    letterSpacing: -1,
+    fontSize: 28,
+    fontWeight: "900",
+    color: palette.gold,
+    marginBottom: 6,
+    letterSpacing: -0.5,
   },
   statLabel: {
     fontSize: 11,
     color: palette.textSecondary,
-    fontWeight: '600' as const,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
+    fontWeight: "800",
+    letterSpacing: 1,
   },
   statDivider: {
-    width: 1,
-    height: 50,
-    backgroundColor: 'rgba(0,0,0,0.06)',
+    width: 2,
+    height: 60,
+    backgroundColor: palette.divider,
+    marginHorizontal: 20,
+    borderRadius: 1,
   },
-  activityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
+  section: {
+    paddingHorizontal: 24,
+    marginBottom: 40,
   },
-  activityRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+  sectionHeader: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: palette.textPrimary,
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  sectionDivider: {
+    height: 2,
+    backgroundColor: palette.gold,
+    width: 40,
+    borderRadius: 1,
+  },
+  premiumCard: {
+    padding: 24,
+    borderRadius: 20,
+  },
+  premiumCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  premiumCardBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: palette.surfaceElevated,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  premiumCardBadgeText: {
+    color: palette.textPrimary,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  premiumDescription: {
+    fontSize: 16,
+    color: palette.textPrimary,
+    lineHeight: 24,
+    marginBottom: 20,
+    fontWeight: "500",
+  },
+  premiumFeatures: {
+    gap: 12,
+  },
+  premiumFeature: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  premiumFeatureText: {
+    fontSize: 14,
+    color: palette.textPrimary,
+    fontWeight: "600",
+  },
+  activityItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 12,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.divider,
+  },
+  activityIconContainer: {
+    marginRight: 16,
   },
   activityIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(201,169,97,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  activityInfo: {
+  activityContent: {
     flex: 1,
   },
   activityTitle: {
-    fontSize: 15,
-    fontWeight: '600' as const,
+    fontSize: 17,
+    fontWeight: "700",
     color: palette.textPrimary,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   activityTime: {
     fontSize: 13,
     color: palette.textSecondary,
+    marginBottom: 8,
+    fontWeight: "500",
   },
-  activityScore: {
-    alignItems: 'center',
+  activityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: palette.surfaceElevated,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    alignSelf: "flex-start",
+    gap: 4,
   },
-  scoreValue: {
-    fontSize: 22,
-    fontWeight: '800' as const,
-    color: '#C9A961',
-  },
-  scoreLabel: {
+  activityBadgeText: {
     fontSize: 10,
-    color: palette.textSecondary,
-    textTransform: 'uppercase' as const,
+    fontWeight: "700",
+    color: palette.gold,
     letterSpacing: 0.5,
   },
-  settingRow: {
+  activityScoreContainer: {
+    alignItems: "center",
+  },
+  activityScore: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: palette.gold,
+    marginBottom: 2,
+  },
+  activityScoreLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: palette.textMuted,
+    letterSpacing: 0.5,
+  },
+  preferenceCard: {
+    marginBottom: 12,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  preferenceGradient: {
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    justifyContent: 'space-between',
   },
-  settingDivider: {
-    height: 1,
-    backgroundColor: 'rgba(0,0,0,0.06)',
-    marginHorizontal: 16,
+  preferenceLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
-  settingIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  preferenceIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
+    marginRight: 16,
   },
-  settingContent: {
+  preferenceContent: {
     flex: 1,
+  },
+  preferenceTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: palette.textPrimary,
+    marginBottom: 4,
+  },
+  preferenceDesc: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: palette.textSecondary,
+  },
+  preferenceArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: palette.surfaceElevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 12,
+  },
+  preferenceSwitch: {
+    marginLeft: 12,
+  },
+  themeToggle: {
+    flexDirection: 'row',
+    backgroundColor: palette.surfaceElevated,
+    borderRadius: 12,
+    padding: 2,
+  },
+  themeOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginHorizontal: 2,
+  },
+  themeOptionActive: {
+    backgroundColor: palette.surface,
+  },
+  settingsCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: palette.divider,
+    padding: 8,
+    gap: 4,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.divider,
+    gap: 12,
+  },
+  settingIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: palette.surfaceElevated,
   },
   settingText: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '600' as const,
+    fontSize: 16,
+    fontWeight: '700',
     color: palette.textPrimary,
   },
-  settingSubtext: {
-    fontSize: 12,
-    color: palette.textSecondary,
+  subscriptionInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  subscriptionStatus: {
     marginTop: 2,
+    fontSize: 12,
+    fontWeight: '600',
+    color: palette.textSecondary,
   },
-  signOutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(239,68,68,0.08)',
-    paddingVertical: 16,
+  logoutSection: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 18,
     borderRadius: 16,
-    gap: 10,
+    gap: 12,
+    backgroundColor: palette.surface,
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.2)',
+    borderColor: palette.error,
   },
-  signOutText: {
+  logoutText: {
     fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#EF4444',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#FAFBFC',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700' as const,
-    color: palette.textPrimary,
-  },
-  modalContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-  },
-  modalLabel: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: palette.textPrimary,
-    marginBottom: 10,
-  },
-  modalInput: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: palette.textPrimary,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
-    marginBottom: 20,
-  },
-  modalSaveButton: {
-    backgroundColor: '#0A0A0A',
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-  },
-  modalSaveText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600' as const,
+    fontWeight: "700",
+    color: palette.error,
+    letterSpacing: 0.3,
   },
 });

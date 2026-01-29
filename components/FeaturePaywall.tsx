@@ -6,9 +6,6 @@ import {
   TouchableOpacity,
   Animated,
   ScrollView,
-  Modal,
-  Platform,
-  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -33,7 +30,6 @@ interface FeaturePaywallProps {
   featureType: 'skin-analysis' | 'style-check' | 'ai-coach' | 'progress' | 'community';
   onDismiss?: () => void;
   showDismiss?: boolean;
-  visible?: boolean;
 }
 
 const FEATURE_CONFIG = {
@@ -113,7 +109,6 @@ export default function FeaturePaywall({
   featureType,
   onDismiss,
   showDismiss = true,
-  visible = true,
 }: FeaturePaywallProps) {
   const { theme } = useTheme();
   const palette = getPalette(theme);
@@ -197,13 +192,19 @@ export default function FeaturePaywall({
 
   const styles = createStyles(palette, gradient, config.gradient);
 
-  const content = (
-    <View style={styles.overlay}>
+  return (
+    <Animated.View
+      style={[
+        styles.overlay,
+        {
+          opacity: fadeAnim,
+        },
+      ]}
+    >
       <Animated.View
         style={[
           styles.container,
           {
-            opacity: fadeAnim,
             transform: [
               { translateY: slideAnim },
               { scale: scaleAnim },
@@ -323,25 +324,9 @@ export default function FeaturePaywall({
           </ScrollView>
         </LinearGradient>
       </Animated.View>
-    </View>
-  );
-
-  // Always use Modal for mobile to ensure proper overlay
-  return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="none"
-      statusBarTranslucent={true}
-      onRequestClose={handleDismiss}
-      presentationStyle="overFullScreen"
-    >
-      {content}
-    </Modal>
+    </Animated.View>
   );
 }
-
-const { height: screenHeight } = Dimensions.get('window');
 
 const createStyles = (
   palette: ReturnType<typeof getPalette>,
@@ -349,27 +334,30 @@ const createStyles = (
   featureGradient: readonly [string, string, ...string[]]
 ) => StyleSheet.create({
   overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1000,
     paddingHorizontal: 20,
-    paddingVertical: 20,
   },
   container: {
     width: '100%',
     maxWidth: 420,
+    maxHeight: '90%',
     borderRadius: 24,
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-    maxHeight: screenHeight * 0.85,
     ...shadow.elevated,
   },
   contentWrapper: {
-    width: '100%',
+    flex: 1,
   },
   scrollView: {
-    maxHeight: screenHeight * 0.75,
+    flex: 1,
   },
   scrollContent: {
     padding: 24,

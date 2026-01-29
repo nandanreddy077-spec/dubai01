@@ -1,14 +1,13 @@
 import { Session, User } from '@supabase/supabase-js';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import createContextHook from '@nkzw/create-context-hook';
 import { supabase } from '@/lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
-import { Platform, AppState, AppStateStatus } from 'react-native';
+import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { makeRedirectUri } from 'expo-auth-session';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as AppleAuthentication from 'expo-apple-authentication';
 
 interface AuthContextType {
   user: User | null;
@@ -28,7 +27,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const sessionRef = useRef<Session | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -50,30 +48,13 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         if (error) {
           console.log('Session error detected:', error.message);
           
-          // Try to refresh the session before clearing
-          // Sometimes the session just needs to be refreshed
-          try {
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-            if (!refreshError && refreshData?.session) {
-              console.log('✅ Session refreshed successfully');
-              if (mounted) {
-                setSession(refreshData.session);
-                sessionRef.current = refreshData.session;
-                setUser(refreshData.session?.user ?? null);
-                setLoading(false);
-              }
-              return;
-            }
-          } catch (refreshException) {
-            console.log('Session refresh attempt failed:', refreshException);
-          }
-          
-          // Only clear session if refresh token is truly invalid
-          // Check for specific refresh token errors, not just any JWT/400 error
+          // Handle any refresh token errors by clearing session
           if (error.message?.includes('Invalid Refresh Token') || 
               error.message?.includes('Refresh Token Not Found') ||
-              (error.message?.includes('refresh_token') && error.message?.includes('expired'))) {
-            console.log('🔄 Refresh token is invalid, clearing session...');
+              error.message?.includes('refresh_token') ||
+              error.message?.includes('JWT') ||
+              error.status === 400) {
+            console.log('🔄 Clearing invalid session...');
             try {
               // Clear all auth-related storage
               await supabase.auth.signOut({ scope: 'local' });
@@ -95,7 +76,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
             // Continue with no session
             if (mounted) {
               setSession(null);
-              sessionRef.current = null;
               setUser(null);
               setLoading(false);
             }
@@ -118,7 +98,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         
         if (mounted) {
           setSession(session);
-          sessionRef.current = session;
           setUser(session?.user ?? null);
           setLoading(false);
         }
@@ -131,7 +110,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         
         if (mounted) {
           setSession(null);
-          sessionRef.current = null;
           setUser(null);
           setLoading(false);
         }
@@ -148,7 +126,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
           console.log('Auth state changed:', event, session?.user?.email || 'no user');
           if (mounted) {
             setSession(session);
-            sessionRef.current = session;
             setUser(session?.user ?? null);
             setLoading(false);
             
@@ -183,38 +160,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
       console.error('Error setting up auth listener:', error);
     }
 
-    // Refresh session when app comes to foreground
-    // This ensures the session stays active even if the user leaves the app for a while
-    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'active' && sessionRef.current) {
-        try {
-          console.log('🔄 App became active, refreshing session...');
-          const { data, error } = await supabase.auth.refreshSession();
-          if (error) {
-            console.log('Session refresh on app active failed:', error.message);
-            // Don't clear session on refresh failure - let Supabase handle it
-          } else if (data?.session) {
-            console.log('✅ Session refreshed on app active');
-            if (mounted) {
-              setSession(data.session);
-              sessionRef.current = data.session;
-              setUser(data.session?.user ?? null);
-            }
-          }
-        } catch (error) {
-          console.warn('Error refreshing session on app active:', error);
-        }
-      }
-    };
-
-    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
-
     return () => {
       mounted = false;
       if (subscription) {
         subscription.unsubscribe();
       }
-      appStateSubscription?.remove();
     };
   }, []);
 
@@ -358,7 +308,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
       
       setUser(null);
       setSession(null);
-      sessionRef.current = null;
       
       const { error } = await supabase.auth.signOut();
       if (error) {
@@ -572,60 +521,87 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         return { error: { message: 'Apple Sign In is only available on iOS devices.' } };
       }
 
-      // Check if Apple Authentication is available
-      const isAvailable = await AppleAuthentication.isAvailableAsync();
-      if (!isAvailable) {
-        return { error: { message: 'Apple Sign In is not available on this device.' } };
-      }
+      // Use Supabase callback URL - Supabase handles the OAuth flow
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+      const redirectUrl = `${supabaseUrl}/auth/v1/callback`;
 
-      console.log('[Auth] Starting native Apple Sign In...');
-
-      // Use native Apple Sign In
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-
-      console.log('[Auth] Apple credential received:', {
-        user: credential.user,
-        email: credential.email,
-        identityToken: credential.identityToken ? 'present' : 'missing',
-      });
-
-      if (!credential.identityToken) {
-        return { error: { message: 'Failed to get identity token from Apple.' } };
-      }
-
-      console.log('[Auth] Signing in with Supabase using identity token...');
-
-      // Sign in with Supabase using the identity token
-      const { data, error } = await supabase.auth.signInWithIdToken({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'apple',
-        token: credential.identityToken,
+        options: {
+          redirectTo: redirectUrl,
+        },
       });
 
       if (error) {
-        console.error('[Auth] Supabase sign in error:', error);
-        console.error('[Auth] Error details:', JSON.stringify(error, null, 2));
+        console.error('Apple sign in error:', error);
         return { error };
       }
 
-      if (data?.user) {
-        console.log('[Auth] ✅ Apple sign-in successful:', data.user.email);
-        return { error: null };
-      }
+      if (data?.url) {
+        // Complete any pending auth session first
+        WebBrowser.maybeCompleteAuthSession();
+        
+        // Open the OAuth URL - Supabase will redirect back to redirectUrl with session
+        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
 
-      return { error: { message: 'Failed to sign in with Apple. Please try again.' } };
-    } catch (error: any) {
-      console.error('[Auth] Apple sign in exception:', error);
-      
-      // Handle user cancellation
-      if (error.code === 'ERR_CANCELED' || error.message?.includes('cancel')) {
+        if (result.type === 'success') {
+          // Extract the URL from the result
+          const url = result.url;
+          if (url) {
+            // Parse the URL to get the code or access_token
+            const parsedUrl = Linking.parse(url);
+            const code = parsedUrl.queryParams?.code as string;
+            const accessToken = parsedUrl.queryParams?.access_token as string;
+            const errorParam = parsedUrl.queryParams?.error as string;
+            
+            if (errorParam) {
+              return { error: { message: `Authentication error: ${errorParam}` } };
+            }
+            
+            if (code) {
+              const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+              if (exchangeError) {
+                console.error('Error exchanging code for session:', exchangeError);
+                return { error: exchangeError };
+              }
+            } else if (accessToken) {
+              // If we have an access token directly, set the session
+              const { error: sessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: parsedUrl.queryParams?.refresh_token as string || '',
+              });
+              if (sessionError) {
+                console.error('Error setting session:', sessionError);
+                return { error: sessionError };
+              }
+            } else {
+              // Wait for auth state change to pick up the session
+              // The redirect URL should contain the session info
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              // Check if we have a session now
+              const { data: { session } } = await supabase.auth.getSession();
+              if (!session) {
+                return { error: { message: 'Failed to establish session. Please try again.' } };
+              }
+            }
+          } else {
+            // Wait for auth state change
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+              return { error: { message: 'Failed to establish session. Please try again.' } };
+            }
+          }
+        } else if (result.type === 'cancel') {
           return { error: { message: 'Authentication cancelled' } };
+        } else {
+          return { error: { message: 'Authentication failed. Please try again.' } };
+        }
       }
 
+      return { error: null };
+    } catch (error: any) {
+      console.error('Apple sign in exception:', error);
       return { error: { message: error.message || 'Failed to sign in with Apple' } };
     } finally {
       setLoading(false);

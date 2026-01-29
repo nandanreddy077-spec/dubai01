@@ -226,37 +226,26 @@ export const [GamificationProvider, useGamification] = createContextHook(() => {
         }
       }
       
-      // Clean up old glow boosts - use functional setState to access current state
-      setGlowBoosts(current => {
-        if (current.length > 5) {
-          const trimmed = current.slice(0, 5);
-          // Save trimmed boosts to storage
-          AsyncStorage.setItem(STORAGE_KEYS.GLOW_BOOSTS, JSON.stringify(trimmed)).catch(console.error);
-          console.log('✂️ Trimmed glow boosts to', trimmed.length, 'entries');
-          return trimmed;
-        }
-        return current;
-      });
+      // Clean up old glow boosts
+      const currentBoosts = glowBoosts.slice(0, 5); // Keep only 5 most recent
+      if (currentBoosts.length !== glowBoosts.length) {
+        setGlowBoosts(currentBoosts);
+        await saveGlowBoosts(currentBoosts);
+        console.log('✂️ Trimmed glow boosts to', currentBoosts.length, 'entries');
+      }
       
       console.log('✅ Storage cleanup completed');
     } catch (error) {
       console.error('❌ Storage cleanup failed:', error);
     }
-  }, []); // No dependencies - uses functional setState
+  }, [glowBoosts]);
 
   useEffect(() => {
     loadGamificationData();
     setupNotifications();
-  }, []); // Only run once on mount
-
-  useEffect(() => {
-    // Run cleanup once after initial data load
-    const timer = setTimeout(() => {
-      cleanupStorageCallback();
-    }, 1000); // Delay cleanup slightly to avoid race conditions
-    
-    return () => clearTimeout(timer);
-  }, []); // Only run once on mount
+    // Run cleanup on app start
+    cleanupStorageCallback();
+  }, [setupNotifications, cleanupStorageCallback]);
 
   useEffect(() => {
     // Schedule notifications when daily completions change

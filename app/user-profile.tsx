@@ -349,15 +349,7 @@ export default function UserProfileScreen() {
                   </>
                 )}
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.messageButton]}
-                onPress={() => {
-                  router.push({
-                    pathname: '/chat',
-                    params: { userId },
-                  });
-                }}
-              >
+              <TouchableOpacity style={[styles.actionButton, styles.messageButton]}>
                 <MessageCircle size={18} color={palette.textPrimary} />
                 <Text style={styles.messageButtonText}>Message</Text>
               </TouchableOpacity>

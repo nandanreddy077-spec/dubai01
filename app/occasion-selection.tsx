@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,6 @@ import { Stack, router } from 'expo-router';
 import { useStyle } from '@/contexts/StyleContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useSubscription } from '@/contexts/SubscriptionContext';
-import FeaturePaywall from '@/components/FeaturePaywall';
 import { getPalette, getGradient, shadow, typography, spacing } from '@/constants/theme';
 import { Sparkles, Crown, Star } from 'lucide-react-native';
 
@@ -24,49 +22,12 @@ const { width } = Dimensions.get('window');
 export default function OccasionSelectionScreen() {
   const { occasions, currentImage, setSelectedOccasion } = useStyle();
   const { theme } = useTheme();
-  const subscription = useSubscription();
-  const canAccessStyleCheck = subscription?.canAccessStyleCheck ?? false;
-  const [showPaywall, setShowPaywall] = useState(false);
   
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
   const styles = createStyles(palette);
-  
-  // Debug log
-  useEffect(() => {
-    console.log('📱 OccasionSelectionScreen mounted');
-    console.log('🔐 canAccessStyleCheck:', canAccessStyleCheck);
-    console.log('💳 subscription:', subscription);
-    console.log('💳 subscription.state:', subscription?.state);
-    console.log('💳 subscription.hasAnyAccess:', subscription?.hasAnyAccess);
-    console.log('💳 subscription.inTrial:', subscription?.inTrial);
-    console.log('🎫 showPaywall:', showPaywall);
-  }, [canAccessStyleCheck, subscription, showPaywall]);
 
   const handleOccasionSelect = (occasionId: string) => {
-    console.log('🎯 Occasion selected:', occasionId);
-    console.log('🔐 canAccessStyleCheck:', canAccessStyleCheck);
-    console.log('💳 subscription:', subscription);
-    console.log('💳 subscription?.state?.isPremium:', subscription?.state?.isPremium);
-    console.log('💳 subscription?.inTrial:', subscription?.inTrial);
-    console.log('💳 subscription?.hasAnyAccess:', subscription?.hasAnyAccess);
-    
-    // Double-check: if subscription is not loaded or user doesn't have access, show paywall
-    const hasAccess = subscription?.canAccessStyleCheck ?? false;
-    const isPremium = subscription?.state?.isPremium ?? false;
-    const inTrial = subscription?.inTrial ?? false;
-    const shouldShowPaywall = !hasAccess && !isPremium && !inTrial;
-    
-    console.log('🔍 Access check - hasAccess:', hasAccess, 'isPremium:', isPremium, 'inTrial:', inTrial);
-    console.log('🔍 shouldShowPaywall:', shouldShowPaywall);
-    
-    if (shouldShowPaywall) {
-      console.log('🚫 Free user - showing paywall');
-      setShowPaywall(true);
-      return;
-    }
-    
-    console.log('✅ Premium user - proceeding to style loading');
     setSelectedOccasion(occasionId);
     router.push('/style-loading');
   };
@@ -155,16 +116,6 @@ export default function OccasionSelectionScreen() {
           </View>
         </View>
       </ScrollView>
-
-      <FeaturePaywall
-        featureType="style-check"
-        visible={showPaywall}
-        onDismiss={() => {
-          console.log('❌ Paywall dismissed');
-          setShowPaywall(false);
-        }}
-        showDismiss={true}
-      />
     </SafeAreaView>
   );
 }

@@ -362,9 +362,9 @@ export default function AnalysisResultsScreen() {
         </View>
 
         <View style={styles.ctaSection}>
-          <TouchableOpacity style={styles.ctaButtonPrimary} onPress={() => router.push('/skincare-plan-selection')} testID="create-plan">
-            <Sparkles color={palette.textLight} size={20} strokeWidth={2.5} />
-            <Text style={styles.ctaButtonPrimaryText}>Create Your Glow Coach Plan</Text>
+          <TouchableOpacity style={styles.ctaButtonPrimary} onPress={() => router.push('/(tabs)/progress')} testID="start-tracking">
+            <TrendingUp color={palette.textLight} size={20} strokeWidth={2.5} />
+            <Text style={styles.ctaButtonPrimaryText}>Start Tracking Progress</Text>
           </TouchableOpacity>
 
           {recommendations.length > 0 && (

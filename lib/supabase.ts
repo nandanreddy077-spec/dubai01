@@ -21,14 +21,24 @@ console.log('Supabase URL:', supabaseUrl);
 console.log('Supabase Key (first 20 chars):', supabaseAnonKey.substring(0, 20) + '...');
 
 // Custom storage wrapper that handles errors gracefully
-// Note: We don't check expires_at here because that's the access token expiration.
-// Supabase will automatically refresh the access token using the refresh token.
-// Only Supabase should decide when to clear sessions based on refresh token validity.
 const safeStorage = {
   async getItem(key: string) {
     try {
       const value = await AsyncStorage.getItem(key);
-      return value;
+      if (value) {
+        const parsed = JSON.parse(value);
+        // Check if refresh token is expired or invalid
+        if (parsed?.refresh_token && parsed?.expires_at) {
+          const expiresAt = parsed.expires_at * 1000;
+          if (Date.now() > expiresAt) {
+            console.log('🔄 Refresh token expired, clearing...');
+            await AsyncStorage.removeItem(key);
+            return null;
+          }
+        }
+        return value;
+      }
+      return null;
     } catch (error) {
       console.warn('Storage getItem error:', error);
       return null;
@@ -58,9 +68,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: true,
     debug: __DEV__,
-    // Enable automatic token refresh
-    // Supabase will automatically refresh access tokens before they expire
-    // Refresh tokens typically last for weeks/months, not hours
+    // Don't throw errors on refresh token failures
     flowType: 'pkce',
   },
   global: {

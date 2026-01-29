@@ -58,7 +58,6 @@ const DEFAULT_USER: User = {
     level: 1,
     bestGlowScore: 0,
     improvementStreak: 0,
-    challengeStreak: 0,
   },
   badges: [],
   achievements: [],
