@@ -18,8 +18,6 @@ import { router } from 'expo-router';
 import { Eye, EyeOff, Mail, Lock, User, Heart, Sparkles, Star } from 'lucide-react-native';
 import Logo from '@/components/Logo';
 import { getPalette, getGradient, shadow, spacing, radii } from '@/constants/theme';
-import AppleLogo from '@/components/AppleLogo';
-import GoogleLogo from '@/components/GoogleLogo';
 
 export default function SignupScreen() {
   const [fullName, setFullName] = useState('');
@@ -299,7 +297,7 @@ export default function SignupScreen() {
                 ]}
               >
                 <View style={styles.logoCircle}>
-                  <Logo size={100} hideBackground={true} />
+                  <Logo size={100} />
                 </View>
                 
                 <Text style={styles.title}>Join GlowCheck</Text>
@@ -469,9 +467,7 @@ export default function SignupScreen() {
                     testID="apple-signin-button"
                   >
                     <View style={styles.appleButtonContent}>
-                      <View style={styles.appleLogoContainer}>
-                        <AppleLogo size={20} color="#FFFFFF" />
-                      </View>
+                      <Text style={styles.appleIcon}>🍎</Text>
                       <Text style={styles.appleButtonText}>
                         {isLoading ? 'Signing in...' : 'Continue with Apple'}
                       </Text>
@@ -522,9 +518,14 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   logoCircle: {
     width: 100,
     height: 100,
+    borderRadius: 50,
+    backgroundColor: palette.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
+    ...shadow.elevated,
+    borderWidth: 3,
+    borderColor: palette.primary,
   },
   title: {
     fontSize: 32,
@@ -665,41 +666,6 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontSize: 14,
     fontWeight: '800',
   },
-  appleButton: {
-    backgroundColor: '#000000',
-    borderRadius: radii.lg,
-    height: 56,
-    marginBottom: spacing.md,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  appleButtonDisabled: {
-    opacity: 0.6,
-  },
-  appleButtonContent: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-  appleLogoContainer: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  appleButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
   googleButton: {
     backgroundColor: palette.surfaceElevated,
     borderRadius: radii.lg,
@@ -719,12 +685,10 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     alignItems: 'center',
     gap: spacing.md,
   },
-  googleLogoContainer: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
+  googleIcon: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#4285F4',
   },
   googleButtonText: {
     color: palette.textPrimary,

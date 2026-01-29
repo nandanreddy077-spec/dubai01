@@ -7,7 +7,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "ios": {
-        "resourceClass": "m-medium",
+        "resourceClass": "m1-medium",
         "simulator": true
       },
       "android": {
@@ -22,7 +22,7 @@
     "preview": {
       "distribution": "internal",
       "ios": {
-        "resourceClass": "m-medium",
+        "resourceClass": "m1-medium",
         "simulator": false
       },
       "android": {

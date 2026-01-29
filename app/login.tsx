@@ -19,8 +19,6 @@ import { router } from 'expo-router';
 import { Eye, EyeOff, Mail, Lock, Heart, Sparkles, Star, Wifi } from 'lucide-react-native';
 import { getPalette, getGradient, shadow, spacing, radii } from '@/constants/theme';
 import { testSupabaseConnection } from '@/lib/supabase';
-import AppleLogo from '@/components/AppleLogo';
-import GoogleLogo from '@/components/GoogleLogo';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -375,9 +373,7 @@ export default function LoginScreen() {
                   testID="apple-signin-button"
                 >
                   <View style={styles.appleButtonContent}>
-                    <View style={styles.appleLogoContainer}>
-                      <AppleLogo size={20} color="#FFFFFF" />
-                    </View>
+                    <Text style={styles.appleIcon}>🍎</Text>
                     <Text style={styles.appleButtonText}>
                       {isLoading ? 'Signing in...' : 'Continue with Apple'}
                     </Text>
@@ -555,41 +551,6 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     color: palette.textMuted,
     fontWeight: '600',
   },
-  appleButton: {
-    backgroundColor: '#000000',
-    borderRadius: radii.lg,
-    height: 56,
-    marginBottom: spacing.md,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  appleButtonDisabled: {
-    opacity: 0.6,
-  },
-  appleButtonContent: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-  appleLogoContainer: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  appleButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
   googleButton: {
     backgroundColor: palette.surfaceElevated,
     borderRadius: radii.lg,
@@ -609,12 +570,10 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     alignItems: 'center',
     gap: spacing.md,
   },
-  googleLogoContainer: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
+  googleIcon: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#4285F4',
   },
   googleButtonText: {
     color: palette.textPrimary,

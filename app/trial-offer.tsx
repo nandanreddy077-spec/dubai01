@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -8,7 +8,6 @@ import {
   Platform,
   Alert,
   Animated,
-  AppState,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -28,7 +27,6 @@ import {
 } from 'lucide-react-native';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import Logo from '@/components/Logo';
-import PaymentProcessingScreen from '@/components/PaymentProcessingScreen';
 
 
 
@@ -79,7 +77,6 @@ export default function TrialOfferScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [pulseAnim] = useState(new Animated.Value(0));
   const [scaleAnim] = useState(new Animated.Value(1));
-  const processingRef = useRef(false);
 
   useEffect(() => {
     // Pulse animation for premium badge
@@ -103,39 +100,10 @@ export default function TrialOfferScreen() {
     return () => pulseAnimation.stop();
   }, [pulseAnim]);
 
-  // Handle app state changes to ensure processing screen stays visible
-  // This handles the case when user switches to payment app (Apple Pay, banking app, etc.)
-  useEffect(() => {
-    if (!isProcessing) return;
-
-    let backgroundTime: number | null = null;
-
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'background' && processingRef.current) {
-        // App went to background - user might be switching to payment app
-        backgroundTime = Date.now();
-        console.log('App went to background during payment processing - user may be completing payment in another app');
-      } else if (nextAppState === 'active' && processingRef.current) {
-        // App came back to foreground - user returned from payment app
-        const timeInBackground = backgroundTime ? Date.now() - backgroundTime : 0;
-        console.log(`App returned to foreground after ${timeInBackground}ms - checking payment status...`);
-        
-        // Processing screen is still visible (controlled by isProcessing state)
-        // The processInAppPurchase promise will resolve when payment completes
-        // If user completed payment in external app, RevenueCat will detect it
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [isProcessing]);
-
   const handleStartTrial = useCallback(async () => {
     if (isProcessing) return;
 
     setIsProcessing(true);
-    processingRef.current = true;
 
     // Animate button press
     Animated.sequence([
@@ -166,27 +134,11 @@ export default function TrialOfferScreen() {
       }
 
       // Mobile: Process in-app purchase with trial (REQUIRES CARD)
-      // Processing screen will be shown while isProcessing is true
       console.log(`Starting ${selectedPlan} subscription with 7-day trial (card required)...`);
       const result = await processInAppPurchase(selectedPlan);
 
-      // Keep processing screen visible until we handle the result
-      // This ensures the screen stays visible even after native payment dialog closes
-      // The processInAppPurchase already waits for sync to complete, so we just need a small delay for UI
-      await new Promise(resolve => setTimeout(resolve, 300)); // Small delay for smooth transition
-
       if (result.success) {
         // Payment succeeded = card added = trial starts automatically via RevenueCat
-        // Sync is already completed in processInAppPurchase, but verify subscription status
-        if (result.syncCompleted === false) {
-          // Sync didn't complete - wait a bit more and try to verify
-          console.log('Waiting for subscription sync to complete...');
-          await new Promise(resolve => setTimeout(resolve, 1500));
-        }
-        
-        processingRef.current = false;
-        setIsProcessing(false);
-        
         Alert.alert(
           '🎉 Trial Started!',
           `Your 7-day free trial has started! You'll be charged ${
@@ -200,15 +152,9 @@ export default function TrialOfferScreen() {
           ]
         );
       } else if (result.error === 'STORE_REDIRECT') {
-        // User was redirected to store - hide processing screen
-        processingRef.current = false;
-        setIsProcessing(false);
+        // User was redirected to store
         console.log('User redirected to store');
       } else {
-        // Payment failed or cancelled - hide processing screen
-        processingRef.current = false;
-        setIsProcessing(false);
-        
         const errorMessage = result.cancelled 
           ? 'To start your free trial, please add a payment method. Your card won\'t be charged until after the 7-day trial period ends.'
           : result.error || 'Please add a payment method to start your trial.';
@@ -224,9 +170,6 @@ export default function TrialOfferScreen() {
       }
     } catch (error) {
       console.error('Trial start error:', error);
-      processingRef.current = false;
-      setIsProcessing(false);
-      
       Alert.alert(
         'Connection Error',
         'Unable to connect. Please check your internet and try again.',
@@ -235,6 +178,8 @@ export default function TrialOfferScreen() {
           { text: 'Retry', onPress: () => handleStartTrial() },
         ]
       );
+    } finally {
+      setIsProcessing(false);
     }
   }, [selectedPlan, processInAppPurchase, isProcessing, scaleAnim]);
 
@@ -470,13 +415,6 @@ export default function TrialOfferScreen() {
           <Text style={styles.legalLink}>Privacy Policy</Text>
         </Text>
       </View>
-
-      {/* Payment Processing Screen */}
-      <PaymentProcessingScreen
-        visible={isProcessing}
-        message="Setting up your payment..."
-        showExtendedMessage={true}
-      />
     </View>
   );
 }

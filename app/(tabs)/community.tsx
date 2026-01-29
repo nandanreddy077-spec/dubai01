@@ -40,9 +40,8 @@ import {
   MapPin,
   ThumbsUp,
   Lightbulb,
-  User as UserIcon,
+
   Gift,
-  Camera,
 } from "lucide-react-native";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getPalette, shadow, spacing, radii } from "@/constants/theme";
@@ -51,7 +50,7 @@ import type { Post, ReactionType, Challenge, ViewMode } from "@/types/community"
 import * as ImagePicker from 'expo-image-picker';
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -85,8 +84,6 @@ export default function CommunityScreen() {
     getUserCollections,
     addPostToCollection,
     reportPost,
-    deletePost,
-    editPost,
   } = useCommunity();
 
   const [viewMode, setViewMode] = useState<ViewMode>('feed');
@@ -97,7 +94,6 @@ export default function CommunityScreen() {
   const [showCircles, setShowCircles] = useState<boolean>(false);
   const [showChallenges, setShowChallenges] = useState<boolean>(false);
   const [showComments, setShowComments] = useState<boolean>(false);
-  const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [commentText, setCommentText] = useState<string>('');
   const [postCaption, setPostCaption] = useState<string>('');
@@ -108,11 +104,6 @@ export default function CommunityScreen() {
   const [postToSave, setPostToSave] = useState<Post | null>(null);
   const [showCreateCollection, setShowCreateCollection] = useState<boolean>(false);
   const [newCollectionName, setNewCollectionName] = useState<string>('');
-  const [showEditPost, setShowEditPost] = useState<boolean>(false);
-  const [editingPost, setEditingPost] = useState<Post | null>(null);
-  const [editCaption, setEditCaption] = useState<string>('');
-  const [editImage, setEditImage] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState<boolean>(false);
   const selectedCircleId = 'global';
 
   const userChallenges = getUserChallenges();
@@ -464,15 +455,7 @@ export default function CommunityScreen() {
           <TouchableOpacity 
             style={styles.moreBtn}
             onPress={() => {
-              const userId = user?.id || authUser?.id || 'guest';
-              const isOwnPost = post.author.id === userId;
-              console.log('[Post Options] User check:', {
-                'post.author.id': post.author.id,
-                'userId': userId,
-                'user?.id': user?.id,
-                'authUser?.id': authUser?.id,
-                'isOwnPost': isOwnPost,
-              });
+              const isOwnPost = post.author.id === (user?.id || 'guest');
               Alert.alert(
                 'Post Options',
                 'Choose an option',
@@ -481,11 +464,7 @@ export default function CommunityScreen() {
                     {
                       text: 'Edit Post',
                       onPress: () => {
-                        setEditingPost(post);
-                        setEditCaption(post.caption || '');
-                        setEditImage(post.imageUrl || null);
-                        setPostImages(post.images || []);
-                        setShowEditPost(true);
+                        Alert.alert('Edit', 'Edit post functionality coming soon!');
                       },
                     },
                     {
@@ -493,24 +472,14 @@ export default function CommunityScreen() {
                       onPress: () => {
                         Alert.alert(
                           'Delete Post',
-                          'Are you sure you want to delete this post? This action cannot be undone.',
+                          'Are you sure you want to delete this post?',
                           [
                             { text: 'Cancel', style: 'cancel' },
                             {
                               text: 'Delete',
                               style: 'destructive' as const,
-                              onPress: async () => {
-                                try {
-                                  const result = await deletePost(post.circleId, post.id);
-                                  if (result?.error) {
-                                    Alert.alert('Error', result.error);
-                                  } else if (result?.success) {
-                                    Alert.alert('Deleted', 'Post deleted successfully!');
-                                  }
-                                } catch (error) {
-                                  console.error('Error deleting post:', error);
-                                  Alert.alert('Error', 'Failed to delete post. Please try again.');
-                                }
+                              onPress: () => {
+                                Alert.alert('Deleted', 'Post deletion functionality coming soon!');
                               },
                             },
                           ]
@@ -843,12 +812,6 @@ export default function CommunityScreen() {
         key={challenge.id} 
         style={styles.challengeCard}
         activeOpacity={0.8}
-        onPress={() => {
-          router.push({
-            pathname: '/challenge-detail',
-            params: { challengeId: challenge.id },
-          });
-        }}
       >
         <Image source={{ uri: challenge.image }} style={styles.challengeImage} />
         <View style={styles.challengeOverlay} />
@@ -930,28 +893,6 @@ export default function CommunityScreen() {
             {activeChallenges.length > 0 && (
               <View style={styles.pulseDot} />
             )}
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.headerIconBtn} 
-            activeOpacity={0.7}
-            onPress={() => {
-              if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/messages');
-            }}
-          >
-            <MessageCircle color={palette.textPrimary} size={24} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.headerIconBtn} 
-            activeOpacity={0.7}
-            onPress={() => {
-              if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowProfileMenu(true);
-            }}
-          >
-            <MoreHorizontal color={palette.textPrimary} size={24} />
           </TouchableOpacity>
         </View>
       </View>
@@ -1192,195 +1133,6 @@ export default function CommunityScreen() {
         </View>
       </Modal>
 
-      {/* Edit Post Modal */}
-      <Modal
-        visible={showEditPost}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => {
-          setShowEditPost(false);
-          setEditingPost(null);
-          setEditCaption('');
-          setEditImage(null);
-          setPostImages([]);
-        }}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Edit Post</Text>
-            <TouchableOpacity onPress={() => {
-              setShowEditPost(false);
-              setEditingPost(null);
-              setEditCaption('');
-              setEditImage(null);
-              setPostImages([]);
-            }}>
-              <X size={24} color={palette.textPrimary} />
-            </TouchableOpacity>
-          </View>
-          
-          <ScrollView style={styles.modalBody}>
-            {editImage && (
-              <View style={styles.imagePreview}>
-                <Image source={{ uri: editImage }} style={styles.imagePreviewImage} />
-                <TouchableOpacity 
-                  style={styles.removeImageButton}
-                  onPress={() => setEditImage(null)}
-                >
-                  <X size={20} color="#FFF" />
-                </TouchableOpacity>
-              </View>
-            )}
-            
-            <Text style={styles.modalLabel}>Caption</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="What's on your mind?"
-              placeholderTextColor={palette.textMuted}
-              value={editCaption}
-              onChangeText={setEditCaption}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-            
-            <TouchableOpacity 
-              style={styles.imageButton} 
-              onPress={async () => {
-                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                if (status !== 'granted') {
-                  Alert.alert('Permission needed', 'Please allow access to your photos.');
-                  return;
-                }
-                
-                const result = await ImagePicker.launchImageLibraryAsync({
-                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                  allowsEditing: true,
-                  quality: 0.8,
-                  aspect: [1, 1],
-                });
-                
-                if (!result.canceled && result.assets[0]) {
-                  setEditImage(result.assets[0].uri);
-                }
-              }}
-            >
-              <Camera size={20} color={palette.primary} />
-              <Text style={styles.imageButtonText}>
-                {editImage ? 'Change Photo' : 'Add Photo'}
-              </Text>
-            </TouchableOpacity>
-          </ScrollView>
-          
-          <View style={styles.modalFooter}>
-            <TouchableOpacity
-              style={[styles.submitButton, (isEditing || (!editCaption.trim() && !editImage)) && styles.submitButtonDisabled]}
-              onPress={async () => {
-                if (!editingPost) return;
-                
-                if (!editCaption.trim() && !editImage) {
-                  Alert.alert('Empty Post', 'Please add a caption or image.');
-                  return;
-                }
-                
-                setIsEditing(true);
-                try {
-                  const result = await editPost(editingPost.circleId, editingPost.id, {
-                    caption: editCaption.trim(),
-                    imageUrl: editImage,
-                  });
-                  
-                  if (result?.error) {
-                    Alert.alert('Error', result.error);
-                  } else if (result?.success) {
-                    Alert.alert('Success', 'Post updated successfully!');
-                    setShowEditPost(false);
-                    setEditingPost(null);
-                    setEditCaption('');
-                    setEditImage(null);
-                    setPostImages([]);
-                  }
-                } catch (error) {
-                  console.error('Error editing post:', error);
-                  Alert.alert('Error', 'Failed to edit post. Please try again.');
-                } finally {
-                  setIsEditing(false);
-                }
-              }}
-              disabled={isEditing || (!editCaption.trim() && !editImage)}
-            >
-              {isEditing ? (
-                <ActivityIndicator color={palette.textLight} />
-              ) : (
-                <>
-                  <Send size={18} color={palette.textLight} />
-                  <Text style={styles.submitButtonText}>Update Post</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
-
-      {/* Profile Menu Modal */}
-      <Modal
-        visible={showProfileMenu}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setShowProfileMenu(false)}
-      >
-        <TouchableOpacity 
-          style={styles.menuOverlay}
-          activeOpacity={1}
-          onPress={() => setShowProfileMenu(false)}
-        >
-          <View style={styles.profileMenu}>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setShowProfileMenu(false);
-                const userId = user?.id || authUser?.id || 'guest';
-                router.push({
-                  pathname: '/user-profile',
-                  params: { userId },
-                });
-              }}
-            >
-              <View style={styles.menuItemContent}>
-                <View style={styles.menuItemIcon}>
-                  <Image 
-                    source={{ uri: user?.avatar || authUser?.user_metadata?.avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150' }} 
-                    style={styles.menuItemAvatar}
-                  />
-                </View>
-                <View style={styles.menuItemText}>
-                  <Text style={styles.menuItemTitle}>View Profile</Text>
-                  <Text style={styles.menuItemSubtitle}>See your posts and activity</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setShowProfileMenu(false);
-                router.push('/(tabs)/profile');
-              }}
-            >
-              <View style={styles.menuItemContent}>
-                <View style={[styles.menuItemIcon, { backgroundColor: palette.surface }]}>
-                  <UserIcon size={20} color={palette.primary} />
-                </View>
-                <View style={styles.menuItemText}>
-                  <Text style={styles.menuItemTitle}>Account Settings</Text>
-                  <Text style={styles.menuItemSubtitle}>Manage your account</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
       {/* Create Post Modal */}
       <Modal
         visible={showCreatePost}
@@ -1421,15 +1173,7 @@ export default function CommunityScreen() {
                 source={{ uri: user?.avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150' }} 
                 style={styles.createPostAvatar} 
               />
-              <Text style={styles.createPostUsername}>
-                {(() => {
-                  const nameFromAuth = authUser?.user_metadata && typeof authUser.user_metadata === 'object' 
-                    ? (authUser.user_metadata as { full_name?: string; name?: string }).full_name ?? 
-                      (authUser.user_metadata as { full_name?: string; name?: string }).name 
-                    : undefined;
-                  return nameFromAuth ?? user?.name ?? user?.email?.split('@')[0] ?? 'Guest User';
-                })()}
-              </Text>
+              <Text style={styles.createPostUsername}>{user?.name || user?.email?.split('@')[0] || 'You'}</Text>
             </View>
             
             <TextInput
@@ -2654,43 +2398,6 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontWeight: '700' as const,
     color: palette.textLight,
   },
-  imagePreview: {
-    position: 'relative',
-    marginBottom: spacing.md,
-    borderRadius: radii.md,
-    overflow: 'hidden',
-  },
-  imagePreviewImage: {
-    width: '100%',
-    height: 300,
-    resizeMode: 'cover',
-  },
-  removeImageButton: {
-    position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 20,
-    padding: spacing.xs,
-  },
-  submitButton: {
-    backgroundColor: palette.primary,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radii.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    color: palette.textLight,
-    fontSize: 16,
-    fontWeight: '700',
-  },
 
   // Image Carousel Styles
   postImageCarousel: {
@@ -2781,58 +2488,5 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     backgroundColor: palette.primary,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-    paddingTop: 60,
-    paddingRight: 16,
-  },
-  profileMenu: {
-    backgroundColor: palette.surface,
-    borderRadius: 16,
-    padding: 8,
-    minWidth: 280,
-    ...shadow.elevated,
-    borderWidth: 1,
-    borderColor: palette.borderLight,
-  },
-  menuItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-  },
-  menuItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  menuItemIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: palette.backgroundStart,
-  },
-  menuItemAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  menuItemText: {
-    flex: 1,
-  },
-  menuItemTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: palette.textPrimary,
-    marginBottom: 2,
-  },
-  menuItemSubtitle: {
-    fontSize: 13,
-    color: palette.textSecondary,
   },
 });

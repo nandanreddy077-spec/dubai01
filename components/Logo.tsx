@@ -5,20 +5,15 @@ interface LogoProps {
   size?: number;
   style?: object;
   showText?: boolean;
-  hideBackground?: boolean;
 }
 
-export default function Logo({ size = 80, style, showText = false, hideBackground = false }: LogoProps) {
+export default function Logo({ size = 80, style, showText = false }: LogoProps) {
   const logoSize = size * 1.2;
   const squareSize = logoSize * 1.3;
 
   return (
     <View style={[styles.wrapper, style]}>
-      <View style={[
-        styles.squareContainer, 
-        { width: squareSize, height: squareSize },
-        hideBackground && styles.squareContainerNoBackground
-      ]}>
+      <View style={[styles.squareContainer, { width: squareSize, height: squareSize }]}>
       <Image
           source={require('@/assets/images/logo.png')}
           style={[styles.logo, { width: logoSize, height: logoSize }]}
@@ -44,10 +39,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     // Slight rotation for tilted effect
     transform: [{ rotate: '-5deg' }],
-  },
-  squareContainerNoBackground: {
-    backgroundColor: 'transparent',
-    transform: [{ rotate: '0deg' }],
   },
   logo: {
     borderRadius: 1000,

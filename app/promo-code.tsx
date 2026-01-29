@@ -67,7 +67,7 @@ export default function PromoCodeScreen() {
       // For iOS - redirect to App Store redemption
       if (Platform.OS === 'ios') {
         // iOS App Store promo code redemption URL
-        const redemptionUrl = `https://apps.apple.com/redeem?ctx=offercodes&id=6752925324&code=${trimmedCode}`;
+        const redemptionUrl = `https://apps.apple.com/redeem?ctx=offercodes&id=YOUR_APP_ID&code=${trimmedCode}`;
         
         const canOpen = await Linking.canOpenURL(redemptionUrl);
         

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import type { Circle, Comment, CreateCircleInput, CreatePostInput, Post, ReactionType, UserMembership, Challenge, UserChallenge, Story, Leaderboard, UserFollow, Collection, ProductTag, Message, Conversation } from '@/types/community';
+import type { Circle, Comment, CreateCircleInput, CreatePostInput, Post, ReactionType, UserMembership, Challenge, UserChallenge, Story, Leaderboard, UserFollow, Collection, ProductTag } from '@/types/community';
 import { useUser } from '@/contexts/UserContext';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -50,15 +50,13 @@ const LEADERBOARD_KEY = 'glow_community_leaderboard_v1';
 const FOLLOWS_KEY = 'glow_community_follows_v1';
 const COLLECTIONS_KEY = 'glow_community_collections_v1';
 const PRODUCTS_KEY = 'glow_community_products_v1';
-const CONVERSATIONS_KEY = 'glow_community_conversations_v1';
-const MESSAGES_KEY = 'glow_community_messages_v1';
 
 function generateId(prefix: string = 'id'): string {
   return `${prefix}_${Math.random().toString(36).slice(2)}_${Date.now()}`;
 }
 
 export const [CommunityProvider, useCommunity] = createContextHook(() => {
-  const { user, updateUserStats } = useUser();
+  const { user } = useUser();
   const { user: authUser } = useAuth();
 
   const [circles, setCircles] = useState<Circle[]>([]);
@@ -71,15 +69,13 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
   const [follows, setFollows] = useState<UserFollow[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [products, setProducts] = useState<ProductTag[]>([]);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [rawCircles, rawPosts, rawMemberships, rawChallenges, rawUserChallenges, rawStories, rawLeaderboard, rawFollows, rawCollections, rawProducts, rawConversations, rawMessages] = await Promise.all([
+      const [rawCircles, rawPosts, rawMemberships, rawChallenges, rawUserChallenges, rawStories, rawLeaderboard, rawFollows, rawCollections, rawProducts] = await Promise.all([
         storage.getItem(CIRCLES_KEY),
         storage.getItem(POSTS_KEY),
         storage.getItem(MEMBERSHIPS_KEY),
@@ -90,8 +86,6 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
         storage.getItem(FOLLOWS_KEY),
         storage.getItem(COLLECTIONS_KEY),
         storage.getItem(PRODUCTS_KEY),
-        storage.getItem(CONVERSATIONS_KEY),
-        storage.getItem(MESSAGES_KEY),
       ]);
 
       let nextCircles: Circle[] = createDefaultCircles();
@@ -104,8 +98,6 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       let nextFollows: UserFollow[] = [];
       let nextCollections: Collection[] = [];
       let nextProducts: ProductTag[] = [];
-      let nextConversations: Conversation[] = [];
-      let nextMessages: Record<string, Message[]> = {};
       
       // Parse circles with error handling
       if (rawCircles) {
@@ -152,12 +144,8 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
         } catch {
           nextChallenges = createDefaultChallenges();
         }
-      } else {
-        // Create default challenges with 0 participants - will be calculated from userChallenges
-        nextChallenges = createDefaultChallenges();
       }
       
-      // Load userChallenges first so we can calculate participant counts
       if (rawUserChallenges) {
         try {
           const parsed = JSON.parse(rawUserChallenges);
@@ -166,15 +154,6 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
           nextUserChallenges = [];
         }
       }
-      
-      // Recalculate participant counts from actual userChallenges (overwrites any stored fake counts)
-      nextChallenges = nextChallenges.map(challenge => {
-        const participantCount = nextUserChallenges.filter(uc => uc.challengeId === challenge.id).length;
-        return {
-          ...challenge,
-          participants: participantCount, // Always use real count from userChallenges
-        };
-      });
       
       if (rawStories) {
         try {
@@ -194,19 +173,10 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
         }
       }
 
-      // Calculate real participant counts from userChallenges
-      const challengesWithRealCounts = nextChallenges.map(challenge => {
-        const participantCount = nextUserChallenges.filter(uc => uc.challengeId === challenge.id).length;
-        return {
-          ...challenge,
-          participants: participantCount,
-        };
-      });
-      
       setCircles(nextCircles);
       setPosts(nextPosts);
       setMemberships(nextMemberships);
-      setChallenges(nextChallenges); // Already has real participant counts calculated above
+      setChallenges(nextChallenges);
       setUserChallenges(nextUserChallenges);
       setStories(nextStories);
       setLeaderboard(nextLeaderboard);
@@ -241,31 +211,9 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
         }
       }
       
-      // Parse conversations
-      if (rawConversations) {
-        try {
-          const parsed = JSON.parse(rawConversations);
-          nextConversations = Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-          console.error('Error parsing conversations:', e);
-        }
-      }
-
-      // Parse messages
-      if (rawMessages) {
-        try {
-          const parsed = JSON.parse(rawMessages);
-          nextMessages = typeof parsed === 'object' && parsed !== null ? parsed : {};
-        } catch (e) {
-          console.error('Error parsing messages:', e);
-        }
-      }
-
       setFollows(nextFollows);
       setCollections(nextCollections);
       setProducts(nextProducts);
-      setConversations(nextConversations);
-      setMessages(nextMessages);
       setError(null);
     } catch (e) {
       console.error('Failed to load community data', e);
@@ -291,8 +239,6 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       follows: UserFollow[];
       collections: Collection[];
       products: ProductTag[];
-      conversations: Conversation[];
-      messages: Record<string, Message[]>;
     }>
   ) => {
     try {
@@ -306,8 +252,6 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       if (next.follows) await storage.setItem(FOLLOWS_KEY, JSON.stringify(next.follows));
       if (next.collections) await storage.setItem(COLLECTIONS_KEY, JSON.stringify(next.collections));
       if (next.products) await storage.setItem(PRODUCTS_KEY, JSON.stringify(next.products));
-      if (next.conversations) await storage.setItem(CONVERSATIONS_KEY, JSON.stringify(next.conversations));
-      if (next.messages) await storage.setItem(MESSAGES_KEY, JSON.stringify(next.messages));
     } catch (e) {
       console.error('Failed to persist community data', e);
     }
@@ -364,54 +308,21 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
   }, [memberships, user?.id, circles, persist]);
 
   const createPost = useCallback(async (input: CreatePostInput) => {
-    // Get the most up-to-date name - use the EXACT same logic as profile screen displayName
-    const nameFromAuth = authUser?.user_metadata && typeof authUser.user_metadata === 'object' 
+    // Get name from auth metadata first, then user context, then email
+    const authName = authUser?.user_metadata && typeof authUser.user_metadata === 'object' 
       ? (authUser.user_metadata as { full_name?: string; name?: string }).full_name 
         ?? (authUser.user_metadata as { full_name?: string; name?: string }).name 
       : undefined;
-    
-    // Priority: user.name (from UserContext - updated immediately) > auth metadata > email
-    // user.name is updated IMMEDIATELY when profile is edited via setUser()
-    // auth metadata might take a moment to sync even after refreshSession()
-    // So prioritize user.name if it's been updated (not the default "Guest User")
-    let displayName: string;
-    
-    // First check if user.name exists and is NOT "Guest User" (the default)
-    if (user?.name && user.name !== 'Guest User' && user.name.trim() !== '') {
-      // User has updated their name in profile - use it (most up-to-date)
-      displayName = user.name;
-    } else if (nameFromAuth && nameFromAuth.trim() !== '') {
-      // Use name from Supabase metadata
-      displayName = nameFromAuth;
-    } else {
-      // Fallback to email or default
-      const emailName = user?.email?.split('@')[0] ?? authUser?.email?.split('@')[0];
-      displayName = emailName && emailName.trim() !== '' ? emailName : 'Guest User';
-    }
-    
-    // Debug logging to see what values we're getting
-    console.log('[createPost] Name resolution DEBUG:', {
-      'user?.name': user?.name,
-      'user?.name !== Guest User': user?.name !== 'Guest User',
-      'user?.name?.trim()': user?.name?.trim(),
-      'nameFromAuth': nameFromAuth,
-      'nameFromAuth?.trim()': nameFromAuth?.trim(),
-      'user?.email': user?.email,
-      'authUser?.email': authUser?.email,
-      'authUser?.user_metadata': authUser?.user_metadata,
-      'FINAL displayName': displayName,
-      'author.name': displayName,
-    });
+    const userName = user?.name || authName;
+    const displayName = userName || user?.email?.split('@')[0] || authUser?.email?.split('@')[0] || 'Guest';
     
     const author = {
       id: user?.id ?? authUser?.id ?? 'guest',
       name: displayName,
-      avatar: user?.avatar || authUser?.user_metadata?.avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
+      avatar: user?.avatar ?? 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
       isVerified: false,
       glowScore: user?.stats?.glowScore ?? 85,
     };
-    
-    console.log('[createPost] Final author object:', author);
     const p: Post = {
       id: generateId('post'),
       circleId: input.circleId,
@@ -442,133 +353,8 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     const nextPosts = { ...posts, [input.circleId]: [p, ...circlePosts].slice(0, 200) };
     setPosts(nextPosts);
     await persist({ posts: nextPosts });
-
-    // Award points and update streak if posting to a challenge
-    if (input.challengeId && updateUserStats) {
-      const challenge = challenges.find(c => c.id === input.challengeId);
-      if (challenge) {
-        const points = challenge.reward.points;
-        const currentPoints = user?.stats?.totalPoints || 0;
-        const currentChallengeStreak = user?.stats?.challengeStreak || 0;
-        const lastChallengePostDate = user?.stats?.lastChallengePostDate;
-        
-        // Calculate streak (similar to Snapchat)
-        const today = new Date().toDateString();
-        const lastPostDate = lastChallengePostDate ? new Date(lastChallengePostDate).toDateString() : null;
-        
-        let newStreak = 1;
-        if (lastPostDate === today) {
-          // Already posted today, don't increment streak
-          newStreak = currentChallengeStreak;
-        } else if (lastPostDate) {
-          const yesterday = new Date();
-          yesterday.setDate(yesterday.getDate() - 1);
-          const yesterdayStr = yesterday.toDateString();
-          
-          if (lastPostDate === yesterdayStr) {
-            // Posted yesterday, continue streak
-            newStreak = currentChallengeStreak + 1;
-          } else {
-            // Streak broken, start over
-            newStreak = 1;
-          }
-        } else {
-          // First post ever
-          newStreak = 1;
-        }
-
-        // Calculate new level based on total points
-        const newTotalPoints = currentPoints + points;
-        const newLevel = Math.floor(newTotalPoints / 500) + 1;
-
-        // Update user stats
-        await updateUserStats({
-          totalPoints: newTotalPoints,
-          level: newLevel,
-          challengeStreak: newStreak,
-          lastChallengePostDate: new Date().toISOString(),
-        });
-      }
-    }
-
     return p;
-  }, [user, authUser, posts, persist, challenges, updateUserStats]);
-
-  const deletePost = useCallback(async (circleId: string, postId: string) => {
-    try {
-      const userId = user?.id ?? authUser?.id ?? 'guest';
-      const nextPosts = { ...posts };
-      const postList = nextPosts[circleId] ?? [];
-      const postIndex = postList.findIndex(p => p.id === postId);
-      
-      if (postIndex === -1) {
-        return { error: 'Post not found' };
-      }
-      
-      const targetPost = postList[postIndex];
-      
-      // Only allow deletion if user owns the post
-      if (targetPost.author.id !== userId) {
-        return { error: 'You can only delete your own posts' };
-      }
-      
-      // Remove the post from the list
-      const updatedList = postList.filter(p => p.id !== postId);
-      nextPosts[circleId] = updatedList;
-      
-      setPosts(nextPosts);
-      await persist({ posts: nextPosts });
-      
-      return { success: true };
-    } catch (error) {
-      console.error('Error deleting post:', error);
-      return { error: 'Failed to delete post' };
-    }
-  }, [posts, user?.id, authUser?.id, persist]);
-
-  const editPost = useCallback(async (
-    circleId: string, 
-    postId: string, 
-    updates: { caption?: string; imageUrl?: string | null; images?: string[] }
-  ) => {
-    try {
-      const userId = user?.id ?? authUser?.id ?? 'guest';
-      const nextPosts = { ...posts };
-      const postList = nextPosts[circleId] ?? [];
-      const postIndex = postList.findIndex(p => p.id === postId);
-      
-      if (postIndex === -1) {
-        return { error: 'Post not found' };
-      }
-      
-      const targetPost = postList[postIndex];
-      
-      // Only allow editing if user owns the post
-      if (targetPost.author.id !== userId) {
-        return { error: 'You can only edit your own posts' };
-      }
-      
-      // Update the post
-      const updatedPost: Post = {
-        ...targetPost,
-        caption: updates.caption !== undefined ? updates.caption : targetPost.caption,
-        imageUrl: updates.imageUrl !== undefined ? updates.imageUrl : targetPost.imageUrl,
-        images: updates.images !== undefined ? updates.images : targetPost.images,
-      };
-      
-      const updatedList = [...postList];
-      updatedList[postIndex] = updatedPost;
-      nextPosts[circleId] = updatedList;
-      
-      setPosts(nextPosts);
-      await persist({ posts: nextPosts });
-      
-      return { success: true, post: updatedPost };
-    } catch (error) {
-      console.error('Error editing post:', error);
-      return { error: 'Failed to edit post' };
-    }
-  }, [posts, user?.id, authUser?.id, persist]);
+  }, [user, authUser, posts, persist]);
 
   const reportPost = useCallback(async (circleId: string, postId: string) => {
     try {
@@ -892,87 +678,6 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     return collections.filter(c => c.userId === userId);
   }, [collections, user?.id]);
 
-  // Messaging functions
-  const getConversation = useCallback((conversationId: string) => {
-    if (!conversationId) {
-      // Return all conversations for current user
-      const userId = user?.id ?? 'guest';
-      return conversations.filter(c => c.participantIds.includes(userId));
-    }
-    return conversations.find(c => c.id === conversationId) || null;
-  }, [conversations, user?.id]);
-
-  const getMessages = useCallback((conversationId: string): Message[] => {
-    return messages[conversationId] || [];
-  }, [messages]);
-
-  const sendMessage = useCallback(async (message: Message) => {
-    const conversation = conversations.find(c => c.id === message.conversationId);
-    if (!conversation) {
-      // Create new conversation
-      const newConversation: Conversation = {
-        id: message.conversationId,
-        participantIds: [message.senderId, message.receiverId],
-        lastMessage: message,
-        lastMessageAt: message.createdAt,
-        unreadCount: 0,
-        createdAt: Date.now(),
-      };
-      const nextConversations = [...conversations, newConversation];
-      setConversations(nextConversations);
-      await persist({ conversations: nextConversations });
-    } else {
-      // Update existing conversation
-      const nextConversations = conversations.map(c =>
-        c.id === message.conversationId
-          ? {
-              ...c,
-              lastMessage: message,
-              lastMessageAt: message.createdAt,
-              unreadCount: message.receiverId === (user?.id ?? 'guest') ? c.unreadCount : c.unreadCount + 1,
-            }
-          : c
-      );
-      setConversations(nextConversations);
-      await persist({ conversations: nextConversations });
-    }
-
-    // Add message to messages
-    const conversationMessages = messages[message.conversationId] || [];
-    const nextMessages = {
-      ...messages,
-      [message.conversationId]: [...conversationMessages, message],
-    };
-    setMessages(nextMessages);
-    await persist({ messages: nextMessages });
-  }, [conversations, messages, user?.id, persist]);
-
-  const markMessagesAsRead = useCallback(async (conversationId: string, userId: string) => {
-    const conversation = conversations.find(c => c.id === conversationId);
-    if (!conversation) return;
-
-    const nextConversations = conversations.map(c =>
-      c.id === conversationId && c.unreadCount > 0
-        ? { ...c, unreadCount: 0 }
-        : c
-    );
-    setConversations(nextConversations);
-    await persist({ conversations: nextConversations });
-
-    // Mark individual messages as read
-    const conversationMessages = messages[conversationId] || [];
-    const nextMessages = {
-      ...messages,
-      [conversationId]: conversationMessages.map(m =>
-        m.receiverId === userId && !m.readAt
-          ? { ...m, readAt: Date.now() }
-          : m
-      ),
-    };
-    setMessages(nextMessages);
-    await persist({ messages: nextMessages });
-  }, [conversations, messages, persist]);
-
   return useMemo(() => ({
     isLoading,
     error,
@@ -1012,12 +717,6 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     removePostFromCollection,
     getUserCollections,
     reportPost,
-    deletePost,
-    editPost,
-    getConversation,
-    getMessages,
-    sendMessage,
-    markMessagesAsRead,
   }), [
     isLoading,
     error,
@@ -1057,12 +756,6 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     removePostFromCollection,
     getUserCollections,
     reportPost,
-    deletePost,
-    editPost,
-    getConversation,
-    getMessages,
-    sendMessage,
-    markMessagesAsRead,
   ]);
 });
 
@@ -1193,7 +886,7 @@ function createDefaultChallenges(): Challenge[] {
       status: 'active' as const,
       icon: '☀️',
       reward: { points: 50, badge: '🌟' },
-      participants: 0, // Start with 0 - will be calculated from real user data
+      participants: 2847,
       endsAt: now + 24 * 60 * 60 * 1000,
       createdAt: now - 2 * 60 * 60 * 1000,
       tags: ['morning', 'routine'],
@@ -1207,7 +900,7 @@ function createDefaultChallenges(): Challenge[] {
       status: 'active' as const,
       icon: '💫',
       reward: { points: 100, badge: '👑' },
-      participants: 0, // Start with 0 - will be calculated from real user data
+      participants: 5634,
       endsAt: now + 7 * 24 * 60 * 60 * 1000,
       createdAt: now - 12 * 60 * 60 * 1000,
       tags: ['transformation', 'trending'],
@@ -1221,7 +914,7 @@ function createDefaultChallenges(): Challenge[] {
       status: 'active' as const,
       icon: '🌸',
       reward: { points: 75, badge: '🎀' },
-      participants: 0, // Start with 0 - will be calculated from real user data
+      participants: 3921,
       endsAt: now + 3 * 24 * 60 * 60 * 1000,
       createdAt: now - 6 * 60 * 60 * 1000,
       tags: ['selfcare', 'sunday'],
@@ -1235,7 +928,7 @@ function createDefaultChallenges(): Challenge[] {
       status: 'active' as const,
       icon: '🌱',
       reward: { points: 60, badge: '💚' },
-      participants: 0, // Start with 0 - will be calculated from real user data
+      participants: 4156,
       endsAt: now + 5 * 24 * 60 * 60 * 1000,
       createdAt: now - 8 * 60 * 60 * 1000,
       tags: ['natural', 'nomakeup'],
