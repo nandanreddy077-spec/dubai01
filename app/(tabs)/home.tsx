@@ -1,26 +1,33 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  Image,
   StatusBar,
   Dimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Camera, Palette, Sparkles, TrendingUp, ChevronRight, Zap } from "lucide-react-native";
+import {
+  ScanFace,
+  Sparkles,
+  Palette,
+  TrendingUp,
+  ChevronRight,
+  MessageCircle,
+} from "lucide-react-native";
 import { router } from "expo-router";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getPalette, getGradient, shadow, typography } from "@/constants/theme";
+import { getPalette, shadow } from "@/constants/theme";
 import PressableScale from "@/components/PressableScale";
 import TrialReminderBanner from "@/components/TrialReminderBanner";
 
 const { width: screenWidth } = Dimensions.get('window');
+const CARD_WIDTH = screenWidth * 0.75;
+const SPACER_WIDTH = (screenWidth - CARD_WIDTH) / 2;
 
 export default function HomeScreen() {
   const { user } = useUser();
@@ -58,6 +65,57 @@ export default function HomeScreen() {
     );
   }
 
+  const features = [
+    {
+      id: "scan",
+      step: "1",
+      title: "Scan My Face",
+      subtitle: "Get your Glow Score",
+      icon: <ScanFace color="#FFFFFF" size={52} strokeWidth={1.4} />,
+      colors: ["#0A0A0A", "#1F2937"] as const,
+      route: "/glow-analysis",
+      badge: "Start here",
+    },
+    {
+      id: "routine",
+      step: "2",
+      title: "Do My Routine",
+      subtitle: "Morning & night steps",
+      icon: <Sparkles color="#FFFFFF" size={52} strokeWidth={1.4} />,
+      colors: ["#C9A961", "#7A5E22"] as const,
+      route: "/(tabs)/glow-coach",
+      badge: `${user.stats.dayStreak} day streak`,
+    },
+    {
+      id: "coach",
+      step: "3",
+      title: "Ask Glow Coach",
+      subtitle: "Quick answers for skincare",
+      icon: <MessageCircle color="#FFFFFF" size={52} strokeWidth={1.4} />,
+      colors: ["#111827", "#C9A961"] as const,
+      route: "/ai-advisor",
+      badge: "Chat",
+    },
+    {
+      id: "style",
+      step: "Bonus",
+      title: "Style Check",
+      subtitle: "Rate my outfit",
+      icon: <Palette color="#FFFFFF" size={52} strokeWidth={1.4} />,
+      colors: ["#6B7280", "#0A0A0A"] as const,
+      route: "/style-check",
+    },
+    {
+      id: "progress",
+      step: "Track",
+      title: "My Progress",
+      subtitle: "See improvements",
+      icon: <TrendingUp color="#FFFFFF" size={52} strokeWidth={1.4} />,
+      colors: ["#059669", "#0A0A0A"] as const,
+      route: "/(tabs)/progress",
+    },
+  ] as const;
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -67,106 +125,93 @@ export default function HomeScreen() {
       >
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>{timeGreeting} {displayName}!</Text>
-            <Text style={styles.subtitle}>What would you like to do?</Text>
+            <Text style={styles.greeting}>{timeGreeting},</Text>
+            <Text style={styles.name}>{displayName}</Text>
           </View>
-          <View style={styles.streakBadge}>
-            <Text style={styles.streakEmoji}>🔥</Text>
-            <Text style={styles.streakNumber}>{user.stats.dayStreak}</Text>
+          <View style={styles.profileImageContainer}>
+             <View style={styles.streakBadge}>
+                <Text style={styles.streakEmoji}>🔥</Text>
+                <Text style={styles.streakNumber}>{user.stats.dayStreak}</Text>
+              </View>
           </View>
         </View>
 
         <TrialReminderBanner />
 
-        <PressableScale
-          onPress={() => router.push("/glow-analysis")}
-          pressedScale={0.98}
-          haptics="medium"
-          style={styles.mainCardContainer}
-        >
-          <LinearGradient
-            colors={['#1a1a1a', '#0a0a0a']}
-            style={styles.mainCard}
-          >
-            <View style={styles.mainCardIcon}>
-              <Camera color="#FFFFFF" size={40} strokeWidth={2} />
-            </View>
-            <View style={styles.mainCardContent}>
-              <Text style={styles.mainCardTitle}>Scan My Face</Text>
-              <Text style={styles.mainCardDesc}>Get your skin score in 30 seconds</Text>
-            </View>
-            <View style={styles.mainCardArrow}>
-              <ChevronRight color="#FFFFFF" size={28} />
-            </View>
-          </LinearGradient>
-        </PressableScale>
-
-        <Text style={styles.sectionTitle}>More Features</Text>
-
-        <View style={styles.cardsGrid}>
-          <PressableScale
-            onPress={() => router.push("/style-check")}
-            pressedScale={0.97}
-            haptics="light"
-            style={styles.featureCardContainer}
-          >
-            <View style={[styles.featureCard, { backgroundColor: '#F0F4F8' }]}>
-              <View style={[styles.featureIcon, { backgroundColor: '#E2E8F0' }]}>
-                <Palette color="#64748B" size={28} strokeWidth={2} />
-              </View>
-              <Text style={styles.featureTitle}>Style Check</Text>
-              <Text style={styles.featureDesc}>Is my outfit good?</Text>
-            </View>
-          </PressableScale>
-
-          <PressableScale
-            onPress={() => router.push("/(tabs)/glow-coach")}
-            pressedScale={0.97}
-            haptics="light"
-            style={styles.featureCardContainer}
-          >
-            <View style={[styles.featureCard, { backgroundColor: '#FEF3C7' }]}>
-              <View style={[styles.featureIcon, { backgroundColor: '#FDE68A' }]}>
-                <Sparkles color="#D97706" size={28} strokeWidth={2} />
-              </View>
-              <Text style={styles.featureTitle}>My Routine</Text>
-              <Text style={styles.featureDesc}>Daily skin plan</Text>
-            </View>
-          </PressableScale>
-
-          <PressableScale
-            onPress={() => router.push("/(tabs)/progress")}
-            pressedScale={0.97}
-            haptics="light"
-            style={styles.featureCardContainer}
-          >
-            <View style={[styles.featureCard, { backgroundColor: '#ECFDF5' }]}>
-              <View style={[styles.featureIcon, { backgroundColor: '#A7F3D0' }]}>
-                <TrendingUp color="#059669" size={28} strokeWidth={2} />
-              </View>
-              <Text style={styles.featureTitle}>My Progress</Text>
-              <Text style={styles.featureDesc}>See improvements</Text>
-            </View>
-          </PressableScale>
-
-          <PressableScale
-            onPress={() => router.push("/product-tracking")}
-            pressedScale={0.97}
-            haptics="light"
-            style={styles.featureCardContainer}
-          >
-            <View style={[styles.featureCard, { backgroundColor: '#F3E8FF' }]}>
-              <View style={[styles.featureIcon, { backgroundColor: '#E9D5FF' }]}>
-                <Zap color="#9333EA" size={28} strokeWidth={2} />
-              </View>
-              <Text style={styles.featureTitle}>Products</Text>
-              <Text style={styles.featureDesc}>Track what works</Text>
-            </View>
-          </PressableScale>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>What do you want to do?</Text>
+          <Text style={styles.sectionSubtitle}>Swipe right to pick one</Text>
         </View>
 
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.carouselContent}
+          decelerationRate="fast"
+          snapToInterval={CARD_WIDTH + 20}
+          pagingEnabled={false}
+        >
+          {features.map((feature, index) => (
+            <PressableScale
+              key={feature.id}
+              onPress={() => router.push(feature.route as any)}
+              pressedScale={0.95}
+              haptics="medium"
+              containerTestID={`home.feature.${feature.id}`}
+              style={[
+                styles.cardContainer,
+                index === 0 && { marginLeft: SPACER_WIDTH },
+                index === features.length - 1 && { marginRight: SPACER_WIDTH },
+              ]}
+            >
+              <LinearGradient
+                colors={feature.colors}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.card}
+              >
+                <View style={styles.cardContent}>
+                  <View style={styles.stepPill}>
+                    <Text style={styles.stepPillText}>{feature.step}</Text>
+                  </View>
+
+                  <View style={styles.iconCircle}>{feature.icon}</View>
+
+                  <View style={styles.cardTextContainer}>
+                    <Text style={styles.cardTitle}>{feature.title}</Text>
+                    <Text style={styles.cardSubtitle}>{feature.subtitle}</Text>
+                  </View>
+
+                  {feature.badge && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{feature.badge}</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.actionButton}>
+                    <ChevronRight color="#FFFFFF" size={24} />
+                  </View>
+                </View>
+
+                <View
+                  style={[
+                    styles.decorativeCircle,
+                    { top: -60, right: -60, width: 180, height: 180 },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.decorativeCircle,
+                    { bottom: -40, left: -40, width: 120, height: 120 },
+                  ]}
+                />
+              </LinearGradient>
+            </PressableScale>
+          ))}
+        </ScrollView>
+
         <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>Your Stats</Text>
+          <Text style={styles.sectionTitleSmall}>Your Stats</Text>
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <Text style={styles.statEmoji}>📸</Text>
@@ -174,27 +219,20 @@ export default function HomeScreen() {
               <Text style={styles.statLabel}>Scans</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statEmoji}>🔥</Text>
-              <Text style={styles.statNumber}>{user.stats.dayStreak}</Text>
-              <Text style={styles.statLabel}>Day Streak</Text>
-            </View>
-            <View style={styles.statCard}>
               <Text style={styles.statEmoji}>✨</Text>
               <Text style={styles.statNumber}>{user.stats.glowScore}</Text>
               <Text style={styles.statLabel}>Glow Score</Text>
             </View>
+             <PressableScale 
+                style={styles.statCard} 
+                onPress={() => router.push("/product-tracking")}
+            >
+              <Text style={styles.statEmoji}>⚡️</Text>
+              <Text style={styles.statNumber}>Products</Text>
+              <Text style={styles.statLabel}>Track</Text>
+            </PressableScale>
           </View>
         </View>
-
-        <View style={styles.tipCard}>
-          <Text style={styles.tipEmoji}>💡</Text>
-          <View style={styles.tipContent}>
-            <Text style={styles.tipTitle}>Quick Tip</Text>
-            <Text style={styles.tipText}>Scan your face in natural light for the best results!</Text>
-          </View>
-        </View>
-
-        <View style={styles.bottomSpacer} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -203,10 +241,10 @@ export default function HomeScreen() {
 const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   scrollContent: {
-    paddingBottom: 120,
+    paddingBottom: 100,
   },
   loadingContainer: {
     flex: 1,
@@ -221,153 +259,186 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 24,
+    paddingBottom: 16,
   },
   greeting: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1a1a1a',
-    letterSpacing: -0.5,
-    marginBottom: 4,
-  },
-  subtitle: {
     fontSize: 16,
     color: '#6B7280',
     fontWeight: '500',
+    marginBottom: 4,
+  },
+  name: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#0A0A0A",
+    letterSpacing: -0.5,
+  },
+  profileImageContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 20,
-    gap: 6,
+    gap: 4,
   },
   streakEmoji: {
-    fontSize: 18,
+    fontSize: 16,
   },
   streakNumber: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: '#D97706',
   },
-  mainCardContainer: {
-    marginHorizontal: 20,
-    marginBottom: 32,
-  },
-  mainCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 24,
-    borderRadius: 24,
-    ...shadow.medium,
-  },
-  mainCardIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  mainCardContent: {
-    flex: 1,
-  },
-  mainCardTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 4,
-    letterSpacing: -0.3,
-  },
-  mainCardDesc: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.8)',
-    fontWeight: '500',
-  },
-  mainCardArrow: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    paddingHorizontal: 20,
+  sectionHeader: {
+    paddingHorizontal: 24,
+    marginTop: 24,
     marginBottom: 16,
   },
-  cardsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 14,
-    gap: 12,
-    marginBottom: 32,
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    letterSpacing: -0.5,
   },
-  featureCardContainer: {
-    width: (screenWidth - 52) / 2,
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginTop: 4,
+    fontWeight: '500',
   },
-  featureCard: {
-    padding: 20,
-    borderRadius: 20,
-    alignItems: 'center',
-    minHeight: 140,
-    justifyContent: 'center',
+  carouselContent: {
+    paddingHorizontal: 0, // Using spacer logic for centering
+    paddingBottom: 24,
   },
-  featureIcon: {
+  cardContainer: {
+    width: CARD_WIDTH,
+    height: 392,
+    marginRight: 20,
+    borderRadius: 32,
+    ...shadow.medium,
+  },
+  card: {
+    flex: 1,
+    borderRadius: 32,
+    padding: 32,
+    justifyContent: 'space-between',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  decorativeCircle: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  cardContent: {
+    flex: 1,
+    zIndex: 1,
+    justifyContent: 'space-between',
+  },
+  stepPill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    marginBottom: 18,
+  },
+  stepPillText: {
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  iconCircle: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 22,
+  },
+  cardTextContainer: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 30,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    marginBottom: 8,
+    lineHeight: 36,
+    letterSpacing: -0.6,
+  },
+  cardSubtitle: {
+    fontSize: 16,
+    color: "rgba(255,255,255,0.84)",
+    fontWeight: "600",
+    lineHeight: 22,
+  },
+  badge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  badgeText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  actionButton: {
     width: 56,
     height: 56,
     borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  featureTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  featureDesc: {
-    fontSize: 13,
-    color: '#6B7280',
-    textAlign: 'center',
-    fontWeight: '500',
+    alignSelf: 'flex-end',
   },
   statsSection: {
-    marginBottom: 24,
+    marginTop: 24,
+    paddingHorizontal: 24,
+  },
+  sectionTitleSmall: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 16,
   },
   statsRow: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
     gap: 12,
   },
   statCard: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 24,
+    padding: 20,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    minHeight: 120,
   },
   statEmoji: {
-    fontSize: 24,
+    fontSize: 28,
     marginBottom: 8,
   },
   statNumber: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
     color: '#1a1a1a',
     marginBottom: 2,
+    textAlign: 'center',
   },
   statLabel: {
     fontSize: 12,
@@ -375,36 +446,5 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-  },
-  tipCard: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    padding: 16,
-    backgroundColor: '#F0FDF4',
-    borderRadius: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-  },
-  tipEmoji: {
-    fontSize: 32,
-    marginRight: 14,
-  },
-  tipContent: {
-    flex: 1,
-  },
-  tipTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#166534',
-    marginBottom: 2,
-  },
-  tipText: {
-    fontSize: 14,
-    color: '#15803D',
-    lineHeight: 20,
-  },
-  bottomSpacer: {
-    height: 20,
   },
 });

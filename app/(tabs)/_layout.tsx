@@ -59,7 +59,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="glow-coach"
           options={{
-            title: "My Plan",
+            title: "Routine",
             tabBarIcon: ({ color, size, focused }) => (
               <CalendarCheck
                 color={focused ? palette.primary : color}

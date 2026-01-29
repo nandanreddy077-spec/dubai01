@@ -8,19 +8,19 @@ import {
   Alert,
   Modal,
   TextInput,
+  ImageBackground,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette, shadow } from '@/constants/theme';
 import { 
-  CheckCircle,
-  Circle,
+  Check,
   Sun,
   Moon,
   Plus,
   X,
-  ChevronRight,
   Calendar,
   Sparkles,
+  ChevronRight
 } from 'lucide-react-native';
 import { useSkincare } from '@/contexts/SkincareContext';
 import { useGamification } from '@/contexts/GamificationContext';
@@ -28,6 +28,7 @@ import { SkincareStep, WeeklyPlan } from '@/types/skincare';
 import { router } from 'expo-router';
 import DailyRewardsModal from '@/components/DailyRewardsModal';
 import PressableScale from '@/components/PressableScale';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface DailyReward {
   id: string;
@@ -59,34 +60,36 @@ export default function GlowCoachScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.emptyState}>
-          <Text style={styles.emptyEmoji}>✨</Text>
-          <Text style={styles.emptyTitle}>No Plan Yet</Text>
+          <View style={styles.emptyIconCircle}>
+            <Sparkles color="#D97706" size={48} />
+          </View>
+          <Text style={styles.emptyTitle}>Start Your Journey</Text>
           <Text style={styles.emptySubtitle}>
-            Scan your face first to get a personalized skincare routine!
+            We need to know your skin first to create a magic routine for you.
           </Text>
           <PressableScale
             onPress={() => router.push('/glow-analysis')}
             pressedScale={0.97}
             haptics="medium"
+            style={styles.startButtonContainer}
           >
-            <View style={styles.startButton}>
-              <Text style={styles.startButtonText}>Scan My Face</Text>
+            <LinearGradient
+              colors={['#1a1a1a', '#4a4a4a']}
+              style={styles.startButton}
+            >
+              <Text style={styles.startButtonText}>Start Skin Scan</Text>
               <ChevronRight color="#FFFFFF" size={20} />
-            </View>
+            </LinearGradient>
           </PressableScale>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (!currentPlan) {
-    return null;
-  }
+  if (!currentPlan) return null;
 
   const currentWeek = Math.ceil(currentPlan.progress.currentDay / 7);
   const currentWeekPlan = currentPlan.weeklyPlans.find((w: WeeklyPlan) => w.week === currentWeek);
-  const progressPercentage = Math.round((currentPlan.progress.currentDay / currentPlan.duration) * 100);
-  const daysRemaining = currentPlan.duration - currentPlan.progress.currentDay + 1;
 
   const getTodaySteps = () => {
     if (!currentWeekPlan) return { morning: [], evening: [] };
@@ -111,11 +114,7 @@ export default function GlowCoachScreen() {
 
   const todaySteps = getTodaySteps();
   const allSteps = [...todaySteps.morning, ...todaySteps.evening];
-  const completedCount = allSteps.filter(step => 
-    currentPlan.progress.completedSteps.includes(step.id)
-  ).length;
-  const totalSteps = allSteps.length;
-
+  
   const handleStepComplete = async (stepId: string) => {
     const isCompleted = currentPlan.progress.completedSteps.includes(stepId);
     const updatedSteps = isCompleted
@@ -127,25 +126,7 @@ export default function GlowCoachScreen() {
     });
   };
 
-  const handleAddNote = async () => {
-    if (!noteText.trim()) return;
-    
-    const newNote = {
-      day: currentPlan.progress.currentDay,
-      content: noteText,
-      mood: selectedMood || undefined
-    };
-    
-    await updatePlanProgress(currentPlan.id, {
-      notes: [...currentPlan.progress.notes, newNote]
-    });
-    
-    setNoteText('');
-    setSelectedMood(null);
-    setShowNoteModal(false);
-  };
-
-  const handleCompleteDailyRoutine = async () => {
+  const handleCompleteDay = async () => {
     if (!currentPlan) return;
     
     if (hasCompletedToday()) {
@@ -158,19 +139,12 @@ export default function GlowCoachScreen() {
     );
     
     if (!allStepsCompleted) {
-      const incompleteSteps = allSteps.filter(step => 
-        !currentPlan.progress.completedSteps.includes(step.id)
-      );
-      Alert.alert(
-        'Not Done Yet',
-        `Tap each step to mark it complete:\n\n${incompleteSteps.map(s => `• ${s.name}`).join('\n')}`
-      );
+      Alert.alert('Almost there!', 'Please check off all steps first.');
       return;
     }
     
     try {
       const rewards = await completeDailyRoutine(currentPlan.id, currentPlan.progress.currentDay);
-      
       const isLastDay = currentPlan.progress.currentDay >= currentPlan.duration;
       const nextDay = isLastDay ? currentPlan.progress.currentDay : currentPlan.progress.currentDay + 1;
       
@@ -184,47 +158,70 @@ export default function GlowCoachScreen() {
       if (rewards && rewards.length > 0) {
         setDailyRewards(rewards);
         setShowRewardsModal(true);
-      } else {
-        Alert.alert(
-          isLastDay ? 'Plan Complete! 🎉' : 'Day Complete! ✨',
-          isLastDay 
-            ? 'Amazing! You finished your entire plan!' 
-            : `Great job! Ready for Day ${nextDay}?`
-        );
       }
     } catch (error) {
       Alert.alert('Error', 'Something went wrong. Try again.');
     }
   };
 
-  const renderStep = (step: SkincareStep, isCompleted: boolean) => (
-    <TouchableOpacity
-      key={step.id}
-      style={[styles.stepItem, isCompleted && styles.stepItemCompleted]}
-      onPress={() => handleStepComplete(step.id)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.stepCheckbox}>
-        {isCompleted ? (
-          <View style={styles.checkboxDone}>
-            <CheckCircle color="#FFFFFF" size={20} />
-          </View>
-        ) : (
-          <View style={styles.checkboxEmpty}>
-            <Circle color="#D1D5DB" size={20} />
-          </View>
-        )}
-      </View>
-      <View style={styles.stepContent}>
-        <Text style={[styles.stepName, isCompleted && styles.stepNameDone]}>
-          {step.name}
-        </Text>
-        <Text style={styles.stepDesc}>{step.description}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderRoutineSection = (title: string, steps: any[], icon: React.ReactNode, color: string, bgColor: string) => {
+    if (steps.length === 0) return null;
 
-  const isRoutineComplete = hasCompletedForPlanDay(currentPlan.id, currentPlan.progress.currentDay);
+    const allCompleted = steps.every(step => currentPlan.progress.completedSteps.includes(step.id));
+
+    return (
+      <View style={styles.sectionContainer}>
+        <View style={[styles.sectionHeader, { backgroundColor: bgColor }]}>
+           <View style={styles.sectionHeaderLeft}>
+            {icon}
+            <Text style={[styles.sectionTitle, { color }]}>{title}</Text>
+           </View>
+           {allCompleted && (
+             <View style={styles.sectionBadge}>
+                <Check color="#FFFFFF" size={14} strokeWidth={3} />
+                <Text style={styles.sectionBadgeText}>DONE</Text>
+             </View>
+           )}
+        </View>
+        
+        <View style={styles.stepsList}>
+          {steps.map((step, index) => {
+            const isCompleted = currentPlan.progress.completedSteps.includes(step.id);
+            return (
+              <PressableScale
+                key={step.id}
+                onPress={() => handleStepComplete(step.id)}
+                pressedScale={0.98}
+                style={[
+                    styles.stepCard, 
+                    isCompleted && styles.stepCardCompleted,
+                    index === steps.length - 1 && { borderBottomWidth: 0 }
+                ]}
+              >
+                <View style={[
+                    styles.checkbox,
+                    isCompleted ? { backgroundColor: color, borderColor: color } : { borderColor: '#E5E7EB' }
+                ]}>
+                    {isCompleted && <Check color="#FFFFFF" size={16} strokeWidth={3} />}
+                </View>
+                
+                <View style={styles.stepInfo}>
+                  <Text style={[styles.stepName, isCompleted && styles.stepNameCompleted]}>
+                    {step.name}
+                  </Text>
+                  {step.description && !isCompleted && (
+                    <Text style={styles.stepDesc} numberOfLines={1}>
+                        {step.description}
+                    </Text>
+                  )}
+                </View>
+              </PressableScale>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -233,143 +230,65 @@ export default function GlowCoachScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
       >
         <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>My Plan</Text>
-            <Text style={styles.headerSubtitle}>{currentPlan.title}</Text>
-          </View>
-          <View style={styles.dayBadge}>
-            <Calendar color="#D97706" size={16} />
-            <Text style={styles.dayText}>Day {currentPlan.progress.currentDay}</Text>
-          </View>
+            <View>
+                <Text style={styles.headerSubtitle}>Day {currentPlan.progress.currentDay}</Text>
+                <Text style={styles.headerTitle}>My Routine</Text>
+            </View>
+            <View style={styles.planBadge}>
+                <Sparkles color="#D97706" size={16} fill="#D97706" />
+                <Text style={styles.planBadgeText}>{currentPlan.title}</Text>
+            </View>
         </View>
 
-        <View style={styles.progressCard}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Your Progress</Text>
-            <Text style={styles.progressPercent}>{progressPercentage}%</Text>
-          </View>
-          <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: `${progressPercentage}%` }]} />
-          </View>
-          <Text style={styles.progressDays}>{daysRemaining} days left</Text>
-        </View>
-
-        <View style={styles.todaySection}>
-          <View style={styles.todayHeader}>
-            <Text style={styles.todayTitle}>Today's Routine</Text>
-            <Text style={styles.todayCount}>{completedCount}/{totalSteps} done</Text>
-          </View>
-
-          {todaySteps.morning.length > 0 && (
-            <View style={styles.routineBlock}>
-              <View style={styles.routineHeader}>
-                <View style={[styles.routineIcon, { backgroundColor: '#FEF3C7' }]}>
-                  <Sun color="#D97706" size={20} />
-                </View>
-                <Text style={styles.routineTitle}>Morning</Text>
-              </View>
-              {todaySteps.morning.map((step: SkincareStep) => 
-                renderStep(step, currentPlan.progress.completedSteps.includes(step.id))
-              )}
-            </View>
-          )}
-
-          {todaySteps.evening.length > 0 && (
-            <View style={styles.routineBlock}>
-              <View style={styles.routineHeader}>
-                <View style={[styles.routineIcon, { backgroundColor: '#EDE9FE' }]}>
-                  <Moon color="#7C3AED" size={20} />
-                </View>
-                <Text style={styles.routineTitle}>Evening</Text>
-              </View>
-              {todaySteps.evening.map((step: SkincareStep) => 
-                renderStep(step, currentPlan.progress.completedSteps.includes(step.id))
-              )}
-            </View>
-          )}
-        </View>
-
-        <TouchableOpacity 
-          style={styles.noteButton}
-          onPress={() => setShowNoteModal(true)}
-          activeOpacity={0.7}
-        >
-          <Plus color="#6B7280" size={20} />
-          <Text style={styles.noteButtonText}>Add Note</Text>
-        </TouchableOpacity>
-
-        {isRoutineComplete ? (
-          <View style={styles.completedBanner}>
-            <Text style={styles.completedEmoji}>✅</Text>
-            <Text style={styles.completedText}>Today's routine complete!</Text>
-          </View>
-        ) : (
-          <PressableScale
-            onPress={handleCompleteDailyRoutine}
-            pressedScale={0.98}
-            haptics="medium"
-          >
-            <View style={styles.completeButton}>
-              <Sparkles color="#FFFFFF" size={22} />
-              <Text style={styles.completeButtonText}>Complete Day {currentPlan.progress.currentDay}</Text>
-            </View>
-          </PressableScale>
+        {renderRoutineSection(
+            "Morning", 
+            todaySteps.morning, 
+            <Sun color="#D97706" size={24} />, 
+            "#D97706",
+            "#FEF3C7"
         )}
-      </ScrollView>
 
-      <Modal
-        visible={showNoteModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Note</Text>
-            <TouchableOpacity onPress={() => setShowNoteModal(false)}>
-              <X color="#6B7280" size={24} />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.modalContent}>
-            <Text style={styles.moodLabel}>How do you feel?</Text>
-            <View style={styles.moodRow}>
-              {[
-                { mood: 'great' as const, emoji: '😍' },
-                { mood: 'good' as const, emoji: '😊' },
-                { mood: 'okay' as const, emoji: '😐' },
-                { mood: 'bad' as const, emoji: '😞' }
-              ].map(({ mood, emoji }) => (
-                <TouchableOpacity
-                  key={mood}
-                  style={[styles.moodButton, selectedMood === mood && styles.moodButtonSelected]}
-                  onPress={() => setSelectedMood(mood)}
-                >
-                  <Text style={styles.moodEmoji}>{emoji}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            
-            <Text style={styles.moodLabel}>Your notes</Text>
-            <TextInput
-              style={styles.noteInput}
-              placeholder="How did your routine go?"
-              value={noteText}
-              onChangeText={setNoteText}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-            
-            <TouchableOpacity 
-              style={[styles.saveButton, { opacity: noteText.trim() ? 1 : 0.5 }]}
-              onPress={handleAddNote}
-              disabled={!noteText.trim()}
+        {renderRoutineSection(
+            "Evening", 
+            todaySteps.evening, 
+            <Moon color="#7C3AED" size={24} />, 
+            "#7C3AED",
+            "#EDE9FE"
+        )}
+
+        {/* Complete Day Button */}
+        <View style={styles.footer}>
+             <PressableScale
+                onPress={handleCompleteDay}
+                pressedScale={0.97}
+                haptics="medium"
+                style={[
+                    styles.completeButton,
+                    hasCompletedToday() && styles.completeButtonDone
+                ]}
             >
-              <Text style={styles.saveButtonText}>Save Note</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
+                <LinearGradient
+                     colors={hasCompletedToday() ? ['#059669', '#10B981'] : ['#1a1a1a', '#4a4a4a']}
+                     style={styles.completeButtonGradient}
+                     start={{ x: 0, y: 0 }}
+                     end={{ x: 1, y: 1 }}
+                >
+                    {hasCompletedToday() ? (
+                         <>
+                            <Check color="#FFFFFF" size={24} strokeWidth={3} />
+                            <Text style={styles.completeButtonText}>Day Complete!</Text>
+                         </>
+                    ) : (
+                        <>
+                            <Sparkles color="#FFFFFF" size={20} />
+                            <Text style={styles.completeButtonText}>Finish Day {currentPlan.progress.currentDay}</Text>
+                        </>
+                    )}
+                </LinearGradient>
+            </PressableScale>
+        </View>
+
+      </ScrollView>
 
       <DailyRewardsModal
         visible={showRewardsModal}
@@ -383,231 +302,144 @@ export default function GlowCoachScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F3F4F6', // Light gray bg for better contrast
   },
   scrollContent: {
-    flexGrow: 1,
+    padding: 20,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 20,
+    marginBottom: 24,
+    marginTop: 8,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '800',
     color: '#1a1a1a',
-    letterSpacing: -0.5,
+    letterSpacing: -1,
   },
   headerSubtitle: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#6B7280',
-    marginTop: 2,
-    fontWeight: '500',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
   },
-  dayBadge: {
+  planBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 16,
-    gap: 6,
-  },
-  dayText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#D97706',
-  },
-  progressCard: {
-    marginHorizontal: 20,
-    padding: 20,
-    backgroundColor: '#F9FAFB',
     borderRadius: 20,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    gap: 6,
+    ...shadow.small,
   },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  progressTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
-  },
-  progressPercent: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#059669',
-  },
-  progressBarBg: {
-    height: 10,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 5,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 5,
-  },
-  progressDays: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 10,
-    fontWeight: '500',
-  },
-  todaySection: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  todayHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  todayTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1a1a1a',
-  },
-  todayCount: {
+  planBadgeText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  routineBlock: {
-    marginBottom: 20,
-  },
-  routineHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  routineIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  routineTitle: {
-    fontSize: 17,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: '#4B5563',
   },
-  stepItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 16,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  stepItemCompleted: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
-  },
-  stepCheckbox: {
-    marginRight: 14,
-    marginTop: 2,
-  },
-  checkboxDone: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#10B981',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxEmpty: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  sectionContainer: {
     backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    marginBottom: 24,
+    overflow: 'hidden',
+    ...shadow.medium,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+  },
+  sectionHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  sectionBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#059669',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      gap: 4,
+  },
+  sectionBadgeText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '800',
+  },
+  stepsList: {
+    padding: 8,
+  },
+  stepCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  stepCardCompleted: {
+      opacity: 0.6,
+  },
+  checkbox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
+    marginRight: 16,
   },
-  stepContent: {
+  stepInfo: {
     flex: 1,
   },
   stepName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  stepNameDone: {
-    textDecorationLine: 'line-through',
-    color: '#9CA3AF',
+  stepNameCompleted: {
+      textDecorationLine: 'line-through',
+      color: '#9CA3AF',
   },
   stepDesc: {
     fontSize: 14,
     color: '#6B7280',
-    lineHeight: 20,
   },
-  noteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginHorizontal: 20,
-    paddingVertical: 14,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 14,
-    marginBottom: 16,
-  },
-  noteButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  completedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    marginHorizontal: 20,
-    paddingVertical: 18,
-    backgroundColor: '#F0FDF4',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#10B981',
-  },
-  completedEmoji: {
-    fontSize: 24,
-  },
-  completedText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#059669',
+  footer: {
+      marginTop: 12,
   },
   completeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    marginHorizontal: 20,
-    paddingVertical: 18,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    ...shadow.soft,
+    borderRadius: 24,
+    overflow: 'hidden',
+    ...shadow.medium,
+  },
+  completeButtonDone: {
+      ...shadow.none,
+  },
+  completeButtonGradient: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 20,
+      gap: 12,
   },
   completeButtonText: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -616,16 +448,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
+    backgroundColor: '#FFFFFF',
   },
-  emptyEmoji: {
-    fontSize: 64,
-    marginBottom: 20,
+  emptyIconCircle: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: '#FEF3C7',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 24,
   },
   emptyTitle: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
     color: '#1a1a1a',
-    marginBottom: 10,
+    marginBottom: 12,
     textAlign: 'center',
   },
   emptySubtitle: {
@@ -635,91 +473,21 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 32,
   },
+  startButtonContainer: {
+      width: '100%',
+      ...shadow.medium,
+  },
   startButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
-    paddingHorizontal: 28,
-    paddingVertical: 16,
-    borderRadius: 16,
+    justifyContent: 'center',
+    paddingVertical: 20,
+    borderRadius: 20,
     gap: 8,
   },
   startButtonText: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1a1a1a',
-  },
-  modalContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-  },
-  moodLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 12,
-  },
-  moodRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  moodButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  moodButtonSelected: {
-    borderColor: '#D97706',
-    backgroundColor: '#FEF3C7',
-  },
-  moodEmoji: {
-    fontSize: 28,
-  },
-  noteInput: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 16,
-    color: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    minHeight: 120,
-    marginBottom: 24,
-  },
-  saveButton: {
-    backgroundColor: '#1a1a1a',
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
   },
 });

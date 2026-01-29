@@ -13,11 +13,14 @@ import { router } from 'expo-router';
 interface BiometricConsentProps {
   onConsentChange: (consented: boolean) => void;
   required?: boolean;
+  variant?: 'default' | 'dark';
 }
 
-export default function BiometricConsent({ onConsentChange, required = true }: BiometricConsentProps) {
+export default function BiometricConsent({ onConsentChange, required = true, variant = 'default' }: BiometricConsentProps) {
   const { theme } = useTheme();
-  const palette = getPalette(theme);
+  // If variant is dark, force dark theme colors regardless of system theme
+  const activeTheme = variant === 'dark' ? 'dark' : theme;
+  const palette = getPalette(activeTheme);
   const [consented, setConsented] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
 
