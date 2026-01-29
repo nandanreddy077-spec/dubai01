@@ -1,9 +1,11 @@
 import React, { memo, useMemo } from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { View, Text, StyleSheet, Platform, Dimensions } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { palette, radii, shadow } from "@/constants/theme";
 import PressableScale from "@/components/PressableScale";
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type GlassTabBarRoute = {
   key: string;
@@ -44,201 +46,193 @@ export type GlassTabBarProps = {
 function GlassTabBarImpl({ state, descriptors, navigation }: GlassTabBarProps) {
   const routes = state.routes;
 
-  const containerStyle = useMemo(
-    () => [styles.container, shadow.soft] as const,
-    []
-  );
-
   const visibleRoutes = useMemo(() => {
     return routes.filter((route) => {
       const options = descriptors[route.key]?.options;
       const href = (options as { href?: unknown } | undefined)?.href;
       const tabBarButton = (options as { tabBarButton?: unknown } | undefined)?.tabBarButton;
       
-      // Hide routes with href: null
-      if (href === null) {
-        return false;
-      }
-      
-      // Hide routes with tabBarButton (even if it's a function that returns null)
-      if (tabBarButton !== undefined) {
-        return false;
-      }
-      
-      // Hide the progress route explicitly
-      if (route.name === 'progress') {
-        return false;
-      }
+      if (href === null) return false;
+      if (tabBarButton !== undefined) return false;
+      if (route.name === 'progress') return false;
       
       return true;
     });
   }, [descriptors, routes]);
 
   return (
-    <View style={containerStyle} pointerEvents="box-none" testID="glass-tabbar">
-      <BlurView intensity={Platform.OS === "web" ? 18 : 28} tint="light" style={styles.blur} />
-      <LinearGradient
-        colors={["rgba(255,255,255,0.92)", "rgba(255,255,255,0.68)"]}
-        start={{ x: 0.15, y: 0 }}
-        end={{ x: 0.85, y: 1 }}
-        style={styles.chrome}
-      />
-      <View style={styles.hairline} />
+    <View style={styles.wrapper} pointerEvents="box-none">
+      <View style={styles.container} testID="glass-tabbar">
+        <BlurView 
+          intensity={Platform.OS === "web" ? 25 : 50} 
+          tint="light" 
+          style={styles.blur} 
+        />
+        <LinearGradient
+          colors={["rgba(255,255,255,0.95)", "rgba(255,255,255,0.85)"]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.gradient}
+        />
+        <View style={styles.topBorder} />
 
-      <View style={styles.row}>
-        {visibleRoutes.map((route, index) => {
-          const isFocused = state.routes[state.index]?.key === route.key;
-          const { options } = descriptors[route.key];
+        <View style={styles.row}>
+          {visibleRoutes.map((route) => {
+            const isFocused = state.routes[state.index]?.key === route.key;
+            const { options } = descriptors[route.key];
 
-          const rawLabel =
-            options.tabBarLabel !== undefined
-              ? options.tabBarLabel
-              : options.title !== undefined
-                ? options.title
-                : route.name;
+            const rawLabel =
+              options.tabBarLabel !== undefined
+                ? options.tabBarLabel
+                : options.title !== undefined
+                  ? options.title
+                  : route.name;
 
-          const label = typeof rawLabel === "string" ? rawLabel : route.name;
+            const label = typeof rawLabel === "string" ? rawLabel : route.name;
 
-          const onPress = () => {
-            const event = navigation.emit({
-              type: "tabPress",
-              target: route.key,
-              canPreventDefault: true,
-            }) as { defaultPrevented?: boolean } | undefined;
+            const onPress = () => {
+              const event = navigation.emit({
+                type: "tabPress",
+                target: route.key,
+                canPreventDefault: true,
+              }) as { defaultPrevented?: boolean } | undefined;
 
-            if (!isFocused && !event?.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
+              if (!isFocused && !event?.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+            };
 
-          const onLongPress = () => {
-            navigation.emit({
-              type: "tabLongPress",
-              target: route.key,
-            });
-          };
+            const onLongPress = () => {
+              navigation.emit({
+                type: "tabLongPress",
+                target: route.key,
+              });
+            };
 
-          const renderIcon = options.tabBarIcon;
+            const renderIcon = options.tabBarIcon;
 
-          return (
-            <PressableScale
-              key={route.key}
-              accessibilityRole="button"
-              accessibilityState={isFocused ? { selected: true } : {}}
-              accessibilityLabel={options.tabBarAccessibilityLabel}
-              onPress={onPress}
-              onLongPress={onLongPress}
-              pressedScale={0.96}
-              haptics={isFocused ? "none" : "light"}
-              style={[styles.item, isFocused ? styles.itemFocused : undefined]}
-              testID={`tab-${route.name}`}
-              containerTestID={`tab-${route.name}-container`}
-            >
-              <View style={styles.itemInner}>
-                <View style={[styles.iconWrap, isFocused ? styles.iconWrapFocused : undefined]}>
-                  {typeof renderIcon === "function"
-                    ? renderIcon({
-                        focused: isFocused,
-                        color: isFocused ? palette.primary : palette.textSecondary,
-                        size: 22,
-                      })
-                    : null}
+            return (
+              <PressableScale
+                key={route.key}
+                accessibilityRole="button"
+                accessibilityState={isFocused ? { selected: true } : {}}
+                accessibilityLabel={options.tabBarAccessibilityLabel}
+                onPress={onPress}
+                onLongPress={onLongPress}
+                pressedScale={0.92}
+                haptics={isFocused ? "none" : "light"}
+                style={styles.tabItem}
+                testID={`tab-${route.name}`}
+              >
+                <View style={styles.tabContent}>
+                  <View style={[
+                    styles.iconWrapper,
+                    isFocused && styles.iconWrapperActive
+                  ]}>
+                    {typeof renderIcon === "function"
+                      ? renderIcon({
+                          focused: isFocused,
+                          color: isFocused ? palette.primary : palette.textSecondary,
+                          size: 22,
+                        })
+                      : null}
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.label,
+                      isFocused && styles.labelActive
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {label}
+                  </Text>
+
+                  {isFocused && <View style={styles.indicator} />}
                 </View>
-
-                <Text
-                  style={[styles.label, isFocused ? styles.labelFocused : undefined]}
-                  numberOfLines={1}
-                >
-                  {typeof label === "string" ? label : route.name}
-                </Text>
-
-                {isFocused ? <View style={styles.activeDot} /> : <View style={styles.activeDotSpacer} />}
-              </View>
-            </PressableScale>
-          );
-        })}
+              </PressableScale>
+            );
+          })}
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     position: "absolute",
-    left: 14,
-    right: 14,
-    bottom: Platform.OS === "ios" ? 18 : 14,
-    borderRadius: radii.xxl,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingBottom: Platform.OS === "ios" ? 28 : 16,
+  },
+  container: {
+    borderRadius: 28,
     overflow: "hidden",
+    ...shadow.medium,
   },
   blur: {
     ...StyleSheet.absoluteFillObject,
   },
-  chrome: {
+  gradient: {
     ...StyleSheet.absoluteFillObject,
     borderWidth: 1,
-    borderColor: "rgba(10,10,10,0.08)",
-    borderRadius: radii.xxl,
+    borderColor: "rgba(0,0,0,0.06)",
+    borderRadius: 28,
   },
-  hairline: {
+  topBorder: {
     position: "absolute",
-    left: 0,
-    right: 0,
+    left: 1,
+    right: 1,
     top: 0,
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    opacity: 0.75,
+    backgroundColor: "rgba(255,255,255,1)",
   },
   row: {
     flexDirection: "row",
-    paddingHorizontal: 6,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === "ios" ? 16 : 12,
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 10,
   },
-  item: {
+  tabItem: {
     flex: 1,
-    borderRadius: radii.xl,
   },
-  itemFocused: {
-    backgroundColor: "rgba(10,10,10,0.055)",
-  },
-  itemInner: {
+  tabContent: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
   },
-  iconWrap: {
-    borderRadius: radii.lg,
-    padding: 8,
+  iconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 2,
   },
-  iconWrapFocused: {
-    backgroundColor: "rgba(212,165,116,0.14)",
+  iconWrapperActive: {
+    backgroundColor: "rgba(10,10,10,0.06)",
   },
   label: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: "700" as const,
-    letterSpacing: 0.15,
+    fontSize: 11,
+    fontWeight: "600" as const,
+    letterSpacing: 0.1,
     color: palette.textSecondary,
   },
-  labelFocused: {
+  labelActive: {
     color: palette.textPrimary,
+    fontWeight: "700" as const,
   },
-  activeDot: {
-    marginTop: 4,
-    width: 14,
+  indicator: {
+    position: "absolute",
+    bottom: 0,
+    width: 20,
     height: 3,
-    borderRadius: 99,
+    borderRadius: 2,
     backgroundColor: palette.primary,
-    opacity: 0.22,
-  },
-  activeDotSpacer: {
-    marginTop: 4,
-    width: 14,
-    height: 3,
-    borderRadius: 99,
-    backgroundColor: "transparent",
   },
 });
 
