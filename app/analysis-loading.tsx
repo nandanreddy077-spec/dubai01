@@ -993,13 +993,12 @@ export default function AnalysisLoadingScreen() {
 
           {/* Title with better typography */}
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Creating your</Text>
-            <Text style={styles.titleAccent}>personalized plan...</Text>
+            <Text style={styles.title}>Getting your results...</Text>
           </View>
           
           {/* Description with better spacing */}
           <Text style={styles.description}>
-            Our AI is crafting a bespoke beauty journey{"\n"}tailored exclusively for you
+            Analyzing your skin with AI-powered technology
           </Text>
 
           {/* Progress Section */}
