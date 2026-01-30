@@ -1,12 +1,12 @@
 import { Tabs } from "expo-router";
-import { Camera, CalendarCheck, Users, User } from "lucide-react-native";
+import { Heart, Wand2, Users, User } from "lucide-react-native";
 import React, { useState, useEffect } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import { palette } from "@/constants/theme";
 import ProfilePicturePopup from "@/components/ProfilePicturePopup";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
-import SimpleTabBar from "@/components/SimpleTabBar";
+import GlassTabBar from "@/components/GlassTabBar";
 
 export default function TabLayout() {
   const { user, hasProfilePicture } = useUser();
@@ -36,7 +36,7 @@ export default function TabLayout() {
         onClose={handleCloseProfilePopup} 
       />
       <Tabs
-        tabBar={(props) => <SimpleTabBar {...props} />}
+        tabBar={(props) => <GlassTabBar {...props} />}
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: palette.primary,
@@ -46,12 +46,13 @@ export default function TabLayout() {
         <Tabs.Screen
           name="home"
           options={{
-            title: "Scan",
+            title: "Glow",
             tabBarIcon: ({ color, size, focused }) => (
-              <Camera
+              <Heart
                 color={focused ? palette.primary : color}
-                size={28}
+                size={size}
                 strokeWidth={focused ? 2.5 : 2}
+                fill={focused ? palette.blush : "transparent"}
               />
             ),
           }}
@@ -59,11 +60,11 @@ export default function TabLayout() {
         <Tabs.Screen
           name="glow-coach"
           options={{
-            title: "Routine",
+            title: "Coach",
             tabBarIcon: ({ color, size, focused }) => (
-              <CalendarCheck
-                color={focused ? palette.primary : color}
-                size={28}
+              <Wand2
+                color={focused ? palette.sage : color}
+                size={size}
                 strokeWidth={focused ? 2.5 : 2}
               />
             ),
@@ -72,11 +73,11 @@ export default function TabLayout() {
         <Tabs.Screen
           name="community"
           options={{
-            title: "Community",
+            title: "Circle",
             tabBarIcon: ({ color, size, focused }) => (
               <Users
-                color={focused ? palette.primary : color}
-                size={28}
+                color={focused ? palette.gold : color}
+                size={size}
                 strokeWidth={focused ? 2.5 : 2}
               />
             ),
@@ -85,11 +86,11 @@ export default function TabLayout() {
         <Tabs.Screen
           name="profile"
           options={{
-            title: "Me",
+            title: "You",
             tabBarIcon: ({ color, size, focused }) => (
               <User
-                color={focused ? palette.primary : color}
-                size={28}
+                color={focused ? palette.secondary : color}
+                size={size}
                 strokeWidth={focused ? 2.5 : 2}
               />
             ),
@@ -98,7 +99,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="progress"
           options={{
-            tabBarButton: () => null,
+            tabBarButton: () => null, // Completely hide from tab bar
           }}
         />
       </Tabs>

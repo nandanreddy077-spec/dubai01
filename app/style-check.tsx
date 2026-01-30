@@ -6,23 +6,17 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
-  Dimensions,
-  Animated,
-  Easing,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, router } from "expo-router";
-import { Shirt, ChevronLeft, Upload, Camera, Sparkles } from "lucide-react-native";
+import { Shirt, Sparkles, Camera, Upload } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useStyle } from "@/contexts/StyleContext";
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import FeaturePaywall from '@/components/FeaturePaywall';
-import { getPalette } from '@/constants/theme';
-import PressableScale from "@/components/PressableScale";
-
-const { width } = Dimensions.get('window');
+import { getPalette, getGradient, shadow } from '@/constants/theme';
 
 export default function StyleCheckScreen() {
   const [isLoading, setIsLoading] = useState(false);
@@ -33,35 +27,12 @@ export default function StyleCheckScreen() {
   const { canAccessStyleCheck } = subscription || { canAccessStyleCheck: false };
   
   const palette = getPalette(theme);
-
-  // Animation for the floating effect
-  const floatAnim = React.useRef(new Animated.Value(0)).current;
+  const gradient = getGradient(theme);
+  const styles = createStyles(palette);
 
   React.useEffect(() => {
     resetAnalysis();
-    
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: 1,
-          duration: 2000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 2000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
   }, [resetAnalysis]);
-
-  const translateY = floatAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -15],
-  });
 
   const handleTakePhoto = async () => {
     if (!canAccessStyleCheck) {
@@ -139,58 +110,64 @@ export default function StyleCheckScreen() {
   };
 
   return (
-      <View style={styles.container}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <LinearGradient
-            colors={['#4F46E5', '#818CF8']}
-            style={StyleSheet.absoluteFillObject}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-        />
+      <SafeAreaView style={styles.container}>
+        <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
+      <Stack.Screen 
+        options={{ 
+          title: "Style Check",
+          headerBackTitle: "Back",
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: palette.surface,
+          },
+          headerTintColor: palette.textPrimary,
+          headerTitleStyle: {
+            fontWeight: '700',
+            fontSize: 18,
+          },
+        }} 
+      />
       
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.header}>
-            <TouchableOpacity 
-                onPress={() => router.back()}
-                style={styles.backButton}
-            >
-                <ChevronLeft color="#FFFFFF" size={28} />
-            </TouchableOpacity>
+      <View style={styles.content}>
+        <View style={styles.iconContainer}>
+          <View style={styles.iconGlow}>
+            <Shirt color={palette.primary} size={48} strokeWidth={2.5} />
+          </View>
+          <View style={styles.sparkleContainer}>
+            <Sparkles color={palette.rose} size={16} fill={palette.rose} style={styles.sparkle1} />
+            <Shirt color={palette.lavender} size={14} style={styles.sparkle2} />
+            <Sparkles color={palette.peach} size={12} fill={palette.peach} style={styles.sparkle3} />
+          </View>
         </View>
-      
-        <View style={styles.content}>
-             <View style={styles.visualContainer}>
-                 <Animated.View style={[styles.iconCircle, { transform: [{ translateY }] }]}>
-                    <Shirt color="#FFFFFF" size={80} strokeWidth={1.5} />
-                 </Animated.View>
-                 <Text style={styles.title}>Style Check</Text>
-                 <Text style={styles.subtitle}>
-                    Does this outfit look good?{"\n"}Let AI decide.
-                 </Text>
-             </View>
+        
+        <Text style={styles.title}>AI Style Analysis</Text>
+        <Text style={styles.description}>
+          Discover your perfect style with AI-powered outfit analysis. Get personalized recommendations for fit, color harmony, and occasion-appropriate styling that enhances your natural beauty.
+        </Text>
 
-            <View style={styles.buttonContainer}>
-                <PressableScale
-                    onPress={handleTakePhoto}
-                    disabled={isLoading}
-                    style={styles.mainButton}
-                >
-                    <View style={styles.mainButtonInner}>
-                        <Camera color="#4F46E5" size={28} />
-                        <Text style={styles.mainButtonText}>Take Photo</Text>
-                    </View>
-                </PressableScale>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[styles.primaryButton, isLoading && styles.disabledButton]}
+            onPress={handleTakePhoto}
+            disabled={isLoading}
+          >
+            <Camera color={palette.textLight} size={20} strokeWidth={2.5} />
+            <Text style={styles.primaryButtonText}>
+              {isLoading ? "Processing..." : "Take Outfit Photo"}
+            </Text>
+          </TouchableOpacity>
 
-                <TouchableOpacity
-                    onPress={handleUploadPhoto}
-                    disabled={isLoading}
-                    style={styles.secondaryButton}
-                >
-                     <Upload color="rgba(255,255,255,0.8)" size={24} />
-                     <Text style={styles.secondaryButtonText}>Upload Photo</Text>
-                </TouchableOpacity>
-            </View>
+          <TouchableOpacity
+            style={[styles.secondaryButton, isLoading && styles.disabledButton]}
+            onPress={handleUploadPhoto}
+            disabled={isLoading}
+          >
+            <Upload color={palette.primary} size={20} strokeWidth={2.5} />
+            <Text style={styles.secondaryButtonText}>Upload from Gallery</Text>
+          </TouchableOpacity>
         </View>
+
+      </View>
 
       {showPaywall && (
         <FeaturePaywall
@@ -200,104 +177,120 @@ export default function StyleCheckScreen() {
         />
       )}
       </SafeAreaView>
-      </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.create({
   container: {
     flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: palette.backgroundStart,
   },
   content: {
     flex: 1,
-    justifyContent: 'space-between',
-    paddingBottom: 40,
-    paddingTop: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
   },
-  visualContainer: {
-      alignItems: 'center',
-      paddingHorizontal: 30,
+  iconContainer: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: palette.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 40,
+    ...shadow.elevated,
+    borderWidth: 3,
+    borderColor: palette.primary,
+    position: 'relative',
   },
-  iconCircle: {
-      width: 160,
-      height: 160,
-      borderRadius: 80,
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 32,
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.3)',
+  iconGlow: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: palette.overlayGold,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sparkleContainer: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+  },
+  sparkle1: {
+    position: 'absolute',
+    top: 20,
+    right: 25,
+  },
+  sparkle2: {
+    position: 'absolute',
+    bottom: 30,
+    left: 20,
+  },
+  sparkle3: {
+    position: 'absolute',
+    top: 35,
+    left: 15,
   },
   title: {
-      fontSize: 42,
-      fontWeight: '800',
-      color: '#FFFFFF',
-      marginBottom: 16,
-      textAlign: 'center',
-      letterSpacing: -1,
+    fontSize: 32,
+    fontWeight: "800",
+    color: palette.textPrimary,
+    marginBottom: 20,
+    textAlign: "center",
+    letterSpacing: 0.5,
   },
-  subtitle: {
-      fontSize: 18,
-      color: 'rgba(255,255,255,0.9)',
-      textAlign: 'center',
-      lineHeight: 28,
-      fontWeight: '500',
+  description: {
+    fontSize: 17,
+    color: palette.textSecondary,
+    textAlign: "center",
+    lineHeight: 26,
+    marginBottom: 56,
+    paddingHorizontal: 24,
   },
   buttonContainer: {
-      paddingHorizontal: 24,
-      gap: 16,
+    width: "100%",
+    gap: 16,
   },
-  mainButton: {
-      width: '100%',
+  primaryButton: {
+    flexDirection: "row",
+    backgroundColor: palette.primary,
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    ...shadow.elevated,
+    minHeight: 56,
   },
-  mainButtonInner: {
-      backgroundColor: '#FFFFFF',
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 22,
-      borderRadius: 28,
-      gap: 12,
-      shadowColor: "#000",
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-      shadowOpacity: 0.3,
-      shadowRadius: 4.65,
-      elevation: 8,
-  },
-  mainButtonText: {
-      fontSize: 20,
-      fontWeight: '700',
-      color: '#4F46E5',
+  primaryButtonText: {
+    color: palette.textLight,
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
   secondaryButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 16,
-      gap: 8,
+    flexDirection: "row",
+    backgroundColor: palette.surface,
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: palette.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    ...shadow.card,
+    minHeight: 56,
   },
   secondaryButtonText: {
-      fontSize: 17,
-      fontWeight: '600',
-      color: 'rgba(255,255,255,0.9)',
+    color: palette.primary,
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });
