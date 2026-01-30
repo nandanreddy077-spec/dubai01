@@ -43,7 +43,7 @@ export default function ResultsInterpretationGuide({
       label: 'Moderate',
       color: palette.warning,
       message: "You're getting there!",
-      subMessage: 'There's room for improvement.',
+      subMessage: "There's room for improvement.",
       description: 'Moderate scores show potential for improvement with the right routine.',
     },
     {
