@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
-import { palette, shadow } from '@/constants/theme';
 
 export default function SimpleTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
@@ -25,7 +24,7 @@ export default function SimpleTabBar({ state, descriptors, navigation }: BottomT
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) }]}>
       <View style={styles.tabBar}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
@@ -39,8 +38,8 @@ export default function SimpleTabBar({ state, descriptors, navigation }: BottomT
 
           const icon = options.tabBarIcon?.({
             focused: isFocused,
-            color: isFocused ? palette.primary : palette.textSecondary,
-            size: 28,
+            color: isFocused ? '#0A0A0A' : '#9CA3AF',
+            size: 26,
           });
 
           return (
@@ -59,7 +58,6 @@ export default function SimpleTabBar({ state, descriptors, navigation }: BottomT
               <Text style={[styles.label, isFocused && styles.labelActive]}>
                 {label}
               </Text>
-              {isFocused && <View style={styles.activeIndicator} />}
             </TouchableOpacity>
           );
         })}
@@ -74,52 +72,42 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: palette.surface,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: palette.divider,
-    ...shadow.soft,
+    borderTopColor: '#F3F4F6',
   },
   tabBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
     paddingTop: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: 16,
   },
   tabButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    position: 'relative',
+    paddingVertical: 4,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
   iconContainerActive: {
-    backgroundColor: 'rgba(201, 169, 97, 0.12)',
+    backgroundColor: '#F3F4F6',
   },
   label: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: palette.textSecondary,
+    color: '#9CA3AF',
     textAlign: 'center',
   },
   labelActive: {
-    color: palette.primary,
+    color: '#0A0A0A',
     fontWeight: '700',
-  },
-  activeIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    width: 32,
-    height: 3,
-    backgroundColor: palette.gold,
-    borderRadius: 2,
   },
 });

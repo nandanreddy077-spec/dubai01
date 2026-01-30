@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,16 +6,17 @@ import {
   ScrollView,
   StatusBar,
   Dimensions,
+  Animated,
+  Easing,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ScanFace,
   Sparkles,
-  Palette,
-  TrendingUp,
-  ChevronRight,
   MessageCircle,
+  ChevronRight,
+  ArrowLeftRight,
 } from "lucide-react-native";
 import { router } from "expo-router";
 import { useUser } from "@/contexts/UserContext";
@@ -24,17 +25,63 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { getPalette, shadow } from "@/constants/theme";
 import PressableScale from "@/components/PressableScale";
 import TrialReminderBanner from "@/components/TrialReminderBanner";
+import Svg, { Ellipse, Circle, Path } from "react-native-svg";
 
 const { width: screenWidth } = Dimensions.get('window');
-const CARD_WIDTH = screenWidth * 0.75;
-const SPACER_WIDTH = (screenWidth - CARD_WIDTH) / 2;
+const CARD_WIDTH = screenWidth - 80;
 
 export default function HomeScreen() {
   const { user } = useUser();
-  const { user: authUser } = useAuth();
+  useAuth();
   const { theme } = useTheme();
+  const scanAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
   
-  const palette = getPalette(theme);
+  getPalette(theme);
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scanAnim, {
+          toValue: 1,
+          duration: 2500,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scanAnim, {
+          toValue: 0,
+          duration: 2500,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  const todayDate = useMemo(() => {
+    return new Date().toLocaleDateString('en-US', { 
+      weekday: 'long',
+      month: 'short', 
+      day: 'numeric' 
+    });
+  }, []);
 
   const timeGreeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -43,17 +90,10 @@ export default function HomeScreen() {
     return "Good evening";
   }, []);
 
-  const displayName = useMemo(() => {
-    if (authUser?.user_metadata && typeof authUser.user_metadata === 'object') {
-      const meta = authUser.user_metadata as { full_name?: string; name?: string };
-      if (meta.full_name) return meta.full_name.split(' ')[0];
-      if (meta.name) return meta.name.split(' ')[0];
-    }
-    if (user?.name) return user.name.split(' ')[0];
-    return 'there';
-  }, [authUser?.user_metadata, user?.name]);
-
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const scanTranslateY = scanAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-60, 60],
+  });
 
   if (!user) {
     return (
@@ -65,56 +105,32 @@ export default function HomeScreen() {
     );
   }
 
-  const features = [
+  const quickCards = [
     {
-      id: "scan",
-      step: "1",
-      title: "Scan My Face",
-      subtitle: "Get your Glow Score",
-      icon: <ScanFace color="#FFFFFF" size={52} strokeWidth={1.4} />,
-      colors: ["#0A0A0A", "#1F2937"] as const,
-      route: "/glow-analysis",
-      badge: "Start here",
+      id: "plan",
+      title: "Today's Plan",
+      subtitle: `${user.stats.dayStreak > 0 ? '3 steps' : 'Start your routine'}`,
+      icon: <Sparkles color="#D97706" size={28} />,
+      bgColor: "#FEF3C7",
+      route: "/(tabs)/glow-coach",
     },
     {
-      id: "routine",
-      step: "2",
-      title: "Do My Routine",
-      subtitle: "Morning & night steps",
-      icon: <Sparkles color="#FFFFFF" size={52} strokeWidth={1.4} />,
-      colors: ["#C9A961", "#7A5E22"] as const,
-      route: "/(tabs)/glow-coach",
-      badge: `${user.stats.dayStreak} day streak`,
+      id: "compare",
+      title: "My Progress",
+      subtitle: "See your glow journey",
+      icon: <ArrowLeftRight color="#7C3AED" size={28} />,
+      bgColor: "#EDE9FE",
+      route: "/(tabs)/progress",
     },
     {
       id: "coach",
-      step: "3",
-      title: "Ask Glow Coach",
-      subtitle: "Quick answers for skincare",
-      icon: <MessageCircle color="#FFFFFF" size={52} strokeWidth={1.4} />,
-      colors: ["#111827", "#C9A961"] as const,
+      title: "Ask a Question",
+      subtitle: "Quick skincare help",
+      icon: <MessageCircle color="#059669" size={28} />,
+      bgColor: "#D1FAE5",
       route: "/ai-advisor",
-      badge: "Chat",
     },
-    {
-      id: "style",
-      step: "Bonus",
-      title: "Style Check",
-      subtitle: "Rate my outfit",
-      icon: <Palette color="#FFFFFF" size={52} strokeWidth={1.4} />,
-      colors: ["#6B7280", "#0A0A0A"] as const,
-      route: "/style-check",
-    },
-    {
-      id: "progress",
-      step: "Track",
-      title: "My Progress",
-      subtitle: "See improvements",
-      icon: <TrendingUp color="#FFFFFF" size={52} strokeWidth={1.4} />,
-      colors: ["#059669", "#0A0A0A"] as const,
-      route: "/(tabs)/progress",
-    },
-  ] as const;
+  ];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -124,127 +140,123 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>{timeGreeting},</Text>
-            <Text style={styles.name}>{displayName}</Text>
-          </View>
-          <View style={styles.profileImageContainer}>
-             <View style={styles.streakBadge}>
-                <Text style={styles.streakEmoji}>🔥</Text>
-                <Text style={styles.streakNumber}>{user.stats.dayStreak}</Text>
-              </View>
-          </View>
+          <Text style={styles.greeting}>{timeGreeting}</Text>
+          <Text style={styles.dateText}>{todayDate}</Text>
         </View>
 
         <TrialReminderBanner />
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>What do you want to do?</Text>
-          <Text style={styles.sectionSubtitle}>Swipe right to pick one</Text>
+        <View style={styles.faceSection}>
+          <View style={styles.faceContainer}>
+            <Svg width={200} height={260} viewBox="0 0 200 260">
+              <Ellipse cx="100" cy="130" rx="75" ry="95" fill="#F3F4F6" stroke="#E5E7EB" strokeWidth="2" />
+              <Ellipse cx="65" cy="110" rx="12" ry="8" fill="#E5E7EB" />
+              <Ellipse cx="135" cy="110" rx="12" ry="8" fill="#E5E7EB" />
+              <Circle cx="65" cy="110" r="4" fill="#374151" />
+              <Circle cx="135" cy="110" r="4" fill="#374151" />
+              <Ellipse cx="100" cy="145" rx="8" ry="6" fill="#E5E7EB" />
+              <Path d="M 80 175 Q 100 190 120 175" stroke="#374151" strokeWidth="3" fill="none" strokeLinecap="round" />
+            </Svg>
+            
+            <Animated.View 
+              style={[
+                styles.scanRing,
+                { transform: [{ scale: pulseAnim }] }
+              ]}
+            >
+              <View style={styles.scanRingInner} />
+            </Animated.View>
+
+            <Animated.View 
+              style={[
+                styles.scanLine,
+                { transform: [{ translateY: scanTranslateY }] }
+              ]}
+            >
+              <LinearGradient
+                colors={['transparent', '#C9A961', 'transparent']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.scanLineGradient}
+              />
+            </Animated.View>
+          </View>
+
+          <PressableScale
+            onPress={() => router.push('/glow-analysis')}
+            pressedScale={0.96}
+            haptics="medium"
+            style={styles.scanButtonContainer}
+          >
+            <LinearGradient
+              colors={['#0A0A0A', '#1F2937']}
+              style={styles.scanButton}
+            >
+              <ScanFace color="#FFFFFF" size={28} strokeWidth={1.5} />
+              <Text style={styles.scanButtonText}>Scan My Skin</Text>
+            </LinearGradient>
+          </PressableScale>
+
+          {user.stats.glowScore > 0 && (
+            <View style={styles.lastScoreContainer}>
+              <Text style={styles.lastScoreLabel}>Last score</Text>
+              <Text style={styles.lastScoreValue}>{user.stats.glowScore}</Text>
+            </View>
+          )}
         </View>
 
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.carouselContent}
+          contentContainerStyle={styles.cardsContainer}
           decelerationRate="fast"
-          snapToInterval={CARD_WIDTH + 20}
-          pagingEnabled={false}
+          snapToInterval={CARD_WIDTH + 16}
         >
-          {features.map((feature, index) => (
+          {quickCards.map((card, index) => (
             <PressableScale
-              key={feature.id}
-              onPress={() => router.push(feature.route as any)}
-              pressedScale={0.95}
-              haptics="medium"
-              containerTestID={`home.feature.${feature.id}`}
+              key={card.id}
+              onPress={() => router.push(card.route as any)}
+              pressedScale={0.97}
+              haptics="light"
               style={[
-                styles.cardContainer,
-                index === 0 && { marginLeft: SPACER_WIDTH },
-                index === features.length - 1 && { marginRight: SPACER_WIDTH },
+                styles.quickCard,
+                { backgroundColor: card.bgColor },
+                index === 0 && { marginLeft: 24 },
+                index === quickCards.length - 1 && { marginRight: 24 },
               ]}
             >
-              <LinearGradient
-                colors={feature.colors}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.card}
-              >
-                <View style={styles.cardContent}>
-                  <View style={styles.stepPill}>
-                    <Text style={styles.stepPillText}>{feature.step}</Text>
-                  </View>
-
-                  <View style={styles.iconCircle}>{feature.icon}</View>
-
-                  <View style={styles.cardTextContainer}>
-                    <Text style={styles.cardTitle}>{feature.title}</Text>
-                    <Text style={styles.cardSubtitle}>{feature.subtitle}</Text>
-                  </View>
-
-                  {feature.badge && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{feature.badge}</Text>
-                    </View>
-                  )}
-
-                  <View style={styles.actionButton}>
-                    <ChevronRight color="#FFFFFF" size={24} />
-                  </View>
-                </View>
-
-                <View
-                  style={[
-                    styles.decorativeCircle,
-                    { top: -60, right: -60, width: 180, height: 180 },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.decorativeCircle,
-                    { bottom: -40, left: -40, width: 120, height: 120 },
-                  ]}
-                />
-              </LinearGradient>
+              <View style={styles.quickCardIcon}>
+                {card.icon}
+              </View>
+              <View style={styles.quickCardContent}>
+                <Text style={styles.quickCardTitle}>{card.title}</Text>
+                <Text style={styles.quickCardSubtitle}>{card.subtitle}</Text>
+              </View>
+              <ChevronRight color="#6B7280" size={20} />
             </PressableScale>
           ))}
         </ScrollView>
 
-        <View style={styles.statsSection}>
-          <Text style={styles.sectionTitleSmall}>Your Stats</Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statEmoji}>📸</Text>
-              <Text style={styles.statNumber}>{user.stats.analyses}</Text>
-              <Text style={styles.statLabel}>Scans</Text>
+        {user.stats.dayStreak > 0 && (
+          <View style={styles.streakSection}>
+            <View style={styles.streakBadge}>
+              <Text style={styles.streakEmoji}>🔥</Text>
+              <Text style={styles.streakText}>{user.stats.dayStreak} day streak</Text>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statEmoji}>✨</Text>
-              <Text style={styles.statNumber}>{user.stats.glowScore}</Text>
-              <Text style={styles.statLabel}>Glow Score</Text>
-            </View>
-             <PressableScale 
-                style={styles.statCard} 
-                onPress={() => router.push("/product-tracking")}
-            >
-              <Text style={styles.statEmoji}>⚡️</Text>
-              <Text style={styles.statNumber}>Products</Text>
-              <Text style={styles.statLabel}>Track</Text>
-            </PressableScale>
           </View>
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   loadingContainer: {
     flex: 1,
@@ -253,198 +265,145 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   loadingText: {
     fontSize: 16,
-    color: palette.textSecondary,
+    color: '#6B7280',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 16,
+    paddingBottom: 8,
   },
   greeting: {
-    fontSize: 16,
-    color: '#6B7280',
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  name: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: "800",
     color: "#0A0A0A",
     letterSpacing: -0.5,
   },
-  profileImageContainer: {
+  dateText: {
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  faceSection: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  faceContainer: {
+    width: 220,
+    height: 280,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
+  },
+  scanRing: {
+    position: 'absolute',
+    width: 240,
+    height: 300,
+    borderRadius: 120,
+    borderWidth: 3,
+    borderColor: '#C9A961',
+    borderStyle: 'dashed',
+    opacity: 0.6,
+  },
+  scanRingInner: {
+    flex: 1,
+  },
+  scanLine: {
+    position: 'absolute',
+    width: '100%',
+    height: 4,
+  },
+  scanLineGradient: {
+    flex: 1,
+    borderRadius: 2,
+  },
+  scanButtonContainer: {
+    marginTop: 24,
+    ...shadow.medium,
+  },
+  scanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    paddingHorizontal: 40,
+    borderRadius: 28,
+    gap: 12,
+  },
+  scanButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  lastScoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 8,
+  },
+  lastScoreLabel: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  lastScoreValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#C9A961',
+  },
+  cardsContainer: {
+    paddingVertical: 8,
+  },
+  quickCard: {
+    width: CARD_WIDTH,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 20,
+    marginRight: 16,
+  },
+  quickCardIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickCardContent: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  quickCardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 4,
+  },
+  quickCardSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  streakSection: {
+    alignItems: 'center',
+    marginTop: 24,
   },
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 4,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    gap: 8,
   },
   streakEmoji: {
-    fontSize: 16,
+    fontSize: 20,
   },
-  streakNumber: {
+  streakText: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#D97706',
-  },
-  sectionHeader: {
-    paddingHorizontal: 24,
-    marginTop: 24,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    letterSpacing: -0.5,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  carouselContent: {
-    paddingHorizontal: 0, // Using spacer logic for centering
-    paddingBottom: 24,
-  },
-  cardContainer: {
-    width: CARD_WIDTH,
-    height: 392,
-    marginRight: 20,
-    borderRadius: 32,
-    ...shadow.medium,
-  },
-  card: {
-    flex: 1,
-    borderRadius: 32,
-    padding: 32,
-    justifyContent: 'space-between',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  decorativeCircle: {
-    position: 'absolute',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  cardContent: {
-    flex: 1,
-    zIndex: 1,
-    justifyContent: 'space-between',
-  },
-  stepPill: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    marginBottom: 18,
-  },
-  stepPillText: {
-    color: "rgba(255,255,255,0.92)",
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-  },
-  iconCircle: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 22,
-  },
-  cardTextContainer: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 30,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    marginBottom: 8,
-    lineHeight: 36,
-    letterSpacing: -0.6,
-  },
-  cardSubtitle: {
-    fontSize: 16,
-    color: "rgba(255,255,255,0.84)",
-    fontWeight: "600",
-    lineHeight: 22,
-  },
-  badge: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  badgeText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  actionButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'flex-end',
-  },
-  statsSection: {
-    marginTop: 24,
-    paddingHorizontal: 24,
-  },
-  sectionTitleSmall: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 16,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 24,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 120,
-  },
-  statEmoji: {
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#1a1a1a',
-    marginBottom: 2,
-    textAlign: 'center',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
 });

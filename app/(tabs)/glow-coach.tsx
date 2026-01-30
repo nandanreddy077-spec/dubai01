@@ -1,26 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  Alert,
-  Modal,
-  TextInput,
-  ImageBackground,
+  Dimensions,
+  Animated,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { palette, shadow } from '@/constants/theme';
 import { 
   Check,
   Sun,
   Moon,
-  Plus,
-  X,
-  Calendar,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Droplets,
+  Shield,
+  Pipette,
+  Leaf,
 } from 'lucide-react-native';
 import { useSkincare } from '@/contexts/SkincareContext';
 import { useGamification } from '@/contexts/GamificationContext';
@@ -29,6 +27,10 @@ import { router } from 'expo-router';
 import DailyRewardsModal from '@/components/DailyRewardsModal';
 import PressableScale from '@/components/PressableScale';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+
+const { width: screenWidth } = Dimensions.get('window');
+const CARD_WIDTH = screenWidth - 60;
 
 interface DailyReward {
   id: string;
@@ -40,21 +42,43 @@ interface DailyReward {
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
 }
 
+const getStepIcon = (stepName: string, color: string) => {
+  const lowerName = stepName.toLowerCase();
+  if (lowerName.includes('cleanse') || lowerName.includes('wash')) {
+    return <Droplets color={color} size={28} />;
+  }
+  if (lowerName.includes('serum') || lowerName.includes('vitamin')) {
+    return <Pipette color={color} size={28} />;
+  }
+  if (lowerName.includes('sunscreen') || lowerName.includes('spf') || lowerName.includes('protect')) {
+    return <Shield color={color} size={28} />;
+  }
+  if (lowerName.includes('moistur')) {
+    return <Leaf color={color} size={28} />;
+  }
+  return <Sparkles color={color} size={28} />;
+};
+
 export default function GlowCoachScreen() {
   const insets = useSafeAreaInsets();
   const { currentPlan, activePlans, updatePlanProgress, setCurrentPlan } = useSkincare();
-  const { completeDailyRoutine, hasCompletedToday, hasCompletedForPlanDay } = useGamification();
-  const [showNoteModal, setShowNoteModal] = useState(false);
-  const [noteText, setNoteText] = useState('');
-  const [selectedMood, setSelectedMood] = useState<'great' | 'good' | 'okay' | 'bad' | null>(null);
+  const { completeDailyRoutine, hasCompletedToday } = useGamification();
   const [showRewardsModal, setShowRewardsModal] = useState(false);
   const [dailyRewards, setDailyRewards] = useState<DailyReward[]>([]);
+  const [activeSection, setActiveSection] = useState<'morning' | 'evening'>('morning');
+  
+  const checkAnimations = useRef<{ [key: string]: Animated.Value }>({}).current;
 
   useEffect(() => {
     if (!currentPlan && activePlans.length > 0) {
       setCurrentPlan(activePlans[0]);
     }
   }, [currentPlan, activePlans, setCurrentPlan]);
+
+  useEffect(() => {
+    const hour = new Date().getHours();
+    setActiveSection(hour < 17 ? 'morning' : 'evening');
+  }, []);
 
   if (activePlans.length === 0) {
     return (
@@ -63,9 +87,9 @@ export default function GlowCoachScreen() {
           <View style={styles.emptyIconCircle}>
             <Sparkles color="#D97706" size={48} />
           </View>
-          <Text style={styles.emptyTitle}>Start Your Journey</Text>
+          <Text style={styles.emptyTitle}>No Routine Yet</Text>
           <Text style={styles.emptySubtitle}>
-            We need to know your skin first to create a magic routine for you.
+            Scan your skin first, and we will create a simple routine just for you.
           </Text>
           <PressableScale
             onPress={() => router.push('/glow-analysis')}
@@ -74,10 +98,10 @@ export default function GlowCoachScreen() {
             style={styles.startButtonContainer}
           >
             <LinearGradient
-              colors={['#1a1a1a', '#4a4a4a']}
+              colors={['#0A0A0A', '#1F2937']}
               style={styles.startButton}
             >
-              <Text style={styles.startButtonText}>Start Skin Scan</Text>
+              <Text style={styles.startButtonText}>Scan My Skin</Text>
               <ChevronRight color="#FFFFFF" size={20} />
             </LinearGradient>
           </PressableScale>
@@ -113,10 +137,35 @@ export default function GlowCoachScreen() {
   };
 
   const todaySteps = getTodaySteps();
+  const currentSteps = activeSection === 'morning' ? todaySteps.morning : todaySteps.evening;
   const allSteps = [...todaySteps.morning, ...todaySteps.evening];
   
+  const completedCount = currentSteps.filter(
+    step => currentPlan.progress.completedSteps.includes(step.id)
+  ).length;
+
   const handleStepComplete = async (stepId: string) => {
     const isCompleted = currentPlan.progress.completedSteps.includes(stepId);
+    
+    if (!isCompleted && Platform.OS !== 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    
+    if (!checkAnimations[stepId]) {
+      checkAnimations[stepId] = new Animated.Value(0);
+    }
+    
+    if (!isCompleted) {
+      Animated.spring(checkAnimations[stepId], {
+        toValue: 1,
+        tension: 50,
+        friction: 3,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      checkAnimations[stepId].setValue(0);
+    }
+
     const updatedSteps = isCompleted
       ? currentPlan.progress.completedSteps.filter((id: string) => id !== stepId)
       : [...currentPlan.progress.completedSteps, stepId];
@@ -126,22 +175,14 @@ export default function GlowCoachScreen() {
     });
   };
 
-  const handleCompleteDay = async () => {
-    if (!currentPlan) return;
-    
-    if (hasCompletedToday()) {
-      Alert.alert('All Done!', 'You already completed today. Come back tomorrow!');
-      return;
-    }
+  const handleFinishDay = async () => {
+    if (hasCompletedToday()) return;
     
     const allStepsCompleted = allSteps.every(step => 
       currentPlan.progress.completedSteps.includes(step.id)
     );
     
-    if (!allStepsCompleted) {
-      Alert.alert('Almost there!', 'Please check off all steps first.');
-      return;
-    }
+    if (!allStepsCompleted) return;
     
     try {
       const rewards = await completeDailyRoutine(currentPlan.id, currentPlan.progress.currentDay);
@@ -160,135 +201,141 @@ export default function GlowCoachScreen() {
         setShowRewardsModal(true);
       }
     } catch (error) {
-      Alert.alert('Error', 'Something went wrong. Try again.');
+      console.log('Error completing day:', error);
     }
   };
 
-  const renderRoutineSection = (title: string, steps: any[], icon: React.ReactNode, color: string, bgColor: string) => {
-    if (steps.length === 0) return null;
-
-    const allCompleted = steps.every(step => currentPlan.progress.completedSteps.includes(step.id));
-
-    return (
-      <View style={styles.sectionContainer}>
-        <View style={[styles.sectionHeader, { backgroundColor: bgColor }]}>
-           <View style={styles.sectionHeaderLeft}>
-            {icon}
-            <Text style={[styles.sectionTitle, { color }]}>{title}</Text>
-           </View>
-           {allCompleted && (
-             <View style={styles.sectionBadge}>
-                <Check color="#FFFFFF" size={14} strokeWidth={3} />
-                <Text style={styles.sectionBadgeText}>DONE</Text>
-             </View>
-           )}
-        </View>
-        
-        <View style={styles.stepsList}>
-          {steps.map((step, index) => {
-            const isCompleted = currentPlan.progress.completedSteps.includes(step.id);
-            return (
-              <PressableScale
-                key={step.id}
-                onPress={() => handleStepComplete(step.id)}
-                pressedScale={0.98}
-                style={[
-                    styles.stepCard, 
-                    isCompleted && styles.stepCardCompleted,
-                    index === steps.length - 1 && { borderBottomWidth: 0 }
-                ]}
-              >
-                <View style={[
-                    styles.checkbox,
-                    isCompleted ? { backgroundColor: color, borderColor: color } : { borderColor: '#E5E7EB' }
-                ]}>
-                    {isCompleted && <Check color="#FFFFFF" size={16} strokeWidth={3} />}
-                </View>
-                
-                <View style={styles.stepInfo}>
-                  <Text style={[styles.stepName, isCompleted && styles.stepNameCompleted]}>
-                    {step.name}
-                  </Text>
-                  {step.description && !isCompleted && (
-                    <Text style={styles.stepDesc} numberOfLines={1}>
-                        {step.description}
-                    </Text>
-                  )}
-                </View>
-              </PressableScale>
-            );
-          })}
-        </View>
-      </View>
-    );
-  };
+  const allDone = allSteps.every(step => currentPlan.progress.completedSteps.includes(step.id));
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerSubtitle}>Day {currentPlan.progress.currentDay}</Text>
+          <Text style={styles.headerTitle}>My Routine</Text>
+        </View>
+        <View style={styles.progressPill}>
+          <Text style={styles.progressText}>{completedCount}/{currentSteps.length}</Text>
+        </View>
+      </View>
+
+      <View style={styles.sectionToggle}>
+        <PressableScale
+          onPress={() => setActiveSection('morning')}
+          style={[
+            styles.toggleButton,
+            activeSection === 'morning' && styles.toggleButtonActive,
+          ]}
+        >
+          <Sun color={activeSection === 'morning' ? '#D97706' : '#9CA3AF'} size={20} />
+          <Text style={[
+            styles.toggleText,
+            activeSection === 'morning' && styles.toggleTextActive,
+          ]}>Morning</Text>
+        </PressableScale>
+        <PressableScale
+          onPress={() => setActiveSection('evening')}
+          style={[
+            styles.toggleButton,
+            activeSection === 'evening' && styles.toggleButtonActive,
+          ]}
+        >
+          <Moon color={activeSection === 'evening' ? '#7C3AED' : '#9CA3AF'} size={20} />
+          <Text style={[
+            styles.toggleText,
+            activeSection === 'evening' && styles.toggleTextActive,
+          ]}>Evening</Text>
+        </PressableScale>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.cardsScrollContent}
+        decelerationRate="fast"
+        snapToInterval={CARD_WIDTH + 16}
+        pagingEnabled={false}
       >
-        <View style={styles.header}>
-            <View>
-                <Text style={styles.headerSubtitle}>Day {currentPlan.progress.currentDay}</Text>
-                <Text style={styles.headerTitle}>My Routine</Text>
-            </View>
-            <View style={styles.planBadge}>
-                <Sparkles color="#D97706" size={16} fill="#D97706" />
-                <Text style={styles.planBadgeText}>{currentPlan.title}</Text>
-            </View>
-        </View>
+        {currentSteps.map((step, index) => {
+          const isCompleted = currentPlan.progress.completedSteps.includes(step.id);
+          const accentColor = activeSection === 'morning' ? '#D97706' : '#7C3AED';
+          const bgColor = activeSection === 'morning' ? '#FEF3C7' : '#EDE9FE';
+          
+          const checkScale = checkAnimations[step.id] || new Animated.Value(isCompleted ? 1 : 0);
 
-        {renderRoutineSection(
-            "Morning", 
-            todaySteps.morning, 
-            <Sun color="#D97706" size={24} />, 
-            "#D97706",
-            "#FEF3C7"
-        )}
-
-        {renderRoutineSection(
-            "Evening", 
-            todaySteps.evening, 
-            <Moon color="#7C3AED" size={24} />, 
-            "#7C3AED",
-            "#EDE9FE"
-        )}
-
-        {/* Complete Day Button */}
-        <View style={styles.footer}>
-             <PressableScale
-                onPress={handleCompleteDay}
-                pressedScale={0.97}
-                haptics="medium"
-                style={[
-                    styles.completeButton,
-                    hasCompletedToday() && styles.completeButtonDone
-                ]}
+          return (
+            <PressableScale
+              key={step.id}
+              onPress={() => handleStepComplete(step.id)}
+              pressedScale={0.97}
+              style={[
+                styles.stepCard,
+                index === 0 && { marginLeft: 24 },
+                index === currentSteps.length - 1 && { marginRight: 24 },
+                isCompleted && styles.stepCardCompleted,
+              ]}
             >
-                <LinearGradient
-                     colors={hasCompletedToday() ? ['#059669', '#10B981'] : ['#1a1a1a', '#4a4a4a']}
-                     style={styles.completeButtonGradient}
-                     start={{ x: 0, y: 0 }}
-                     end={{ x: 1, y: 1 }}
-                >
-                    {hasCompletedToday() ? (
-                         <>
-                            <Check color="#FFFFFF" size={24} strokeWidth={3} />
-                            <Text style={styles.completeButtonText}>Day Complete!</Text>
-                         </>
-                    ) : (
-                        <>
-                            <Sparkles color="#FFFFFF" size={20} />
-                            <Text style={styles.completeButtonText}>Finish Day {currentPlan.progress.currentDay}</Text>
-                        </>
-                    )}
-                </LinearGradient>
-            </PressableScale>
-        </View>
+              <View style={[styles.stepIconContainer, { backgroundColor: bgColor }]}>
+                {getStepIcon(step.name, accentColor)}
+              </View>
+              
+              <Text style={[styles.stepNumber, { color: accentColor }]}>
+                Step {index + 1}
+              </Text>
+              
+              <Text style={[
+                styles.stepName,
+                isCompleted && styles.stepNameCompleted
+              ]}>
+                {step.name}
+              </Text>
+              
+              {step.duration && (
+                <Text style={styles.stepDuration}>{step.duration}</Text>
+              )}
 
+              <View style={[
+                styles.checkCircle,
+                isCompleted && { backgroundColor: accentColor, borderColor: accentColor }
+              ]}>
+                {isCompleted && (
+                  <Animated.View style={{ transform: [{ scale: checkScale }] }}>
+                    <Check color="#FFFFFF" size={20} strokeWidth={3} />
+                  </Animated.View>
+                )}
+              </View>
+            </PressableScale>
+          );
+        })}
       </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
+        {allDone && !hasCompletedToday() ? (
+          <PressableScale
+            onPress={handleFinishDay}
+            pressedScale={0.97}
+            haptics="medium"
+            style={styles.finishButtonContainer}
+          >
+            <LinearGradient
+              colors={['#059669', '#10B981']}
+              style={styles.finishButton}
+            >
+              <Sparkles color="#FFFFFF" size={24} />
+              <Text style={styles.finishButtonText}>Complete Day {currentPlan.progress.currentDay}</Text>
+            </LinearGradient>
+          </PressableScale>
+        ) : hasCompletedToday() ? (
+          <View style={styles.completedBadge}>
+            <Check color="#059669" size={24} strokeWidth={3} />
+            <Text style={styles.completedText}>All done for today!</Text>
+          </View>
+        ) : (
+          <Text style={styles.hintText}>
+            Tap each card to mark it done
+          </Text>
+        )}
+      </View>
 
       <DailyRewardsModal
         visible={showRewardsModal}
@@ -302,146 +349,165 @@ export default function GlowCoachScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6', // Light gray bg for better contrast
-  },
-  scrollContent: {
-    padding: 20,
+    backgroundColor: '#FFFFFF',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 24,
-    marginTop: 8,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 20,
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
-    color: '#1a1a1a',
-    letterSpacing: -1,
+    color: '#0A0A0A',
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
-    fontSize: 16,
-    color: '#6B7280',
+    fontSize: 14,
+    color: '#9CA3AF',
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 4,
   },
-  planBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
+  progressPill: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    gap: 6,
-    ...shadow.small,
   },
-  planBadgeText: {
-    fontSize: 14,
+  progressText: {
+    fontSize: 16,
     fontWeight: '700',
-    color: '#4B5563',
+    color: '#374151',
   },
-  sectionContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+  sectionToggle: {
+    flexDirection: 'row',
+    marginHorizontal: 24,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 16,
+    padding: 4,
     marginBottom: 24,
-    overflow: 'hidden',
-    ...shadow.medium,
   },
-  sectionHeader: {
+  toggleButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
   },
-  sectionHeaderLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
+  toggleButtonActive: {
+    backgroundColor: '#FFFFFF',
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
+  toggleText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#9CA3AF',
   },
-  sectionBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#059669',
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 12,
-      gap: 4,
+  toggleTextActive: {
+    color: '#1a1a1a',
   },
-  sectionBadgeText: {
-      color: '#FFFFFF',
-      fontSize: 12,
-      fontWeight: '800',
-  },
-  stepsList: {
-    padding: 8,
+  cardsScrollContent: {
+    paddingVertical: 8,
   },
   stepCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
+    width: CARD_WIDTH,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderRadius: 24,
+    padding: 24,
+    marginRight: 16,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
   },
   stepCardCompleted: {
-      opacity: 0.6,
+    borderColor: '#D1FAE5',
+    backgroundColor: '#F0FDF4',
   },
-  checkbox: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
+  stepIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginBottom: 20,
   },
-  stepInfo: {
-    flex: 1,
+  stepNumber: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
   },
   stepName: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     color: '#1a1a1a',
-    marginBottom: 2,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   stepNameCompleted: {
-      textDecorationLine: 'line-through',
-      color: '#9CA3AF',
+    color: '#059669',
   },
-  stepDesc: {
-    fontSize: 14,
+  stepDuration: {
+    fontSize: 15,
     color: '#6B7280',
+    fontWeight: '500',
+  },
+  checkCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 3,
+    borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
   },
   footer: {
-      marginTop: 12,
+    paddingHorizontal: 24,
+    paddingTop: 20,
   },
-  completeButton: {
-    borderRadius: 24,
+  finishButtonContainer: {
+    borderRadius: 20,
     overflow: 'hidden',
-    ...shadow.medium,
   },
-  completeButtonDone: {
-      ...shadow.none,
+  finishButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    gap: 12,
   },
-  completeButtonGradient: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 20,
-      gap: 12,
-  },
-  completeButtonText: {
+  finishButtonText: {
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  completedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#D1FAE5',
+    paddingVertical: 16,
+    borderRadius: 16,
+    gap: 10,
+  },
+  completedText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  hintText: {
+    fontSize: 15,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    fontWeight: '500',
   },
   emptyState: {
     flex: 1,
@@ -451,16 +517,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   emptyIconCircle: {
-      width: 100,
-      height: 100,
-      borderRadius: 50,
-      backgroundColor: '#FEF3C7',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 24,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
   },
   emptyTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
     color: '#1a1a1a',
     marginBottom: 12,
@@ -474,14 +540,13 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   startButtonContainer: {
-      width: '100%',
-      ...shadow.medium,
+    width: '100%',
   },
   startButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 20,
+    paddingVertical: 18,
     borderRadius: 20,
     gap: 8,
   },
