@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Home, Sparkles, TrendingUp, User } from "lucide-react-native";
+import { Camera, CalendarCheck, Users, User } from "lucide-react-native";
 import React, { useState, useEffect } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import { palette } from "@/constants/theme";
@@ -15,11 +15,12 @@ export default function TabLayout() {
   const [hasShownPopup, setHasShownPopup] = useState(false);
 
   useEffect(() => {
+    // Show popup only once after login if user doesn't have profile picture
     if (session && user && !hasProfilePicture && !hasShownPopup) {
       const timer = setTimeout(() => {
         setShowProfilePopup(true);
         setHasShownPopup(true);
-      }, 1000);
+      }, 1000); // Small delay for better UX
       return () => clearTimeout(timer);
     }
   }, [session, user, hasProfilePicture, hasShownPopup]);
@@ -45,11 +46,11 @@ export default function TabLayout() {
         <Tabs.Screen
           name="home"
           options={{
-            title: "Today",
-            tabBarIcon: ({ color, focused }) => (
-              <Home
+            title: "Scan",
+            tabBarIcon: ({ color, size, focused }) => (
+              <Camera
                 color={focused ? palette.primary : color}
-                size={26}
+                size={28}
                 strokeWidth={focused ? 2.5 : 2}
               />
             ),
@@ -59,23 +60,23 @@ export default function TabLayout() {
           name="glow-coach"
           options={{
             title: "Routine",
-            tabBarIcon: ({ color, focused }) => (
-              <Sparkles
+            tabBarIcon: ({ color, size, focused }) => (
+              <CalendarCheck
                 color={focused ? palette.primary : color}
-                size={26}
+                size={28}
                 strokeWidth={focused ? 2.5 : 2}
               />
             ),
           }}
         />
         <Tabs.Screen
-          name="progress"
+          name="community"
           options={{
-            title: "Progress",
-            tabBarIcon: ({ color, focused }) => (
-              <TrendingUp
+            title: "Community",
+            tabBarIcon: ({ color, size, focused }) => (
+              <Users
                 color={focused ? palette.primary : color}
-                size={26}
+                size={28}
                 strokeWidth={focused ? 2.5 : 2}
               />
             ),
@@ -85,17 +86,17 @@ export default function TabLayout() {
           name="profile"
           options={{
             title: "Me",
-            tabBarIcon: ({ color, focused }) => (
+            tabBarIcon: ({ color, size, focused }) => (
               <User
                 color={focused ? palette.primary : color}
-                size={26}
+                size={28}
                 strokeWidth={focused ? 2.5 : 2}
               />
             ),
           }}
         />
         <Tabs.Screen
-          name="community"
+          name="progress"
           options={{
             tabBarButton: () => null,
           }}
