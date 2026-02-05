@@ -896,7 +896,6 @@ export default function ProgressTrackerScreen() {
     );
   };
 
-<<<<<<< HEAD
   const renderInsightsPaywall = () => {
     return (
       <View style={styles.tabContent}>
