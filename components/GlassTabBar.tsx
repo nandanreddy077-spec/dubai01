@@ -45,7 +45,7 @@ function GlassTabBarImpl({ state, descriptors, navigation }: GlassTabBarProps) {
   const routes = state.routes;
 
   const containerStyle = useMemo(
-    () => [styles.container, shadow.soft] as const,
+    () => [styles.container, shadow.soft],
     []
   );
 

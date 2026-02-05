@@ -181,10 +181,6 @@ const styles = StyleSheet.create({
   webBlurOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    // CSS backdrop-filter for web
-    // @ts-ignore - Web-specific property
-    backdropFilter: 'blur(15px)',
-    WebkitBackdropFilter: 'blur(15px)',
     zIndex: 10,
   },
 });
