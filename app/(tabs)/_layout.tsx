@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Heart, Wand2, Users, User } from "lucide-react-native";
+import { Scan, CheckCircle, User } from "lucide-react-native";
 import React, { useState, useEffect } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import { palette } from "@/constants/theme";
@@ -46,13 +46,12 @@ export default function TabLayout() {
         <Tabs.Screen
           name="home"
           options={{
-            title: "Glow",
+            title: "Scan",
             tabBarIcon: ({ color, size, focused }) => (
-              <Heart
+              <Scan
                 color={focused ? palette.primary : color}
                 size={size}
                 strokeWidth={focused ? 2.5 : 2}
-                fill={focused ? palette.blush : "transparent"}
               />
             ),
           }}
@@ -60,25 +59,13 @@ export default function TabLayout() {
         <Tabs.Screen
           name="glow-coach"
           options={{
-            title: "Coach",
+            title: "Routine",
             tabBarIcon: ({ color, size, focused }) => (
-              <Wand2
-                color={focused ? palette.sage : color}
-                size={size}
-                strokeWidth={focused ? 2.5 : 2}
-              />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="community"
-          options={{
-            title: "Circle",
-            tabBarIcon: ({ color, size, focused }) => (
-              <Users
+              <CheckCircle
                 color={focused ? palette.gold : color}
                 size={size}
                 strokeWidth={focused ? 2.5 : 2}
+                fill={focused ? "rgba(201,169,97,0.2)" : "transparent"}
               />
             ),
           }}
@@ -97,9 +84,15 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="community"
+          options={{
+            href: null, // Hide from tab bar but keep accessible
+          }}
+        />
+        <Tabs.Screen
           name="progress"
           options={{
-            tabBarButton: () => null, // Completely hide from tab bar
+            href: null, // Hide from tab bar but keep accessible
           }}
         />
       </Tabs>

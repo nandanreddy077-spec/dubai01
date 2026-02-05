@@ -1,79 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
-  Modal,
-  TextInput,
+  Animated,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { palette, gradient, shadow, typography, spacing } from '@/constants/theme';
+import { palette, gradient, shadow } from '@/constants/theme';
 import { 
-  Calendar,
-  CheckCircle,
-  Circle,
-  Camera,
-  Plus,
-  Target,
-  Droplets,
   Sun,
   Moon,
-  X,
-  Play,
-  Pause,
-  Crown,
+  Check,
   Sparkles,
-  Heart,
-  Star,
-  Gem,
-  ArrowRight,
-  ShoppingBag
+  ChevronRight,
+  Circle,
+  PartyPopper,
 } from 'lucide-react-native';
 import { useSkincare } from '@/contexts/SkincareContext';
 import { useGamification } from '@/contexts/GamificationContext';
-import { SkincareStep, WeeklyPlan, SkincarePlan } from '@/types/skincare';
+import { SkincareStep, WeeklyPlan } from '@/types/skincare';
 import { router } from 'expo-router';
-import DailyRewardsModal from '@/components/DailyRewardsModal';
-import AnimatedProgressBar from '@/components/AnimatedProgressBar';
-import { useProducts } from '@/contexts/ProductContext';
-import { useSubscription } from '@/contexts/SubscriptionContext';
-import FeaturePaywall from '@/components/FeaturePaywall';
+import * as Haptics from 'expo-haptics';
 
-interface DailyReward {
-  id: string;
-  type: 'points' | 'badge' | 'streak_bonus' | 'level_up';
-  title: string;
-  description: string;
-  value: number;
-  icon: string;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
-}
 
-export default function GlowCoachScreen() {
-  const insets = useSafeAreaInsets();
-  const { 
-    currentPlan, 
-    activePlans, 
-    updatePlanProgress, 
-    setCurrentPlan, 
-    deactivatePlan, 
-    canAddMorePlans 
-  } = useSkincare();
-  const { completeDailyRoutine, hasCompletedToday, hasCompletedForPlanDay } = useGamification();
-  const { recommendations, generateRecommendations } = useProducts();
-  const subscription = useSubscription();
-  const { canAccessAICoach } = subscription || { canAccessAICoach: false };
-  const [showPaywall, setShowPaywall] = useState(!canAccessAICoach);
-  const [showNoteModal, setShowNoteModal] = useState(false);
-  const [noteText, setNoteText] = useState('');
-  const [selectedMood, setSelectedMood] = useState<'great' | 'good' | 'okay' | 'bad' | null>(null);
-  const [showPlansModal, setShowPlansModal] = useState(false);
-  const [showRewardsModal, setShowRewardsModal] = useState(false);
-  const [dailyRewards, setDailyRewards] = useState<DailyReward[]>([]);
+
+const COMPLETION_MESSAGES = [
+  "Amazing work! 🌟",
+  "You're glowing! ✨",
+  "Skin goals! 💫",
+  "Consistency queen! 👑",
+  "Keep shining! 🌸",
+];
+
+export default function SimpleGlowCoachScreen() {
+  const { currentPlan, activePlans, updatePlanProgress, setCurrentPlan } = useSkincare();
+  const { completeDailyRoutine, hasCompletedForPlanDay } = useGamification();
+  
+  const [showCelebration, setShowCelebration] = useState(false);
+  const celebrationAnim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!currentPlan && activePlans.length > 0) {
@@ -83,181 +51,22 @@ export default function GlowCoachScreen() {
 
   useEffect(() => {
     if (currentPlan) {
-      generateRecommendations();
+      const progress = currentPlan.progress.currentDay / currentPlan.duration;
+      Animated.spring(progressAnim, {
+        toValue: progress,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: false,
+      }).start();
     }
-  }, [currentPlan, generateRecommendations]);
+  }, [currentPlan, progressAnim]);
 
-  // Check and skip incomplete days when app opens or plan changes
-  // This handles cases where user opens app after midnight and a day was missed
-  useEffect(() => {
-    const checkAndSkipIncompleteDays = async () => {
-      if (!currentPlan) return;
-      
-      // Don't advance if plan is already complete
-      if (currentPlan.progress.currentDay >= currentPlan.duration) {
-        return;
-      }
-      
-      // Check if the current day was completed
-      const currentDayCompleted = hasCompletedForPlanDay(currentPlan.id, currentPlan.progress.currentDay);
-      
-      if (!currentDayCompleted) {
-        // Check if it's past midnight (new day) by comparing with plan creation/access time
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const todayMidnight = today.getTime();
-        
-        // Get the plan's last accessed time or creation time
-        const planTime = currentPlan.lastAccessedAt || currentPlan.createdAt;
-        const planDate = new Date(planTime);
-        const planDay = new Date(planDate.getFullYear(), planDate.getMonth(), planDate.getDate());
-        const planMidnight = planDay.getTime();
-        
-        // If plan was last accessed before today's midnight, it means a new day has passed
-        // Skip the incomplete day
-        if (planMidnight < todayMidnight) {
-          console.log(`🕛 Day ${currentPlan.progress.currentDay} was not completed and a new day has passed. Auto-skipping to next day.`);
-          
-          // Skip to next day
-          const nextDay = currentPlan.progress.currentDay + 1;
-          
-          // Only advance if not at the end of the plan
-          if (nextDay <= currentPlan.duration) {
-            await updatePlanProgress(currentPlan.id, {
-              currentDay: nextDay,
-              completedSteps: [] // Reset for new day
-            });
-            console.log(`📅 Auto-skipped incomplete day. Now on day ${nextDay}`);
-          }
-        }
-      }
-    };
-
-    // Check immediately when plan changes or app opens
-    // Add a small delay to ensure completion log is loaded
-    const timer = setTimeout(checkAndSkipIncompleteDays, 500);
-    return () => clearTimeout(timer);
-  }, [currentPlan, hasCompletedForPlanDay, updatePlanProgress]);
-
-  // Auto-advance day progression - skip incomplete days at midnight
-  useEffect(() => {
-    const checkDayProgression = async () => {
-      if (!currentPlan) return;
-      
-      // Don't advance if plan is already complete
-      if (currentPlan.progress.currentDay >= currentPlan.duration) {
-        return;
-      }
-      
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-      
-      // Check at midnight (00:00 to 00:05) to skip incomplete days
-      // This gives a 5-minute window to catch midnight
-      if (currentHour === 0 && currentMinute <= 5) {
-        // Check if the current day was completed
-        const currentDayCompleted = hasCompletedForPlanDay(currentPlan.id, currentPlan.progress.currentDay);
-        
-        if (!currentDayCompleted) {
-          console.log(`🕛 Day ${currentPlan.progress.currentDay} was not completed. Auto-skipping to next day at midnight.`);
-          
-          // Skip to next day
-          const nextDay = currentPlan.progress.currentDay + 1;
-          
-          // Only advance if not at the end of the plan
-          if (nextDay <= currentPlan.duration) {
-            await updatePlanProgress(currentPlan.id, {
-              currentDay: nextDay,
-              completedSteps: [] // Reset for new day
-            });
-            console.log(`📅 Auto-skipped incomplete day. Now on day ${nextDay}`);
-          }
-        } else {
-          console.log(`✅ Day ${currentPlan.progress.currentDay} was completed. No skip needed.`);
-        }
-      }
-    };
-
-    // Check immediately and then every 5 minutes to catch midnight
-    checkDayProgression();
-    const interval = setInterval(checkDayProgression, 5 * 60 * 1000); // Every 5 minutes
+  const todaySteps = useMemo(() => {
+    if (!currentPlan) return { morning: [], evening: [] };
     
-    return () => clearInterval(interval);
-  }, [currentPlan, hasCompletedForPlanDay, updatePlanProgress]);
-
-  const handlePlanSwitch = async (plan: SkincarePlan) => {
-    // Update lastAccessedAt when switching plans
-    const updatedPlan = {
-      ...plan,
-      lastAccessedAt: Date.now()
-    };
-    setCurrentPlan(updatedPlan);
-    setShowPlansModal(false);
-  };
-
-  const handleDeactivatePlan = async (planId: string) => {
-    Alert.alert(
-      'Deactivate Plan',
-      'Are you sure you want to deactivate this plan? You can reactivate it later.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Deactivate',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deactivatePlan(planId);
-              setShowPlansModal(false);
-            } catch (err) {
-              console.error('Failed to deactivate plan:', err);
-              Alert.alert('Error', 'Failed to deactivate plan');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-
-
-  if (activePlans.length === 0) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
-        <View style={styles.emptyState}>
-          <LinearGradient colors={gradient.shimmer} style={styles.emptyIcon}>
-            <Crown color={palette.primary} size={48} />
-          </LinearGradient>
-          <Text style={styles.emptyTitle}>Your Glow Journey Awaits</Text>
-          <Text style={styles.emptySubtitle}>
-            Discover your skin&apos;s potential with our AI-powered analysis. Create up to 3 personalized beauty plans and watch your radiance transform.
-          </Text>
-          <TouchableOpacity 
-            style={styles.startButton}
-            onPress={() => router.push('/glow-analysis')}
-            activeOpacity={0.9}
-          >
-            <LinearGradient colors={gradient.primary} style={styles.startButtonGradient}>
-              <Sparkles color={palette.textLight} size={20} />
-              <Text style={styles.startButtonText}>Begin Your Glow</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (!currentPlan) {
-    return null;
-  }
-
-  const currentWeek = Math.ceil(currentPlan.progress.currentDay / 7);
-  const currentWeekPlan = currentPlan.weeklyPlans.find((w: WeeklyPlan) => w.week === currentWeek);
-  const progressPercentage = (currentPlan.progress.currentDay / currentPlan.duration) * 100;
-  const daysRemaining = currentPlan.duration - currentPlan.progress.currentDay + 1;
-
-  const getTodaySteps = () => {
+    const currentWeek = Math.ceil(currentPlan.progress.currentDay / 7);
+    const currentWeekPlan = currentPlan.weeklyPlans.find((w: WeeklyPlan) => w.week === currentWeek);
+    
     if (!currentWeekPlan) return { morning: [], evening: [] };
     
     return {
@@ -265,7 +74,6 @@ export default function GlowCoachScreen() {
         .filter((step: SkincareStep) => step.timeOfDay === 'morning' || step.timeOfDay === 'both')
         .map((step: SkincareStep) => ({
           ...step,
-          // Create unique IDs for steps that appear in both routines
           id: step.timeOfDay === 'both' ? `${step.id}_morning` : step.id
         }))
         .sort((a: SkincareStep, b: SkincareStep) => a.order - b.order),
@@ -273,17 +81,29 @@ export default function GlowCoachScreen() {
         .filter((step: SkincareStep) => step.timeOfDay === 'evening' || step.timeOfDay === 'both')
         .map((step: SkincareStep) => ({
           ...step,
-          // Create unique IDs for steps that appear in both routines
           id: step.timeOfDay === 'both' ? `${step.id}_evening` : step.id
         }))
         .sort((a: SkincareStep, b: SkincareStep) => a.order - b.order)
     };
-  };
+  }, [currentPlan]);
 
-  const todaySteps = getTodaySteps();
+  const allSteps = [...todaySteps.morning, ...todaySteps.evening];
+  const completedCount = currentPlan?.progress.completedSteps.filter(
+    (id: string) => allSteps.some(s => s.id === id)
+  ).length || 0;
+  const totalSteps = allSteps.length;
+  const allCompleted = completedCount === totalSteps && totalSteps > 0;
+  const isAlreadyDone = currentPlan ? hasCompletedForPlanDay(currentPlan.id, currentPlan.progress.currentDay) : false;
 
-  const handleStepComplete = async (stepId: string) => {
+  const handleStepToggle = async (stepId: string) => {
+    if (!currentPlan || isAlreadyDone) return;
+    
     const isCompleted = currentPlan.progress.completedSteps.includes(stepId);
+    
+    Haptics.impactAsync(
+      isCompleted ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Medium
+    );
+    
     const updatedSteps = isCompleted
       ? currentPlan.progress.completedSteps.filter((id: string) => id !== stepId)
       : [...currentPlan.progress.completedSteps, stepId];
@@ -293,574 +113,228 @@ export default function GlowCoachScreen() {
     });
   };
 
-  const handleAddNote = async () => {
-    if (!noteText.trim()) return;
+  const handleCompleteDay = async () => {
+    if (!currentPlan || !allCompleted || isAlreadyDone) return;
     
-    const newNote = {
-      day: currentPlan.progress.currentDay,
-      content: noteText,
-      mood: selectedMood || undefined
-    };
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
-    await updatePlanProgress(currentPlan.id, {
-      notes: [...currentPlan.progress.notes, newNote]
-    });
+    setShowCelebration(true);
+    Animated.sequence([
+      Animated.spring(celebrationAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 5,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2000),
+      Animated.timing(celebrationAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setShowCelebration(false));
+
+    await completeDailyRoutine(currentPlan.id, currentPlan.progress.currentDay);
     
-    setNoteText('');
-    setSelectedMood(null);
-    setShowNoteModal(false);
+    const isLastDay = currentPlan.progress.currentDay >= currentPlan.duration;
+    if (!isLastDay) {
+      await updatePlanProgress(currentPlan.id, {
+        currentDay: currentPlan.progress.currentDay + 1,
+        completedSteps: []
+      });
+    }
   };
 
-  const handleCompleteDailyRoutine = async () => {
-    if (!currentPlan) {
-      console.log('❌ No current plan available');
-      Alert.alert('Error', 'No active plan found. Please create a plan first.');
-      return;
-    }
+  
+
+  if (activePlans.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
+        <View style={styles.emptyState}>
+          <View style={styles.emptyIcon}>
+            <Sparkles color={palette.gold} size={48} />
+          </View>
+          <Text style={styles.emptyTitle}>No Routine Yet</Text>
+          <Text style={styles.emptySubtitle}>
+            Scan your skin to get a personalized daily routine
+          </Text>
+          <TouchableOpacity 
+            style={styles.emptyButton}
+            onPress={() => router.push('/glow-analysis')}
+            activeOpacity={0.9}
+          >
+            <LinearGradient colors={['#1A1A1A', '#000000']} style={styles.emptyButtonGradient}>
+              <Text style={styles.emptyButtonText}>Get My Routine</Text>
+              <ChevronRight color="#FFFFFF" size={20} />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!currentPlan) return null;
+
+  const renderStepItem = (step: SkincareStep, index: number) => {
+    const isCompleted = currentPlan.progress.completedSteps.includes(step.id);
     
-    console.log('🚀 Starting daily routine completion...');
-    console.log('📊 Current plan:', { id: currentPlan.id, title: currentPlan.title, currentDay: currentPlan.progress.currentDay });
-    
-    try {
-      // Check if already completed today
-      if (hasCompletedToday()) {
-        console.log('✅ Already completed today');
-        Alert.alert(
-          'Already Complete!',
-          'You have already completed your routine today. Come back tomorrow for your next session!',
-          [{ text: 'OK', style: 'default' }]
-        );
-        return;
-      }
-      
-      // Check if all steps are completed
-      const allSteps = [...todaySteps.morning, ...todaySteps.evening];
-      const completedSteps = currentPlan.progress.completedSteps;
-      
-      console.log('📝 All steps:', allSteps.map(s => ({ id: s.id, name: s.name })));
-      console.log('✅ Completed steps:', completedSteps);
-      
-      const allStepsCompleted = allSteps.every(step => completedSteps.includes(step.id));
-      console.log('🎯 All steps completed:', allStepsCompleted);
-      
-      if (!allStepsCompleted) {
-        const incompleteSteps = allSteps.filter(step => !completedSteps.includes(step.id));
-        console.log('❌ Incomplete steps:', incompleteSteps.map(s => s.name));
+    return (
+      <TouchableOpacity
+        key={step.id}
+        onPress={() => handleStepToggle(step.id)}
+        activeOpacity={0.8}
+        disabled={isAlreadyDone}
+        style={[
+          styles.stepCard,
+          isCompleted && styles.stepCardCompleted,
+          isAlreadyDone && styles.stepCardDone,
+        ]}
+      >
+        <View style={[styles.stepCheckbox, isCompleted && styles.stepCheckboxCompleted]}>
+          {isCompleted ? (
+            <Check color="#FFFFFF" size={16} strokeWidth={3} />
+          ) : (
+            <Circle color={palette.textMuted} size={16} />
+          )}
+        </View>
         
-        Alert.alert(
-          'Complete Your Routine First',
-          `Please complete these remaining steps to earn your rewards:\n\n${incompleteSteps.map(s => `• ${s.name}`).join('\n')}\n\nTap each step above to mark it as complete!`,
-          [{ text: 'Got it!', style: 'default' }]
-        );
-        return;
-      }
-      
-      console.log('✨ All steps completed, proceeding with daily routine completion...');
-      
-      // Complete the daily routine and get rewards
-      console.log('🎁 Calling completeDailyRoutine...');
-      const rewards = await completeDailyRoutine(currentPlan.id, currentPlan.progress.currentDay);
-      console.log('🎉 Rewards received:', rewards);
-      
-      // Update plan progress - advance to next day ONLY if not at the end
-      console.log('📈 Updating plan progress...');
-      const isLastDay = currentPlan.progress.currentDay >= currentPlan.duration;
-      const nextDay = isLastDay 
-        ? currentPlan.progress.currentDay // Don't advance past the end
-        : currentPlan.progress.currentDay + 1;
-      
-      if (!isLastDay) {
-        await updatePlanProgress(currentPlan.id, {
-          currentDay: nextDay,
-          completedSteps: [] // Reset for new day
-        });
-        console.log('✅ Plan progress updated to day', nextDay);
-      } else {
-        console.log('🏁 Plan completed! Not advancing day.');
-      }
-      
-      // Show rewards with day progression message
-      if (rewards && rewards.length > 0) {
-        console.log('🎊 Showing rewards modal with', rewards.length, 'rewards');
-        setDailyRewards(rewards);
-        setShowRewardsModal(true);
-      } else {
-        console.log('💫 No rewards, showing completion alert');
-        Alert.alert(
-          isLastDay ? 'Plan Complete! 🎉' : 'Day Complete! ✨',
-          isLastDay 
-            ? 'Congratulations! You\'ve completed your entire skincare plan. Your dedication to glowing skin is inspiring!' 
-            : `Great job completing Day ${currentPlan.progress.currentDay}! Ready for Day ${nextDay}? Keep up the consistency.`,
-          [{ text: 'Continue', style: 'default' }]
-        );
-      }
-    } catch (error) {
-      console.error('❌ Error completing daily routine:', error);
-      Alert.alert('Error', 'Failed to complete daily routine. Please try again.');
-    }
+        <View style={styles.stepContent}>
+          <Text style={[styles.stepName, isCompleted && styles.stepNameCompleted]}>
+            {step.name}
+          </Text>
+          {!isCompleted && (
+            <Text style={styles.stepHint}>Tap to complete</Text>
+          )}
+        </View>
+        
+        <Text style={styles.stepNumber}>{index + 1}</Text>
+      </TouchableOpacity>
+    );
   };
-
-  const getMoodEmoji = (mood: string) => {
-    switch (mood) {
-      case 'great': return '😍';
-      case 'good': return '😊';
-      case 'okay': return '😐';
-      case 'bad': return '😞';
-      default: return '📝';
-    }
-  };
-
-  const renderStepItem = (step: SkincareStep, isCompleted: boolean) => (
-    <TouchableOpacity
-      key={step.id}
-      style={[styles.stepItem, isCompleted && styles.completedStep]}
-      onPress={() => handleStepComplete(step.id)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.stepCheckbox}>
-        {isCompleted ? (
-          <LinearGradient colors={gradient.success} style={styles.checkboxCompleted}>
-            <CheckCircle color={palette.textLight} size={18} />
-          </LinearGradient>
-        ) : (
-          <View style={styles.checkboxEmpty}>
-            <Circle color={palette.textMuted} size={18} />
-          </View>
-        )}
-      </View>
-      
-      <View style={styles.stepContent}>
-        <Text style={[styles.stepName, isCompleted && styles.completedStepText]}>
-          {step.name}
-        </Text>
-        <Text style={styles.stepDescription}>{step.description}</Text>
-        {step.products.length > 0 && (
-          <View style={styles.productsContainer}>
-            <Droplets color={palette.primary} size={12} />
-            <Text style={styles.stepProducts}>{step.products.join(' • ')}</Text>
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
 
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
+      
       <ScrollView 
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + 100 } // Tab bar height (~60) + safe area + extra padding
-        ]}
+        contentContainerStyle={styles.scrollContent}
       >
-        {/* Luxurious Header */}
+        {/* Simple Header */}
         <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View style={styles.titleContainer}>
-              <LinearGradient colors={gradient.glow} style={styles.titleIcon}>
-                <Crown color={palette.textLight} size={20} />
-              </LinearGradient>
-              <Text style={styles.headerTitle}>Your Glow Coach</Text>
-            </View>
-            <TouchableOpacity 
-              style={styles.plansButton}
-              onPress={() => setShowPlansModal(true)}
-              activeOpacity={0.8}
-            >
-              <LinearGradient colors={gradient.shimmer} style={styles.plansButtonGradient}>
-                <Gem color={palette.primary} size={16} />
-                <Text style={styles.plansButtonText}>{activePlans.length}/3 Plans</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+          <Text style={styles.headerTitle}>Today&apos;s Routine</Text>
+          <View style={styles.dayBadge}>
+            <Text style={styles.dayBadgeText}>Day {currentPlan.progress.currentDay}</Text>
           </View>
-          
-          {activePlans.length > 1 && (
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              style={styles.planTabs}
-              contentContainerStyle={styles.planTabsContent}
-            >
-              {activePlans.map((plan) => (
-                <TouchableOpacity
-                  key={plan.id}
-                  style={[
-                    styles.planTab,
-                    currentPlan.id === plan.id && styles.activePlanTab
-                  ]}
-                  onPress={() => handlePlanSwitch(plan)}
-                >
-                  <Text style={[
-                    styles.planTabText,
-                    currentPlan.id === plan.id && styles.activePlanTabText
-                  ]}>
-                    {plan.title}
-                  </Text>
-                  <Text style={[
-                    styles.planTabDay,
-                    currentPlan.id === plan.id && styles.activePlanTabDay
-                  ]}>
-                    Day {plan.progress.currentDay}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
         </View>
 
-        {/* Elegant Progress Section */}
+        {/* Progress Bar - Simple and visual */}
         <View style={styles.progressSection}>
-          <LinearGradient colors={gradient.card} style={styles.progressCard}>
-            <View style={styles.progressHeader}>
-              <View style={styles.planTitleRow}>
-                <Text style={styles.planTitle}>{currentPlan.title}</Text>
-                <View style={styles.weekBadge}>
-                  <Star color={palette.primary} size={12} fill={palette.primary} />
-                  <Text style={styles.weekBadgeText}>Week {currentWeek}</Text>
-                </View>
-              </View>
-              <Text style={styles.dayCounter}>Day {currentPlan.progress.currentDay} of {currentPlan.duration}</Text>
-            </View>
-            
-            <View style={styles.progressContainer}>
-              <View style={styles.progressTrack}>
-                <AnimatedProgressBar 
-                  progress={progressPercentage}
-                  height={8}
-                  borderRadius={4}
-                  gradientColors={gradient.primary}
-                  duration={800}
-                />
-              </View>
-              <Text style={styles.progressPercentage}>{Math.round(progressPercentage)}%</Text>
-            </View>
-            
-            <View style={styles.progressStats}>
-              <View style={styles.statItem}>
-                <Calendar color={palette.primary} size={16} />
-                <Text style={styles.statText}>{daysRemaining} days remaining</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Heart color={palette.rose} size={16} fill={palette.rose} />
-                <Text style={styles.statText}>Glowing journey</Text>
-              </View>
-            </View>
-          </LinearGradient>
+          <View style={styles.progressInfo}>
+            <Text style={styles.progressLabel}>
+              {isAlreadyDone ? "Completed! 🎉" : `${completedCount} of ${totalSteps} steps`}
+            </Text>
+            <Text style={styles.progressPercent}>
+              {totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0}%
+            </Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <Animated.View style={[styles.progressFill, { width: `${(completedCount / totalSteps) * 100}%` }]} />
+          </View>
         </View>
 
-        {/* Elegant Week Focus */}
-        {currentWeekPlan && (
-          <View style={styles.weekFocusSection}>
-            <LinearGradient colors={gradient.lavender} style={styles.weekFocusCard}>
-              <View style={styles.weekFocusHeader}>
-                <LinearGradient colors={gradient.glow} style={styles.focusIcon}>
-                  <Target color={palette.textLight} size={16} />
-                </LinearGradient>
-                <Text style={styles.weekFocusTitle}>This Week&apos;s Focus</Text>
+        {/* Morning Routine */}
+        {todaySteps.morning.length > 0 && (
+          <View style={styles.routineSection}>
+            <View style={styles.routineHeader}>
+              <View style={styles.routineIconWrapper}>
+                <Sun color="#F59E0B" size={20} />
               </View>
-              <Text style={styles.weekFocusText}>{currentWeekPlan.focus}</Text>
-              <Text style={styles.weekFocusDescription}>{currentWeekPlan.description}</Text>
-            </LinearGradient>
+              <Text style={styles.routineTitle}>Morning</Text>
+            </View>
+            {todaySteps.morning.map((step, index) => renderStepItem(step, index))}
           </View>
         )}
 
-        {/* Beautiful Routine Section */}
-        <View style={styles.routineSection}>
-          <View style={styles.routineSectionHeader}>
-            <Sparkles color={palette.primary} size={20} />
-            <Text style={styles.routineTitle}>Today&apos;s Ritual</Text>
+        {/* Evening Routine */}
+        {todaySteps.evening.length > 0 && (
+          <View style={styles.routineSection}>
+            <View style={styles.routineHeader}>
+              <View style={[styles.routineIconWrapper, { backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}>
+                <Moon color="#6366F1" size={20} />
+              </View>
+              <Text style={styles.routineTitle}>Evening</Text>
+            </View>
+            {todaySteps.evening.map((step, index) => renderStepItem(step, todaySteps.morning.length + index))}
           </View>
-          
-          {/* Morning Routine */}
-          {todaySteps.morning.length > 0 && (
-            <View style={styles.routineTimeSection}>
-              <LinearGradient colors={gradient.mint} style={styles.routineTimeCard}>
-                <View style={styles.routineTimeHeader}>
-                  <LinearGradient colors={['#FEF3C7', '#F59E0B']} style={styles.timeIcon}>
-                    <Sun color={palette.textLight} size={16} />
-                  </LinearGradient>
-                  <Text style={styles.routineTimeTitle}>Morning Glow</Text>
-                </View>
-                
-                {todaySteps.morning.map((step: SkincareStep) => 
-                  renderStepItem(step, currentPlan.progress.completedSteps.includes(step.id))
-                )}
-              </LinearGradient>
+        )}
+
+        {/* Complete Button */}
+        <View style={styles.completeSection}>
+          {isAlreadyDone ? (
+            <View style={styles.completedBanner}>
+              <Check color={palette.success} size={24} />
+              <Text style={styles.completedText}>All done for today!</Text>
+              <Text style={styles.completedHint}>Come back tomorrow ✨</Text>
             </View>
-          )}
-
-          {/* Evening Routine */}
-          {todaySteps.evening.length > 0 && (
-            <View style={styles.routineTimeSection}>
-              <LinearGradient colors={gradient.rose} style={styles.routineTimeCard}>
-                <View style={styles.routineTimeHeader}>
-                  <LinearGradient colors={['#E0E7FF', '#6366F1']} style={styles.timeIcon}>
-                    <Moon color={palette.textLight} size={16} />
-                  </LinearGradient>
-                  <Text style={styles.routineTimeTitle}>Evening Renewal</Text>
-                </View>
-                
-                {todaySteps.evening.map((step: SkincareStep) => 
-                  renderStepItem(step, currentPlan.progress.completedSteps.includes(step.id))
-                )}
-              </LinearGradient>
-            </View>
-          )}
-        </View>
-
-        {/* Progress Actions */}
-        <View style={styles.actionsSection}>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => setShowNoteModal(true)}
-          >
-            <Plus color="#D4A574" size={20} />
-            <Text style={styles.actionButtonText}>Add Note</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => Alert.alert('Photo Feature', 'Progress photo feature coming soon!')}
-          >
-            <Camera color="#D4A574" size={20} />
-            <Text style={styles.actionButtonText}>Progress Photo</Text>
-          </TouchableOpacity>
-          
-          {canAddMorePlans && (
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.addPlanButton]}
-              onPress={() => router.push('/glow-analysis')}
-            >
-              <Plus color="white" size={20} />
-              <Text style={styles.addPlanButtonText}>Add Plan</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Product Recommendations Button */}
-        {recommendations.length > 0 && (
-          <View style={styles.recommendationsSection}>
-            <TouchableOpacity 
-              style={styles.recommendationsButton}
-              onPress={() => router.push('/product-tracking')}
+          ) : allCompleted ? (
+            <TouchableOpacity
+              onPress={handleCompleteDay}
               activeOpacity={0.9}
+              style={styles.completeButton}
             >
-              <LinearGradient colors={['#D4A574', '#C8966A']} style={styles.recommendationsButtonGradient}>
-                <View style={styles.recommendationsButtonContent}>
-                  <View style={styles.recommendationsButtonLeft}>
-                    <View style={styles.recommendationsIconWrapper}>
-                      <ShoppingBag color={palette.textLight} size={24} />
-                    </View>
-                    <View>
-                      <Text style={styles.recommendationsButtonTitle}>Product Recommendations</Text>
-                      <Text style={styles.recommendationsButtonSubtitle}>
-                        {recommendations.length} personalized picks for you
-                      </Text>
-                    </View>
-                  </View>
-                  <ArrowRight color={palette.textLight} size={20} />
-                </View>
+              <LinearGradient 
+                colors={['#10B981', '#059669']} 
+                style={styles.completeButtonGradient}
+              >
+                <PartyPopper color="#FFFFFF" size={24} />
+                <Text style={styles.completeButtonText}>Complete Day!</Text>
               </LinearGradient>
             </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Recent Notes */}
-        {currentPlan.progress.notes.length > 0 && (
-          <View style={styles.notesSection}>
-            <Text style={styles.notesTitle}>Recent Notes</Text>
-            {currentPlan.progress.notes
-              .slice(-3)
-              .reverse()
-              .map((note: any, index: number) => (
-                <View key={index} style={styles.noteItem}>
-                  <View style={styles.noteHeader}>
-                    <Text style={styles.noteDay}>Day {note.day}</Text>
-                    {note.mood && (
-                      <Text style={styles.noteMood}>{getMoodEmoji(note.mood)}</Text>
-                    )}
-                  </View>
-                  <Text style={styles.noteContent}>{note.content}</Text>
-                </View>
-              ))
-            }
-          </View>
-        )}
-
-        {/* Complete Day Button */}
-        <View style={styles.completeDaySection}>
-          {hasCompletedForPlanDay(currentPlan.id, currentPlan.progress.currentDay) ? (
-            <View style={[styles.completeDayButton, styles.completedDayButton]}>
-              <CheckCircle color={palette.success} size={20} fill={palette.success} />
-              <Text style={[styles.completeDayButtonText, styles.completedDayButtonText]}>
-                {currentPlan.progress.currentDay >= currentPlan.duration 
-                  ? 'Plan Complete! 🎉' 
-                  : `Day ${currentPlan.progress.currentDay} Complete! ✨`}
+          ) : (
+            <View style={styles.incompleteHint}>
+              <Text style={styles.incompleteText}>
+                Complete all steps to finish your day
               </Text>
             </View>
-          ) : (
-            <TouchableOpacity 
-              style={[styles.completeDayButton, {
-                opacity: currentPlan.progress.currentDay > currentPlan.duration ? 0.6 : 1
-              }]}
-              onPress={handleCompleteDailyRoutine}
-              disabled={currentPlan.progress.currentDay > currentPlan.duration}
-              activeOpacity={0.8}
-            >
-              <LinearGradient colors={gradient.success} style={styles.completeDayButtonGradient}>
-                <CheckCircle color={palette.textLight} size={20} />
-                <Text style={styles.completeDayButtonText}>
-                  {currentPlan.progress.currentDay > currentPlan.duration 
-                    ? 'Plan Completed!' 
-                    : `Complete Day ${currentPlan.progress.currentDay} & Earn Rewards`}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
           )}
+        </View>
+
+        {/* Reassurance Message */}
+        <View style={styles.reassuranceSection}>
+          <Text style={styles.reassuranceText}>
+            {isAlreadyDone 
+              ? "You're building great habits! 🌟"
+              : completedCount === 0 
+                ? "Small steps lead to big glow ✨"
+                : completedCount < totalSteps / 2
+                  ? "You're doing great, keep going! 💪"
+                  : "Almost there, you got this! 🔥"
+            }
+          </Text>
         </View>
       </ScrollView>
 
-      {/* Plans Management Modal */}
-      <Modal
-        visible={showPlansModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Manage Plans ({activePlans.length}/3)</Text>
-            <TouchableOpacity onPress={() => setShowPlansModal(false)}>
-              <X color="#6B7280" size={24} />
-            </TouchableOpacity>
+      {/* Celebration Overlay */}
+      {showCelebration && (
+        <Animated.View 
+          style={[
+            styles.celebrationOverlay,
+            { 
+              opacity: celebrationAnim,
+              transform: [{ scale: celebrationAnim }]
+            }
+          ]}
+        >
+          <View style={styles.celebrationContent}>
+            <Text style={styles.celebrationEmoji}>🎉</Text>
+            <Text style={styles.celebrationTitle}>
+              {COMPLETION_MESSAGES[Math.floor(Math.random() * COMPLETION_MESSAGES.length)]}
+            </Text>
+            <Text style={styles.celebrationSubtitle}>Day {currentPlan.progress.currentDay} complete</Text>
           </View>
-          
-          <ScrollView style={styles.modalContent}>
-            {activePlans.map((plan) => (
-              <View key={plan.id} style={styles.planItem}>
-                <TouchableOpacity 
-                  style={styles.planItemContent}
-                  onPress={() => handlePlanSwitch(plan)}
-                >
-                  <View style={styles.planItemInfo}>
-                    <Text style={styles.planItemTitle}>{plan.title}</Text>
-                    <Text style={styles.planItemProgress}>
-                      Day {plan.progress.currentDay} of {plan.duration} • Week {Math.ceil(plan.progress.currentDay / 7)}
-                    </Text>
-                    <View style={styles.planItemProgressBar}>
-                      <View 
-                        style={[
-                          styles.planItemProgressFill, 
-                          { width: `${(plan.progress.currentDay / plan.duration) * 100}%` }
-                        ]} 
-                      />
-                    </View>
-                  </View>
-                  
-                  {currentPlan.id === plan.id && (
-                    <View style={styles.activePlanIndicator}>
-                      <Play color="#10B981" size={16} fill="#10B981" />
-                    </View>
-                  )}
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.deactivateButton}
-                  onPress={() => handleDeactivatePlan(plan.id)}
-                >
-                  <Pause color="#EF4444" size={16} />
-                </TouchableOpacity>
-              </View>
-            ))}
-            
-            {canAddMorePlans && (
-              <TouchableOpacity 
-                style={styles.addNewPlanButton}
-                onPress={() => {
-                  setShowPlansModal(false);
-                  router.push('/glow-analysis');
-                }}
-              >
-                <Plus color="#D4A574" size={20} />
-                <Text style={styles.addNewPlanButtonText}>Create New Plan</Text>
-              </TouchableOpacity>
-            )}
-            
-            {!canAddMorePlans && (
-              <View style={styles.maxPlansNotice}>
-                <Text style={styles.maxPlansNoticeText}>
-                  You have reached the maximum of 3 active plans. Deactivate a plan to add a new one.
-                </Text>
-              </View>
-            )}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-
-      {/* Add Note Modal */}
-      <Modal
-        visible={showNoteModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Daily Note</Text>
-            <TouchableOpacity onPress={() => setShowNoteModal(false)}>
-              <X color="#6B7280" size={24} />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.modalContent}>
-            <Text style={styles.modalLabel}>How are you feeling today?</Text>
-            <View style={styles.moodSelector}>
-              {[{ mood: 'great', emoji: '😍' }, { mood: 'good', emoji: '😊' }, { mood: 'okay', emoji: '😐' }, { mood: 'bad', emoji: '😞' }].map(({ mood, emoji }) => (
-                <TouchableOpacity
-                  key={mood}
-                  style={[styles.moodButton, selectedMood === mood && styles.selectedMood]}
-                  onPress={() => setSelectedMood(mood as any)}
-                >
-                  <Text style={styles.moodEmoji}>{emoji}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            
-            <Text style={styles.modalLabel}>Notes</Text>
-            <TextInput
-              style={styles.noteInput}
-              placeholder="How did your routine go? Any observations about your skin?"
-              value={noteText}
-              onChangeText={setNoteText}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-            
-            <TouchableOpacity 
-              style={[styles.saveButton, { opacity: noteText.trim() ? 1 : 0.5 }]}
-              onPress={handleAddNote}
-              disabled={!noteText.trim()}
-            >
-              <Text style={styles.saveButtonText}>Save Note</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
-
-      {/* Daily Rewards Modal */}
-      <DailyRewardsModal
-        visible={showRewardsModal}
-        rewards={dailyRewards}
-        onClose={() => setShowRewardsModal(false)}
-      />
-
-      {/* Feature Paywall */}
-      {showPaywall && (
-        <FeaturePaywall
-          featureType="ai-coach"
-          onDismiss={() => setShowPaywall(false)}
-          showDismiss={true}
-        />
+        </Animated.View>
       )}
     </SafeAreaView>
   );
@@ -872,679 +346,269 @@ const styles = StyleSheet.create({
     backgroundColor: palette.backgroundStart,
   },
   scrollContent: {
-    flexGrow: 1,
+    paddingBottom: 120,
   },
   header: {
-    paddingHorizontal: spacing.xxl,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
-  },
-  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  titleIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...shadow.glow,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
   headerTitle: {
-    fontSize: typography.h2,
-    fontWeight: typography.extrabold,
+    fontSize: 28,
+    fontWeight: '800' as const,
     color: palette.textPrimary,
-    letterSpacing: -0.3,
+    letterSpacing: -0.8,
   },
-  plansButton: {
+  dayBadge: {
+    backgroundColor: palette.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 20,
-    overflow: 'hidden',
-    ...shadow.card,
   },
-  plansButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    gap: spacing.xs,
-  },
-  plansButtonText: {
-    fontSize: typography.bodySmall,
-    fontWeight: typography.semibold,
-    color: palette.primary,
-    letterSpacing: 0.3,
-  },
-  planTabs: {
-    marginBottom: 8,
-  },
-  planTabsContent: {
-    paddingRight: 20,
-  },
-  planTab: {
-    backgroundColor: '#1C1820',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginRight: 12,
-    minWidth: 120,
-    alignItems: 'center',
-  },
-  activePlanTab: {
-    backgroundColor: '#D4A574',
-  },
-  planTabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: palette.textSecondary,
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  activePlanTabText: {
-    color: '#FFFFFF',
-  },
-  planTabDay: {
-    fontSize: 12,
-    color: palette.textSecondary,
-  },
-  activePlanTabDay: {
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xxxxl,
-  },
-  emptyIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.xxl,
-    ...shadow.floating,
-  },
-  emptyTitle: {
-    fontSize: typography.h1,
-    fontWeight: typography.black,
-    color: palette.textPrimary,
-    marginBottom: spacing.md,
-    textAlign: 'center',
-    letterSpacing: -0.5,
-  },
-  emptySubtitle: {
-    fontSize: typography.body,
-    color: palette.textSecondary,
-    textAlign: 'center',
-    lineHeight: 26,
-    marginBottom: spacing.xxxxl,
-    fontWeight: typography.regular,
-  },
-  startButton: {
-    borderRadius: 28,
-    overflow: 'hidden',
-    ...shadow.floating,
-  },
-  startButtonGradient: {
-    flexDirection: 'row',
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xxl,
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  startButtonText: {
+  dayBadgeText: {
     color: palette.textLight,
-    fontSize: typography.h6,
-    fontWeight: typography.bold,
-    letterSpacing: 0.2,
+    fontSize: 14,
+    fontWeight: '700' as const,
   },
   progressSection: {
-    paddingHorizontal: spacing.xxl,
-    marginBottom: spacing.xxl,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
   },
-  progressCard: {
-    borderRadius: 24,
-    padding: spacing.xxl,
-    borderWidth: 1,
-    borderColor: palette.borderLight,
-    ...shadow.elevated,
-  },
-  progressHeader: {
-    marginBottom: spacing.lg,
-  },
-  planTitleRow: {
+  progressInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
+    marginBottom: 8,
   },
-  planTitle: {
-    fontSize: typography.h4,
-    fontWeight: typography.extrabold,
-    color: palette.textPrimary,
-    letterSpacing: -0.2,
-    flex: 1,
-  },
-  weekBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: palette.overlayGold,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  weekBadgeText: {
-    fontSize: 11,
-    fontWeight: typography.semibold,
-    color: palette.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  dayCounter: {
-    fontSize: typography.body,
+  progressLabel: {
+    fontSize: 14,
     color: palette.textSecondary,
-    fontWeight: typography.medium,
+    fontWeight: '500' as const,
   },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-    gap: spacing.md,
+  progressPercent: {
+    fontSize: 14,
+    color: palette.textPrimary,
+    fontWeight: '700' as const,
   },
   progressTrack: {
-    flex: 1,
+    height: 8,
+    backgroundColor: palette.border,
+    borderRadius: 4,
+    overflow: 'hidden',
   },
-  progressPercentage: {
-    fontSize: typography.bodySmall,
-    fontWeight: typography.bold,
-    color: palette.primary,
-    minWidth: 35,
-  },
-  progressStats: {
-    flexDirection: 'row',
-    gap: spacing.xl,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  statText: {
-    fontSize: typography.bodySmall,
-    color: palette.textSecondary,
-    fontWeight: typography.medium,
-  },
-  weekFocusSection: {
-    paddingHorizontal: spacing.xxl,
-    marginBottom: spacing.xxl,
-  },
-  weekFocusCard: {
-    borderRadius: 20,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: palette.borderLight,
-    ...shadow.card,
-  },
-  weekFocusHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  focusIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...shadow.glow,
-  },
-  weekFocusTitle: {
-    fontSize: typography.h6,
-    fontWeight: typography.bold,
-    color: palette.textPrimary,
-    letterSpacing: 0.2,
-  },
-  weekFocusText: {
-    fontSize: typography.h5,
-    fontWeight: typography.extrabold,
-    color: palette.primary,
-    marginBottom: spacing.sm,
-    letterSpacing: -0.2,
-  },
-  weekFocusDescription: {
-    fontSize: typography.bodySmall,
-    color: palette.textSecondary,
-    lineHeight: 22,
-    fontWeight: typography.regular,
+  progressFill: {
+    height: '100%',
+    backgroundColor: palette.gold,
+    borderRadius: 4,
   },
   routineSection: {
-    paddingHorizontal: spacing.xxl,
-    marginBottom: spacing.xxl,
+    paddingHorizontal: 24,
+    marginBottom: 24,
   },
-  routineSectionHeader: {
+  routineHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.xl,
-    gap: spacing.sm,
+    marginBottom: 16,
+  },
+  routineIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   routineTitle: {
-    fontSize: typography.h3,
-    fontWeight: typography.extrabold,
+    fontSize: 18,
+    fontWeight: '700' as const,
     color: palette.textPrimary,
-    letterSpacing: -0.3,
   },
-  routineTimeSection: {
-    marginBottom: spacing.xl,
-  },
-  routineTimeCard: {
-    borderRadius: 20,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: palette.borderLight,
-    ...shadow.card,
-  },
-  routineTimeHeader: {
+  stepCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-    gap: spacing.sm,
-  },
-  timeIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...shadow.glow,
-  },
-  routineTimeTitle: {
-    fontSize: typography.h5,
-    fontWeight: typography.bold,
-    color: palette.textPrimary,
-    letterSpacing: 0.2,
-  },
-  stepItem: {
-    flexDirection: 'row',
-    backgroundColor: palette.overlayLight,
-    borderRadius: 16,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    alignItems: 'flex-start',
-    borderWidth: 1,
-    borderColor: palette.borderLight,
-    ...shadow.card,
-  },
-  completedStep: {
-    backgroundColor: palette.overlayBlush,
-    borderColor: palette.success,
-  },
-  stepCheckbox: {
-    marginRight: spacing.md,
-    marginTop: 2,
-  },
-  checkboxCompleted: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...shadow.glow,
-  },
-  checkboxEmpty: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: palette.surface,
-    borderWidth: 2,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 10,
+    borderWidth: 1.5,
     borderColor: palette.border,
+    ...shadow.soft,
+  },
+  stepCardCompleted: {
+    backgroundColor: 'rgba(201, 169, 97, 0.08)',
+    borderColor: palette.gold,
+  },
+  stepCardDone: {
+    opacity: 0.7,
+  },
+  stepCheckbox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: palette.surfaceAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  stepCheckboxCompleted: {
+    backgroundColor: palette.gold,
   },
   stepContent: {
     flex: 1,
   },
   stepName: {
-    fontSize: typography.body,
-    fontWeight: typography.semibold,
+    fontSize: 15,
+    fontWeight: '600' as const,
     color: palette.textPrimary,
-    marginBottom: spacing.xs,
-    letterSpacing: 0.2,
   },
-  completedStepText: {
+  stepNameCompleted: {
     textDecorationLine: 'line-through',
-    color: palette.textMuted,
-  },
-  stepDescription: {
-    fontSize: typography.bodySmall,
     color: palette.textSecondary,
-    lineHeight: 20,
-    marginBottom: spacing.xs,
-    fontWeight: typography.regular,
   },
-  productsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
+  stepHint: {
+    fontSize: 12,
+    color: palette.textMuted,
+    marginTop: 2,
   },
-  stepProducts: {
-    fontSize: typography.caption,
-    color: palette.primary,
-    fontWeight: typography.medium,
-    fontStyle: 'italic',
+  stepNumber: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: palette.textMuted,
+    marginLeft: 8,
   },
-  recommendationsSection: {
-    paddingHorizontal: spacing.xxl,
-    marginBottom: spacing.xl,
+  completeSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
   },
-  recommendationsButton: {
+  completeButton: {
     borderRadius: 20,
     overflow: 'hidden',
-    ...shadow.elevated,
+    ...shadow.medium,
   },
-  recommendationsButtonGradient: {
-    padding: spacing.xl,
-  },
-  recommendationsButtonContent: {
+  completeButtonGradient: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  recommendationsButtonLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    flex: 1,
-  },
-  recommendationsIconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  recommendationsButtonTitle: {
-    fontSize: typography.h6,
-    fontWeight: typography.bold,
-    color: palette.textLight,
-    marginBottom: 2,
-    letterSpacing: 0.2,
-  },
-  recommendationsButtonSubtitle: {
-    fontSize: typography.bodySmall,
-    color: palette.textLight,
-    opacity: 0.9,
-    fontWeight: typography.medium,
-  },
-  actionsSection: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 12,
-    marginBottom: 24,
-    flexWrap: 'wrap',
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: '#1C1820',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#2B2530',
-    minWidth: 100,
+    paddingVertical: 18,
+    gap: 10,
   },
-  addPlanButton: {
-    backgroundColor: '#D4A574',
-    borderColor: '#D4A574',
-  },
-  addPlanButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'white',
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#D4A574',
-  },
-  notesSection: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  notesTitle: {
+  completeButtonText: {
+    color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: 'bold',
-    color: palette.textPrimary,
-    marginBottom: 12,
+    fontWeight: '700' as const,
   },
-  noteItem: {
-    backgroundColor: '#1C1820',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  noteHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  completedBanner: {
     alignItems: 'center',
-    marginBottom: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1.5,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
-  noteDay: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#D4A574',
-  },
-  noteMood: {
-    fontSize: 16,
-  },
-  noteContent: {
-    fontSize: 14,
-    color: palette.textPrimary,
-    lineHeight: 20,
-  },
-  completeDaySection: {
-    paddingHorizontal: 20,
-    paddingBottom: 32,
-  },
-  completeDayButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    ...shadow.elevated,
-  },
-  completeDayButtonGradient: {
-    flexDirection: 'row',
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  completeDayButtonText: {
-    color: palette.textLight,
-    fontSize: typography.body,
-    fontWeight: typography.bold,
-    letterSpacing: 0.2,
-  },
-  completedDayButton: {
-    backgroundColor: palette.overlayLight,
-    borderWidth: 2,
-    borderColor: palette.success,
-    flexDirection: 'row',
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  completedDayButtonText: {
+  completedText: {
+    fontSize: 18,
+    fontWeight: '700' as const,
     color: palette.success,
-    fontSize: typography.body,
-    fontWeight: typography.bold,
-    letterSpacing: 0.2,
+    marginTop: 8,
   },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#0F0D10',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2B2530',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: palette.textPrimary,
-  },
-  modalContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-  },
-  modalLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  moodSelector: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  moodButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#1C1820',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#2B2530',
-  },
-  selectedMood: {
-    borderColor: '#D4A574',
-    backgroundColor: '#141216',
-  },
-  moodEmoji: {
-    fontSize: 24,
-  },
-  noteInput: {
-    backgroundColor: '#1C1820',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#2B2530',
-    minHeight: 100,
-    marginBottom: 24,
-  },
-  saveButton: {
-    backgroundColor: '#D4A574',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  planItem: {
-    flexDirection: 'row',
-    backgroundColor: '#1C1820',
-    borderRadius: 12,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  planItemContent: {
-    flex: 1,
-    flexDirection: 'row',
-    padding: 16,
-    alignItems: 'center',
-  },
-  planItemInfo: {
-    flex: 1,
-  },
-  planItemTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  planItemProgress: {
+  completedHint: {
     fontSize: 14,
     color: palette.textSecondary,
-    marginBottom: 8,
+    marginTop: 4,
   },
-  planItemProgressBar: {
-    height: 4,
-    backgroundColor: '#2B2530',
-    borderRadius: 2,
-  },
-  planItemProgressFill: {
-    height: '100%',
-    backgroundColor: '#D4A574',
-    borderRadius: 2,
-  },
-  activePlanIndicator: {
-    marginLeft: 12,
-  },
-  deactivateButton: {
-    padding: 16,
-    borderLeftWidth: 1,
-    borderLeftColor: '#2B2530',
-  },
-  addNewPlanButton: {
-    flexDirection: 'row',
-    backgroundColor: '#141216',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+  incompleteHint: {
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 2,
-    borderColor: '#D4A574',
-    borderStyle: 'dashed',
-    marginTop: 8,
-  },
-  addNewPlanButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#D4A574',
-  },
-  maxPlansNotice: {
-    backgroundColor: '#1C1820',
     padding: 16,
-    borderRadius: 12,
-    marginTop: 8,
   },
-  maxPlansNoticeText: {
+  incompleteText: {
     fontSize: 14,
+    color: palette.textMuted,
+    fontWeight: '500' as const,
+  },
+  reassuranceSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  reassuranceText: {
+    fontSize: 15,
+    color: palette.textSecondary,
+    fontWeight: '500' as const,
+    textAlign: 'center',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(201, 169, 97, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 28,
+    fontWeight: '800' as const,
+    color: palette.textPrimary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 16,
     color: palette.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 24,
+    marginBottom: 32,
   },
-
+  emptyButton: {
+    width: '100%',
+    borderRadius: 20,
+    overflow: 'hidden',
+    ...shadow.medium,
+  },
+  emptyButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    gap: 8,
+  },
+  emptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700' as const,
+  },
+  celebrationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  celebrationContent: {
+    alignItems: 'center',
+  },
+  celebrationEmoji: {
+    fontSize: 80,
+    marginBottom: 16,
+  },
+  celebrationTitle: {
+    fontSize: 28,
+    fontWeight: '800' as const,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  celebrationSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
 });
