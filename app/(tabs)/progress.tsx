@@ -2846,4 +2846,197 @@ const styles = StyleSheet.create({
     fontWeight: typography.semibold,
     textAlign: 'center',
   },
+  insightsPaywallContainer: {
+    marginBottom: spacing.lg,
+    borderRadius: 24,
+    overflow: 'hidden',
+    ...shadow.elevated,
+  },
+  insightsPaywallGradient: {
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  insightsPaywallIcon: {
+    marginBottom: spacing.lg,
+  },
+  insightsPaywallIconBg: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  insightsPaywallTitle: {
+    fontSize: typography.h4,
+    fontWeight: typography.extrabold,
+    color: palette.textLight,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  insightsPaywallSubtitle: {
+    fontSize: typography.body,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: spacing.lg,
+  },
+  insightsValueSection: {
+    width: '100%',
+    marginTop: spacing.md,
+  },
+  insightsValueTitle: {
+    fontSize: typography.body,
+    fontWeight: typography.bold,
+    color: palette.textLight,
+    marginBottom: spacing.md,
+  },
+  insightsValueItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
+    gap: spacing.md,
+  },
+  insightsValueIconBg: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  insightsValueIconGradient: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  insightsValueContent: {
+    flex: 1,
+  },
+  insightsValueHeading: {
+    fontSize: typography.body,
+    fontWeight: typography.semibold,
+    color: palette.textLight,
+    marginBottom: spacing.xs,
+  },
+  insightsValueText: {
+    fontSize: typography.bodySmall,
+    color: 'rgba(255, 255, 255, 0.7)',
+    lineHeight: 18,
+  },
+  insightsSocialProof: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: spacing.md,
+  },
+  insightsSocialText: {
+    fontSize: typography.bodySmall,
+    color: 'rgba(255, 255, 255, 0.6)',
+    textAlign: 'center',
+  },
+  insightsSocialHighlight: {
+    color: palette.primary,
+    fontWeight: typography.bold,
+  },
+  insightsProgressPreview: {
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+  },
+  insightsProgressTitle: {
+    fontSize: typography.body,
+    fontWeight: typography.semibold,
+    color: palette.textLight,
+    marginBottom: spacing.sm,
+  },
+  insightsProgressStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: spacing.sm,
+  },
+  insightsProgressStat: {
+    alignItems: 'center',
+  },
+  insightsProgressValue: {
+    fontSize: typography.h5,
+    fontWeight: typography.extrabold,
+    color: palette.primary,
+  },
+  insightsProgressLabel: {
+    fontSize: typography.caption,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  insightsProgressMessage: {
+    fontSize: typography.bodySmall,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  insightsPaywallCTA: {
+    width: '100%',
+    marginTop: spacing.xl,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  insightsPaywallCTAGradient: {
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+  },
+  insightsPaywallCTAContent: {
+    alignItems: 'center',
+  },
+  insightsPaywallCTAMain: {
+    fontSize: typography.h6,
+    fontWeight: typography.extrabold,
+    color: '#1A1A1A',
+    marginBottom: spacing.xs,
+  },
+  insightsPaywallCTASub: {
+    fontSize: typography.bodySmall,
+    color: 'rgba(0, 0, 0, 0.7)',
+  },
+  insightsPaywallDisclaimer: {
+    fontSize: typography.caption,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
+    marginTop: spacing.md,
+  },
+  continueTrackingSection: {
+    marginTop: spacing.xl,
+    alignItems: 'center',
+  },
+  continueTrackingTitle: {
+    fontSize: typography.body,
+    fontWeight: typography.semibold,
+    color: palette.textLight,
+    marginBottom: spacing.xs,
+  },
+  continueTrackingText: {
+    fontSize: typography.bodySmall,
+    color: 'rgba(255, 255, 255, 0.6)',
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  continueTrackingButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  continueTrackingButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  continueTrackingButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    gap: spacing.xs,
+  },
+  continueTrackingButtonText: {
+    fontSize: typography.bodySmall,
+    fontWeight: typography.semibold,
+    color: palette.textLight,
+  },
 });
