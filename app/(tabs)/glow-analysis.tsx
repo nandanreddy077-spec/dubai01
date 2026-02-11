@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,42 +10,56 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, router } from "expo-router";
-import { Camera as CameraIcon, X, Lightbulb, CheckCircle, AlertCircle, ArrowRight } from "lucide-react-native";
+import {
+  Camera as CameraIcon,
+  X,
+  CheckCircle,
+  ArrowRight,
+  Sun,
+  Glasses,
+  Scissors,
+  Sparkles,
+  Eye,
+  Move,
+  ChevronRight,
+} from "lucide-react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { LinearGradient } from 'expo-linear-gradient';
-import { useTheme } from '@/contexts/ThemeContext';
-import { getPalette, getGradient, shadow } from '@/constants/theme';
-import { analyzeFace } from '@/lib/vision-service';
-import * as FileSystem from 'expo-file-system';
-import * as Haptics from 'expo-haptics';
+import { LinearGradient } from "expo-linear-gradient";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getPalette, getGradient, shadow } from "@/constants/theme";
+import { analyzeFace } from "@/lib/vision-service";
+import * as FileSystem from "expo-file-system";
+import * as Haptics from "expo-haptics";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-const TIPS = [
-  { icon: '👓', text: 'Remove glasses' },
-  { icon: '💇', text: 'Pull hair back' },
-  { icon: '💡', text: 'Good lighting' },
-  { icon: '📱', text: 'Look at camera' },
-];
+const GUIDE_OVAL_WIDTH = SCREEN_WIDTH * 0.62;
+const GUIDE_OVAL_HEIGHT = GUIDE_OVAL_WIDTH * 1.35;
+
+interface TipItem {
+  icon: React.ReactNode;
+  text: string;
+  emoji: string;
+}
 
 export default function GlowAnalysisScreen() {
   const { theme } = useTheme();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [faceDetected, setFaceDetected] = useState<boolean>(false);
   const [isValidating, setIsValidating] = useState<boolean>(false);
-  const [showInstructions, setShowInstructions] = useState<boolean>(true);
-  const [faceStatus, setFaceStatus] = useState<'none' | 'tooFar' | 'centering' | 'ready'>('none');
-  const [faceDistance, setFaceDistance] = useState<'close' | 'far' | 'unknown'>('unknown');
+  const [currentStep, setCurrentStep] = useState<"instructions" | "camera">("instructions");
+  const [faceStatus, setFaceStatus] = useState<"none" | "tooFar" | "centering" | "ready">("none");
+  const [faceDistance, setFaceDistance] = useState<"close" | "far" | "unknown">("unknown");
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
-  const faceDetectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const faceDetectionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastDetectionTimeRef = useRef<number>(0);
   const consecutiveDetectionsRef = useRef<number>(0);
-  
-  // Animation values
+
   const guidePulseAnim = useRef(new Animated.Value(1)).current;
   const guideGlowAnim = useRef(new Animated.Value(0)).current;
   const feedbackSlideAnim = useRef(new Animated.Value(50)).current;
@@ -53,21 +67,140 @@ export default function GlowAnalysisScreen() {
   const buttonScaleAnim = useRef(new Animated.Value(1)).current;
   const buttonGlowAnim = useRef(new Animated.Value(0)).current;
   const statusChangeAnim = useRef(new Animated.Value(0)).current;
-  
-  // Instructions screen animations
-  const instructionsFadeAnim = useRef(new Animated.Value(0)).current;
-  const instructionsSlideAnim = useRef(new Animated.Value(30)).current;
-  const iconScaleAnim = useRef(new Animated.Value(0)).current;
-  const iconRotateAnim = useRef(new Animated.Value(0)).current;
-  
+
+  const heroFadeAnim = useRef(new Animated.Value(0)).current;
+  const heroSlideAnim = useRef(new Animated.Value(40)).current;
+  const tipAnims = useRef([0, 1, 2, 3, 4].map(() => new Animated.Value(0))).current;
+  const tipSlideAnims = useRef([0, 1, 2, 3, 4].map(() => new Animated.Value(30))).current;
+  const ctaAnim = useRef(new Animated.Value(0)).current;
+  const ctaSlideAnim = useRef(new Animated.Value(20)).current;
+  const scanLineAnim = useRef(new Animated.Value(0)).current;
+  const pulseRingAnim = useRef(new Animated.Value(0.8)).current;
+  const pulseOpacityAnim = useRef(new Animated.Value(0.6)).current;
+
+  const cameraFadeAnim = useRef(new Animated.Value(0)).current;
+
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
-  const styles = createStyles(palette);
 
-  // Animate guide based on status
+  const TIPS: TipItem[] = [
+    { icon: <Eye color={palette.gold} size={20} strokeWidth={2.5} />, text: "Look straight at the camera with a neutral expression", emoji: "👁️" },
+    { icon: <Sun color={palette.gold} size={20} strokeWidth={2.5} />, text: "Make sure you have even, natural lighting", emoji: "💡" },
+    { icon: <Glasses color={palette.gold} size={20} strokeWidth={2.5} />, text: "Remove glasses, hats, or accessories", emoji: "👓" },
+    { icon: <Scissors color={palette.gold} size={20} strokeWidth={2.5} />, text: "Pull hair away from your face", emoji: "💇" },
+    { icon: <Sparkles color={palette.gold} size={20} strokeWidth={2.5} />, text: "No makeup or filters for accurate results", emoji: "🧴" },
+  ];
+
   useEffect(() => {
-    if (faceStatus === 'ready') {
-      // Pulse animation for ready state
+    if (currentStep === "instructions") {
+      Animated.parallel([
+        Animated.timing(heroFadeAnim, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.spring(heroSlideAnim, {
+          toValue: 0,
+          tension: 50,
+          friction: 9,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      tipAnims.forEach((anim, index) => {
+        Animated.sequence([
+          Animated.delay(300 + index * 120),
+          Animated.parallel([
+            Animated.timing(anim, {
+              toValue: 1,
+              duration: 400,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+            Animated.spring(tipSlideAnims[index], {
+              toValue: 0,
+              tension: 60,
+              friction: 9,
+              useNativeDriver: true,
+            }),
+          ]),
+        ]).start();
+      });
+
+      Animated.sequence([
+        Animated.delay(900),
+        Animated.parallel([
+          Animated.timing(ctaAnim, {
+            toValue: 1,
+            duration: 500,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.spring(ctaSlideAnim, {
+            toValue: 0,
+            tension: 50,
+            friction: 9,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start();
+
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(scanLineAnim, {
+            toValue: 1,
+            duration: 2500,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(scanLineAnim, {
+            toValue: 0,
+            duration: 2500,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseRingAnim, {
+            toValue: 1.15,
+            duration: 1800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseRingAnim, {
+            toValue: 0.8,
+            duration: 1800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseOpacityAnim, {
+            toValue: 0.2,
+            duration: 1800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseOpacityAnim, {
+            toValue: 0.6,
+            duration: 1800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }
+  }, [currentStep]);
+
+  useEffect(() => {
+    if (faceStatus === "ready") {
       Animated.loop(
         Animated.sequence([
           Animated.timing(guidePulseAnim, {
@@ -85,7 +218,6 @@ export default function GlowAnalysisScreen() {
         ])
       ).start();
 
-      // Glow animation
       Animated.loop(
         Animated.sequence([
           Animated.timing(guideGlowAnim, {
@@ -103,7 +235,6 @@ export default function GlowAnalysisScreen() {
         ])
       ).start();
 
-      // Button glow
       Animated.loop(
         Animated.sequence([
           Animated.timing(buttonGlowAnim, {
@@ -127,7 +258,6 @@ export default function GlowAnalysisScreen() {
     }
   }, [faceStatus]);
 
-  // Animate feedback messages
   useEffect(() => {
     Animated.parallel([
       Animated.spring(feedbackSlideAnim, {
@@ -144,16 +274,14 @@ export default function GlowAnalysisScreen() {
       }),
     ]).start();
 
-    // Reset for next animation
     return () => {
       feedbackSlideAnim.setValue(50);
       feedbackFadeAnim.setValue(0);
     };
   }, [faceStatus]);
 
-  // Animate button when ready
   useEffect(() => {
-    if (faceDetected && faceStatus === 'ready') {
+    if (faceDetected && faceStatus === "ready") {
       Animated.spring(buttonScaleAnim, {
         toValue: 1.02,
         tension: 100,
@@ -165,83 +293,37 @@ export default function GlowAnalysisScreen() {
     }
   }, [faceDetected, faceStatus]);
 
-  // Instructions screen entrance animation
   useEffect(() => {
-    if (showInstructions) {
-      Animated.parallel([
-        Animated.timing(instructionsFadeAnim, {
-          toValue: 1,
-          duration: 600,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.spring(instructionsSlideAnim, {
-          toValue: 0,
-          tension: 50,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.spring(iconScaleAnim, {
-          toValue: 1,
-          tension: 40,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      // Icon rotation animation
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(iconRotateAnim, {
-            toValue: 1,
-            duration: 3000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-          Animated.timing(iconRotateAnim, {
-            toValue: 0,
-            duration: 3000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    }
-  }, [showInstructions]);
-
-  // Request camera permission when screen loads
-  useEffect(() => {
-    if (Platform.OS !== 'web' && permission && !permission.granted && !permission.canAskAgain) {
+    if (Platform.OS !== "web" && permission && !permission.granted && !permission.canAskAgain) {
       Alert.alert(
-        'Camera Permission Required',
-        'We need access to your camera to scan your skin. Please enable camera permissions in your device settings.',
+        "Camera Permission Required",
+        "We need access to your camera to scan your skin. Please enable camera permissions in your device settings.",
         [
-          { text: 'Cancel', onPress: () => router.back(), style: 'cancel' },
-          { text: 'OK', onPress: () => router.back() }
+          { text: "Cancel", onPress: () => router.back(), style: "cancel" },
+          { text: "OK", onPress: () => router.back() },
         ]
       );
     }
   }, [permission]);
 
-  // Start face detection when camera is ready - INSTANT START
   useEffect(() => {
-    if (!showInstructions && permission?.granted) {
-      console.log('📹 Camera ready, starting INSTANT detection...');
-      // Minimal delay for camera initialization
+    if (currentStep === "camera" && permission?.granted) {
+      console.log("📹 Camera ready, starting detection...");
+      Animated.timing(cameraFadeAnim, {
+        toValue: 1,
+        duration: 400,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }).start();
+
       const timer = setTimeout(() => {
         if (cameraRef.current) {
-          console.log('✅ Camera ref ready, starting INSTANT detection');
           startFaceDetection();
         } else {
-          console.log('⏳ Camera ref not ready, retrying immediately...');
-          // Retry immediately
           const retryTimer = setTimeout(() => {
             if (cameraRef.current) {
-              console.log('✅ Camera ref ready on retry, starting INSTANT detection');
               startFaceDetection();
             } else {
-              console.error('❌ Camera ref still not ready after retry');
-              // Try one more time after a short delay
               setTimeout(() => {
                 if (cameraRef.current) {
                   startFaceDetection();
@@ -251,260 +333,150 @@ export default function GlowAnalysisScreen() {
           }, 500);
           return () => clearTimeout(retryTimer);
         }
-      }, 500); // Very short delay for instant start
-      
+      }, 500);
+
       return () => {
         clearTimeout(timer);
         stopFaceDetection();
       };
     } else {
-      console.log('⏸️ Stopping detection:', { showInstructions, hasPermission: !!permission?.granted });
       stopFaceDetection();
       setFaceDetected(false);
-      setFaceStatus('none');
+      setFaceStatus("none");
       consecutiveDetectionsRef.current = 0;
     }
-  }, [showInstructions, permission]);
+  }, [currentStep, permission]);
 
   const checkFaceCentered = (face: any, imageWidth: number, imageHeight: number): boolean => {
-    // Check if face has boundingPoly (bounding box)
     if (!face.boundingPoly || !face.boundingPoly.vertices || face.boundingPoly.vertices.length < 4) {
-      // If no boundingPoly, assume centered (more lenient)
       return true;
     }
-
     const vertices = face.boundingPoly.vertices;
     const faceLeft = vertices[0]?.x || 0;
     const faceRight = vertices[2]?.x || imageWidth;
     const faceTop = vertices[0]?.y || 0;
     const faceBottom = vertices[2]?.y || imageHeight;
-
-    // Calculate face center
     const faceCenterX = (faceLeft + faceRight) / 2;
     const faceCenterY = (faceTop + faceBottom) / 2;
     const imageCenterX = imageWidth / 2;
     const imageCenterY = imageHeight / 2;
-
-    // Very lenient centering check (within 35% of image center)
     const centerThresholdX = imageWidth * 0.35;
     const centerThresholdY = imageHeight * 0.35;
-    
     const isCenteredX = Math.abs(faceCenterX - imageCenterX) < centerThresholdX;
     const isCenteredY = Math.abs(faceCenterY - imageCenterY) < centerThresholdY;
-
-    // Very lenient size check (8-75% of image)
     const faceWidth = faceRight - faceLeft;
     const faceHeight = faceBottom - faceTop;
     const faceSizeRatio = (faceWidth * faceHeight) / (imageWidth * imageHeight);
     const isGoodSize = faceSizeRatio > 0.08 && faceSizeRatio < 0.75;
-
     return isCenteredX && isCenteredY && isGoodSize;
   };
 
   const startFaceDetection = () => {
-    // Stop any existing detection
     stopFaceDetection();
-    setFaceStatus('none');
+    setFaceStatus("none");
     consecutiveDetectionsRef.current = 0;
     lastDetectionTimeRef.current = 0;
-    
-    console.log('🎯 Starting instant face detection...');
-    
-    // Immediate first check
+
     const performDetection = async () => {
       const now = Date.now();
-      // Faster detection - check every 1 second for instant feedback
-      if (now - lastDetectionTimeRef.current < 1000) {
-        return;
-      }
+      if (now - lastDetectionTimeRef.current < 1000) return;
       lastDetectionTimeRef.current = now;
 
-      if (!cameraRef.current || Platform.OS === 'web' || isLoading) {
-        console.log('⏸️ Detection paused:', { hasCamera: !!cameraRef.current, isWeb: Platform.OS === 'web', isLoading });
-        return;
-      }
+      if (!cameraRef.current || Platform.OS === "web" || isLoading) return;
 
       try {
-        console.log('📸 Taking detection photo...');
-        // Take a photo for face detection (low quality, fast for instant detection)
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.08, // Very low quality for maximum speed
+          quality: 0.08,
           base64: true,
           skipProcessing: true,
         });
 
-        if (!photo?.base64) {
-          console.log('❌ No base64 in photo');
+        if (!photo?.base64) return;
+
+        const base64Image = `data:image/jpeg;base64,${photo.base64}`;
+        const visionResult = await analyzeFace(base64Image);
+
+        if (visionResult?.error) {
+          setFaceStatus("none");
           return;
         }
 
-        console.log('🔍 Analyzing face...');
-        const base64Image = `data:image/jpeg;base64,${photo.base64}`;
-        const visionResult = await analyzeFace(base64Image);
-        
-        console.log('✅ Face detection result:', {
-          hasAnnotations: !!visionResult?.faceAnnotations,
-          count: visionResult?.faceAnnotations?.length || 0,
-          photoWidth: photo.width,
-          photoHeight: photo.height,
-          hasError: !!visionResult?.error,
-        });
-        
-        if (visionResult?.error) {
-          console.error('❌ Vision API error:', visionResult.error);
-          setFaceStatus('none');
-          return;
-        }
-        
         if (visionResult?.faceAnnotations && visionResult.faceAnnotations.length > 0) {
           const face = visionResult.faceAnnotations[0];
           const confidence = face?.detectionConfidence || 0;
-          
-          console.log('👤 Face detected:', {
-            confidence: confidence.toFixed(2),
-            rollAngle: face.rollAngle?.toFixed(1),
-            panAngle: face.panAngle?.toFixed(1),
-            tiltAngle: face.tiltAngle?.toFixed(1),
-            hasBoundingPoly: !!face.boundingPoly,
-          });
-          
-          // Very lenient confidence threshold (0.1 - detect almost any face)
+
           if (confidence >= 0.1) {
             const rollAngle = Math.abs(face.rollAngle || 0);
             const panAngle = Math.abs(face.panAngle || 0);
             const tiltAngle = Math.abs(face.tiltAngle || 0);
-            
-            // Very lenient angle requirements (50 degrees)
             const isWellPositioned = rollAngle <= 50 && panAngle <= 50 && tiltAngle <= 50;
-            
-            // Check centering and distance
+
             let isCentered = true;
             let isCloseEnough = true;
-            
+
             if (photo.width && photo.height && face.boundingPoly?.vertices) {
               isCentered = checkFaceCentered(face, photo.width, photo.height);
-              
-              // Check face size to determine distance
               const vertices = face.boundingPoly.vertices;
               if (vertices && vertices.length >= 4) {
                 const faceLeft = vertices[0]?.x || 0;
                 const faceRight = vertices[2]?.x || photo.width;
                 const faceTop = vertices[0]?.y || 0;
                 const faceBottom = vertices[2]?.y || photo.height;
-                
-                const faceWidth = faceRight - faceLeft;
-                const faceHeight = faceBottom - faceTop;
-                const faceSizeRatio = (faceWidth * faceHeight) / (photo.width * photo.height);
-                
-                // Face should be at least 12% of image (very lenient)
+                const fw = faceRight - faceLeft;
+                const fh = faceBottom - faceTop;
+                const faceSizeRatio = (fw * fh) / (photo.width * photo.height);
                 isCloseEnough = faceSizeRatio >= 0.12;
-                setFaceDistance(isCloseEnough ? 'close' : 'far');
-                
-                console.log('📏 Face metrics:', {
-                  sizeRatio: faceSizeRatio.toFixed(2),
-                  isCloseEnough,
-                  isCentered,
-                  isWellPositioned,
-                });
-              } else {
-                isCloseEnough = true;
+                setFaceDistance(isCloseEnough ? "close" : "far");
               }
-            } else {
-              // If no boundingPoly, assume centered and close
-              isCentered = true;
-              isCloseEnough = true;
             }
-            
-            // Determine status based on all conditions
+
             if (isWellPositioned && isCentered && isCloseEnough) {
-              // INSTANT - Enable immediately when face is detected correctly
-              if (faceStatus !== 'ready' || !faceDetected) {
-                console.log('✅ Face ready - INSTANT ENABLE!');
-                setFaceStatus('ready');
+              if (faceStatus !== "ready" || !faceDetected) {
+                setFaceStatus("ready");
                 setFaceDetected(true);
-                consecutiveDetectionsRef.current = 1; // Mark as detected
+                consecutiveDetectionsRef.current = 1;
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                // Celebration animation
                 Animated.sequence([
-                  Animated.spring(statusChangeAnim, {
-                    toValue: 1,
-                    tension: 100,
-                    friction: 7,
-                    useNativeDriver: true,
-                  }),
+                  Animated.spring(statusChangeAnim, { toValue: 1, tension: 100, friction: 7, useNativeDriver: true }),
                   Animated.delay(200),
-                  Animated.timing(statusChangeAnim, {
-                    toValue: 0,
-                    duration: 300,
-                    useNativeDriver: true,
-                  }),
+                  Animated.timing(statusChangeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
                 ]).start();
               }
             } else if (!isCloseEnough) {
               consecutiveDetectionsRef.current = 0;
-              if (faceStatus !== 'tooFar') {
-                console.log('📏 Too far');
-                setFaceStatus('tooFar');
+              if (faceStatus !== "tooFar") {
+                setFaceStatus("tooFar");
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               }
-              if (faceDetected) {
-                setFaceDetected(false);
-              }
+              if (faceDetected) setFaceDetected(false);
             } else if (!isCentered) {
               consecutiveDetectionsRef.current = 0;
-              if (faceStatus !== 'centering') {
-                console.log('↔️ Need centering');
-                setFaceStatus('centering');
+              if (faceStatus !== "centering") {
+                setFaceStatus("centering");
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               }
-              if (faceDetected) {
-                setFaceDetected(false);
-              }
+              if (faceDetected) setFaceDetected(false);
             } else {
               consecutiveDetectionsRef.current = 0;
-              if (faceStatus !== 'none') {
-                console.log('👤 Face detected but not well positioned');
-                setFaceStatus('none');
-              }
-              if (faceDetected) {
-                setFaceDetected(false);
-              }
+              if (faceStatus !== "none") setFaceStatus("none");
+              if (faceDetected) setFaceDetected(false);
             }
           } else {
             consecutiveDetectionsRef.current = 0;
-            if (faceStatus !== 'none') {
-              console.log('⚠️ Low confidence:', confidence.toFixed(2));
-              setFaceStatus('none');
-            }
-            if (faceDetected) {
-              setFaceDetected(false);
-            }
+            if (faceStatus !== "none") setFaceStatus("none");
+            if (faceDetected) setFaceDetected(false);
           }
         } else {
           consecutiveDetectionsRef.current = 0;
-          if (faceStatus !== 'none') {
-            console.log('❌ No face detected');
-            setFaceStatus('none');
-          }
-          if (faceDetected) {
-            setFaceDetected(false);
-          }
+          if (faceStatus !== "none") setFaceStatus("none");
+          if (faceDetected) setFaceDetected(false);
         }
       } catch (error: any) {
-        // Log error for debugging
-        console.error('❌ Face detection error:', error);
-        console.error('Error details:', {
-          message: error?.message,
-          stack: error?.stack,
-        });
-        // Don't change status on error - keep current state
+        console.error("Face detection error:", error?.message);
       }
     };
 
-    // Perform immediate check
     performDetection();
-    
-    // Then set up interval for continuous INSTANT detection (every 1 second)
     faceDetectionIntervalRef.current = setInterval(performDetection, 1000);
   };
 
@@ -518,949 +490,891 @@ export default function GlowAnalysisScreen() {
   const validateFaceFromBase64 = async (base64String: string): Promise<boolean> => {
     try {
       setIsValidating(true);
-      
-      if (!base64String || typeof base64String !== 'string' || base64String.length === 0) {
-        console.error('Invalid base64 string');
-        return false;
-      }
-
-      const base64Image = base64String.startsWith('data:') 
-        ? base64String 
-        : `data:image/jpeg;base64,${base64String}`;
-
-      // Analyze face using Google Vision API
+      if (!base64String || typeof base64String !== "string" || base64String.length === 0) return false;
+      const base64Image = base64String.startsWith("data:") ? base64String : `data:image/jpeg;base64,${base64String}`;
       let visionResult;
       try {
         visionResult = await analyzeFace(base64Image);
-      } catch (apiError: any) {
-        console.error('Vision API error:', apiError);
+      } catch {
         return false;
       }
-      
-      if (!visionResult || !visionResult.faceAnnotations || visionResult.faceAnnotations.length === 0) {
-        console.log('No face annotations found');
-        return false;
-      }
-
+      if (!visionResult || !visionResult.faceAnnotations || visionResult.faceAnnotations.length === 0) return false;
       const face = visionResult.faceAnnotations[0];
-      if (!face) {
-        return false;
-      }
-
+      if (!face) return false;
       const confidence = face.detectionConfidence || 0;
-      
-      // More lenient confidence threshold (0.4 instead of 0.7)
-      if (confidence < 0.4) {
-        console.log('Low confidence:', confidence);
-        return false;
-      }
-
-      // Check if face is well-positioned (looking at camera)
+      if (confidence < 0.4) return false;
       const rollAngle = Math.abs(face.rollAngle || 0);
       const panAngle = Math.abs(face.panAngle || 0);
       const tiltAngle = Math.abs(face.tiltAngle || 0);
-
-      // More lenient angle requirements (30 degrees instead of 20)
-      if (rollAngle > 30 || panAngle > 30 || tiltAngle > 30) {
-        console.log('Face angles too extreme:', { rollAngle, panAngle, tiltAngle });
-        return false;
-      }
-
+      if (rollAngle > 30 || panAngle > 30 || tiltAngle > 30) return false;
       return true;
-    } catch (error: any) {
-      console.error('Face validation error:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        stack: error?.stack,
-        name: error?.name,
-      });
+    } catch {
       return false;
     } finally {
       setIsValidating(false);
     }
   };
 
-  const validateFaceInPhoto = async (imageUri: string): Promise<boolean> => {
-    try {
-      setIsValidating(true);
-      
-      // Check if URI is valid
-      if (!imageUri || typeof imageUri !== 'string') {
-        console.error('Invalid image URI:', imageUri);
-        return false;
-      }
-
-      // Convert image to base64
-      let base64: string;
-      try {
-        // Check if file exists first
-        const fileInfo = await FileSystem.getInfoAsync(imageUri);
-        if (!fileInfo.exists) {
-          console.error('Image file does not exist:', imageUri);
-          return false;
-        }
-
-        base64 = await FileSystem.readAsStringAsync(imageUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      } catch (fsError: any) {
-        console.error('FileSystem error:', fsError);
-        console.error('Error details:', {
-          message: fsError?.message,
-          code: fsError?.code,
-          uri: imageUri,
-        });
-        // If FileSystem fails, return false to show error
-        return false;
-      }
-
-      if (!base64 || base64.length === 0) {
-        console.error('Empty base64 string');
-        return false;
-      }
-
-      const base64Image = `data:image/jpeg;base64,${base64}`;
-
-      // Analyze face using Google Vision API
-      let visionResult;
-      try {
-        visionResult = await analyzeFace(base64Image);
-      } catch (apiError: any) {
-        console.error('Vision API error:', apiError);
-        // If API fails, allow the photo to proceed - user can retry if needed
-        return true;
-      }
-      
-      if (!visionResult || !visionResult.faceAnnotations || visionResult.faceAnnotations.length === 0) {
-        console.log('No face annotations found');
-        return false;
-      }
-
-      const face = visionResult.faceAnnotations[0];
-      if (!face) {
-        return false;
-      }
-
-      const confidence = face.detectionConfidence || 0;
-      
-      // More lenient confidence threshold (0.4 instead of 0.7)
-      if (confidence < 0.4) {
-        console.log('Low confidence:', confidence);
-        return false;
-      }
-
-      // Check if face is well-positioned (looking at camera)
-      const rollAngle = Math.abs(face.rollAngle || 0);
-      const panAngle = Math.abs(face.panAngle || 0);
-      const tiltAngle = Math.abs(face.tiltAngle || 0);
-
-      // More lenient angle requirements (30 degrees instead of 20)
-      if (rollAngle > 30 || panAngle > 30 || tiltAngle > 30) {
-        console.log('Face angles too extreme:', { rollAngle, panAngle, tiltAngle });
-        return false;
-      }
-
-      return true;
-    } catch (error: any) {
-      console.error('Face validation error:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        stack: error?.stack,
-        name: error?.name,
-      });
-      // On error, allow the photo to proceed - better UX than blocking
-      return true;
-    } finally {
-      setIsValidating(false);
-    }
-  };
-
   const handleTakePicture = async () => {
-    if (Platform.OS === 'web') {
-      Alert.alert('Camera not available', 'Please use upload photo on web.');
+    if (Platform.OS === "web") {
+      Alert.alert("Camera not available", "Please use upload photo on web.");
       return;
     }
-
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-      Alert.alert('Permission Required', 'Camera permission is required to take photos.');
-      return;
+        Alert.alert("Permission Required", "Camera permission is required to take photos.");
+        return;
+      }
     }
-    }
-
-    // Allow taking photo even if face not detected - we'll validate after capture
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
-    stopFaceDetection(); // Stop detection while taking photo
-    
+    stopFaceDetection();
+
     try {
       if (cameraRef.current) {
-        // Take photo with base64 for validation
         const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.9,
-          base64: true, // Get base64 for validation
-        });
-
-        console.log('Photo captured:', {
-          hasUri: !!photo?.uri,
-          hasBase64: !!photo?.base64,
-          photoKeys: photo ? Object.keys(photo) : [],
+          quality: 0.9,
+          base64: true,
         });
 
         if (photo?.uri) {
-          // Validate face detection if we have base64
           let isValid = true;
           if (photo.base64) {
             try {
               isValid = await validateFaceFromBase64(photo.base64);
-            } catch (validationError: any) {
-              console.error('Validation error:', validationError);
-              // If validation fails, still proceed but show warning
+            } catch {
               isValid = false;
             }
           }
-          
+
           if (!isValid) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             Alert.alert(
-              'Face Not Detected',
-              "We couldn't detect a clear face in your photo. Please try again with:\n\n• Good lighting\n• Face centered and looking at camera\n• No glasses or hair covering face\n• Only one person in the photo",
+              "Face Not Detected",
+              "We couldn't detect a clear face in your photo. Please try again with:\n\n• Good lighting\n• Face centered and looking at camera\n• No glasses or hair covering face",
               [
                 {
-                  text: 'Try Again',
+                  text: "Try Again",
                   onPress: () => {
                     setIsLoading(false);
-                    startFaceDetection(); // Resume detection
+                    startFaceDetection();
                   },
-                  style: 'default'
-                }
+                },
               ]
             );
             return;
           }
 
-          // Face is valid, proceed to analysis
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.push({
-          pathname: '/analysis-loading',
-          params: { 
-              frontImage: photo.uri,
-            multiAngle: 'false'
-          }
-        });
+          router.push({
+            pathname: "/analysis-loading",
+            params: { frontImage: photo.uri, multiAngle: "false" },
+          });
         } else {
           setIsLoading(false);
-          startFaceDetection(); // Resume detection
+          startFaceDetection();
         }
       }
     } catch (err) {
-      console.error('Error taking photo:', err);
+      console.error("Error taking photo:", err);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', 'Failed to take photo. Please try again.');
+      Alert.alert("Error", "Failed to take photo. Please try again.");
       setIsLoading(false);
-      startFaceDetection(); // Resume detection
+      startFaceDetection();
     }
   };
 
-  const handleStartScan = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowInstructions(false);
-  };
+  const handleContinueToCamera = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-  const handleClose = () => {
+    if (Platform.OS !== "web" && permission && !permission.granted) {
+      const result = await requestPermission();
+      if (!result.granted) {
+        Alert.alert("Camera Required", "We need camera access to scan your skin.");
+        return;
+      }
+    }
+
+    heroFadeAnim.setValue(1);
+    Animated.timing(heroFadeAnim, {
+      toValue: 0,
+      duration: 250,
+      easing: Easing.in(Easing.ease),
+      useNativeDriver: true,
+    }).start(() => {
+      setCurrentStep("camera");
+    });
+  }, [permission, requestPermission]);
+
+  const handleClose = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
-  };
+  }, []);
 
-  // Show instructions screen first
-  if (showInstructions) {
+  const styles = createStyles(palette);
+
+  if (currentStep === "instructions") {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
-        <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.instructionRoot}>
+        <LinearGradient
+          colors={[palette.background, palette.surfaceAlt, palette.background]}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <SafeAreaView style={styles.instructionSafe} edges={["top", "bottom"]}>
+          <Stack.Screen options={{ headerShown: false }} />
 
-        <View style={styles.instructionsContainer}>
-          <TouchableOpacity
-            onPress={handleClose}
-            style={styles.closeButtonTop}
-            activeOpacity={0.7}
-          >
-            <X color={palette.textPrimary} size={24} />
-          </TouchableOpacity>
-
-          <Animated.View 
+          <Animated.View
             style={[
-              styles.instructionsContent,
-              {
-                opacity: instructionsFadeAnim,
-                transform: [{ translateY: instructionsSlideAnim }],
-              }
+              styles.instructionInner,
+              { opacity: heroFadeAnim, transform: [{ translateY: heroSlideAnim }] },
             ]}
           >
-            <Animated.View 
-              style={[
-                styles.iconCircle,
-                {
-                  transform: [
-                    { scale: iconScaleAnim },
-                    {
-                      rotate: iconRotateAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0deg', '5deg'],
-                      }),
-                    }
-                  ],
-                }
-              ]}
-            >
-              <CameraIcon color={palette.primary} size={48} strokeWidth={2.5} />
-            </Animated.View>
-            
-            <Text style={styles.instructionsTitle}>Ready to Scan Your Skin?</Text>
-            <Text style={styles.instructionsSubtitle}>
-              We'll analyze your skin to give you personalized recommendations
-            </Text>
-
-            <View style={styles.stepsContainer}>
-              <View style={styles.step}>
-                <View style={styles.stepNumber}>
-                  <Text style={styles.stepNumberText}>1</Text>
-                </View>
-                <Text style={styles.stepText}>Position your face in the guide</Text>
-              </View>
-              <View style={styles.step}>
-                <View style={styles.stepNumber}>
-                  <Text style={styles.stepNumberText}>2</Text>
-                </View>
-                <Text style={styles.stepText}>Tap the button to take a photo</Text>
-              </View>
-              <View style={styles.step}>
-                <View style={styles.stepNumber}>
-                  <Text style={styles.stepNumberText}>3</Text>
-                </View>
-                <Text style={styles.stepText}>Get instant AI analysis</Text>
-              </View>
+            <View style={styles.instructionHeader}>
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity
+                onPress={handleClose}
+                style={styles.closeBtn}
+                activeOpacity={0.7}
+                testID="close-instructions"
+              >
+                <X color={palette.textSecondary} size={22} />
+              </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={styles.startButton}
-              onPress={handleStartScan}
-              activeOpacity={0.9}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+              bounces={false}
             >
-              <LinearGradient
-                colors={['#6B7F5A', '#556B47']}
-                style={styles.startButtonGradient}
+              <View style={styles.heroSection}>
+                <View style={styles.faceIllustration}>
+                  <Animated.View
+                    style={[
+                      styles.pulseRing,
+                      {
+                        transform: [{ scale: pulseRingAnim }],
+                        opacity: pulseOpacityAnim,
+                      },
+                    ]}
+                  />
+                  <View style={styles.faceOvalOuter}>
+                    <View style={styles.faceOvalInner}>
+                      <CameraIcon color={palette.gold} size={36} strokeWidth={1.8} />
+                    </View>
+                  </View>
+                  <Animated.View
+                    style={[
+                      styles.scanLine,
+                      {
+                        transform: [
+                          {
+                            translateY: scanLineAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [-40, 40],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  />
+                </View>
+
+                <Text style={styles.heroTitle}>Let's scan your skin</Text>
+                <Text style={styles.heroSubtitle}>
+                  For the best results, follow these quick tips
+                </Text>
+              </View>
+
+              <View style={styles.tipsCard}>
+                {TIPS.map((tip, index) => (
+                  <Animated.View
+                    key={index}
+                    style={[
+                      styles.tipRow,
+                      index < TIPS.length - 1 && styles.tipRowBorder,
+                      {
+                        opacity: tipAnims[index],
+                        transform: [{ translateY: tipSlideAnims[index] }],
+                      },
+                    ]}
+                  >
+                    <View style={styles.tipIconWrap}>
+                      <Text style={styles.tipEmoji}>{tip.emoji}</Text>
+                    </View>
+                    <Text style={styles.tipLabel}>{tip.text}</Text>
+                  </Animated.View>
+                ))}
+              </View>
+
+              <Animated.View
+                style={[
+                  styles.examplesSection,
+                  { opacity: ctaAnim, transform: [{ translateY: ctaSlideAnim }] },
+                ]}
               >
-                <Text style={styles.startButtonText}>Start Scan</Text>
-                <ArrowRight color="#FFFFFF" size={20} strokeWidth={2.5} />
-              </LinearGradient>
-            </TouchableOpacity>
+                <View style={styles.doRow}>
+                  <View style={styles.doBadge}>
+                    <CheckCircle color="#10B981" size={14} strokeWidth={3} />
+                    <Text style={styles.doText}>DO</Text>
+                  </View>
+                  <Text style={styles.doDescription}>
+                    Clean face, even lighting, neutral expression
+                  </Text>
+                </View>
+                <View style={styles.dontRow}>
+                  <View style={styles.dontBadge}>
+                    <X color="#EF4444" size={14} strokeWidth={3} />
+                    <Text style={styles.dontText}>DON'T</Text>
+                  </View>
+                  <Text style={styles.dontDescription}>
+                    Makeup, glasses, filters, or harsh shadows
+                  </Text>
+                </View>
+              </Animated.View>
+            </ScrollView>
+
+            <Animated.View
+              style={[
+                styles.ctaContainer,
+                { opacity: ctaAnim, transform: [{ translateY: ctaSlideAnim }] },
+              ]}
+            >
+              <TouchableOpacity
+                onPress={handleContinueToCamera}
+                activeOpacity={0.9}
+                style={styles.ctaButton}
+                testID="continue-to-camera"
+              >
+                <LinearGradient
+                  colors={["#1A1A1A", "#0A0A0A"]}
+                  style={styles.ctaGradient}
+                >
+                  <Text style={styles.ctaText}>I'm Ready</Text>
+                  <View style={styles.ctaArrow}>
+                    <ChevronRight color="#FFFFFF" size={20} strokeWidth={2.5} />
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <Text style={styles.ctaFootnote}>Takes less than 10 seconds</Text>
+            </Animated.View>
           </Animated.View>
-        </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
+    <View style={styles.cameraRoot}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <CameraIcon color={palette.gold} size={28} strokeWidth={2} />
-          <View style={styles.headerText}>
-            <Text style={styles.title}>Scan Your Skin</Text>
-            <Text style={styles.subtitle}>Position your face in the guide</Text>
-          </View>
-        </View>
-        <TouchableOpacity
-          onPress={handleClose}
-          style={styles.closeButton}
-          activeOpacity={0.7}
-        >
-          <X color={palette.textPrimary} size={24} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Camera Preview Area */}
-      <View style={styles.cameraContainer}>
-        <View style={styles.cameraFrame}>
-          {permission?.granted ? (
-            <>
-              <CameraView
-                ref={cameraRef}
-                style={styles.camera}
-                facing="front"
-                mode="picture"
-              >
-                {/* Face Guide - Animated based on status */}
-                <Animated.View 
-                  style={[
-                    styles.faceGuide,
-                    {
-                      transform: [{ scale: guidePulseAnim }],
-                    }
-                  ]}
-                >
-                  <Animated.View 
-                    style={[
-                      styles.faceGuideDashed,
-                      faceStatus === 'ready' && styles.faceGuideReady,
-                      faceStatus === 'tooFar' && styles.faceGuideTooFar,
-                      faceStatus === 'centering' && styles.faceGuideCentering,
-                      faceStatus === 'none' && styles.faceGuideNone,
-                      faceStatus === 'ready' && {
-                        shadowOpacity: guideGlowAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.3, 0.7],
-                        }),
-                        shadowRadius: guideGlowAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [10, 20],
-                        }),
-                      }
-                    ]} 
-                  />
-                </Animated.View>
-
-                {/* Face Detection Feedback - Animated */}
-                <Animated.View
-                  style={[
-                    styles.feedbackContainer,
-                    {
-                      opacity: feedbackFadeAnim,
-                      transform: [{ translateY: feedbackSlideAnim }],
-                    }
-                  ]}
-                >
-                  {faceStatus === 'ready' && faceDetected && (
-                    <Animated.View 
-                      style={[
-                        styles.faceReadyBubble,
-                        {
-                          transform: [
-                            {
-                              scale: statusChangeAnim.interpolate({
-                                inputRange: [0, 0.5, 1],
-                                outputRange: [1, 1.1, 1],
-                              }),
-                            }
-                          ],
-                        }
-                      ]}
-                    >
-                      <CheckCircle color="#FFFFFF" size={20} strokeWidth={3} />
-                      <Text style={styles.faceReadyText}>Perfect! Hold still</Text>
-                    </Animated.View>
-                  )}
-                  {faceStatus === 'centering' && (
-                    <View style={styles.faceCenteringBubble}>
-                      <View style={styles.centerIcon}>
-                        <Text style={styles.centerIconText}>↔</Text>
-              </View>
-                      <Text style={styles.faceCenteringText}>Center your face</Text>
-            </View>
-          )}
-                  {faceStatus === 'tooFar' && (
-                    <View style={styles.faceTooFarBubble}>
-                      <Text style={styles.faceTooFarText}>→ Move closer to the camera</Text>
-                    </View>
-                  )}
-                  {faceStatus === 'none' && (
-                    <View style={styles.faceNoneBubble}>
-                      <View style={styles.frameIcon}>
-                        <Text style={styles.frameIconText}>⌜</Text>
-          </View>
-                      <Text style={styles.faceNoneText}>Position your face in the frame</Text>
-              </View>
-                  )}
-                </Animated.View>
-              </CameraView>
-            </>
-          ) : (
-            <View style={styles.cameraPlaceholder}>
-              <ActivityIndicator color={palette.primary} size="large" />
-              <Text style={styles.cameraPlaceholderText}>
-                {permission === null 
-                  ? 'Requesting camera permission...' 
-                  : 'Camera permission required'}
-              </Text>
-              {permission && !permission.granted && (
-                <TouchableOpacity
-                  style={styles.permissionButton}
-                  onPress={requestPermission}
-                >
-                  <Text style={styles.permissionButtonText}>Grant Permission</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-        </View>
-      </View>
-
-      {/* Take Picture Button */}
-      <View style={styles.buttonContainer}>
-        <Animated.View
-          style={[
-            styles.buttonWrapper,
-            {
-              transform: [{ scale: buttonScaleAnim }],
-              shadowOpacity: faceDetected && faceStatus === 'ready' 
-                ? buttonGlowAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.3, 0.6],
-                  })
-                : 0.2,
-            }
-          ]}
-        >
-        <TouchableOpacity
-            style={[styles.takePictureButton, (isLoading || !permission?.granted || !faceDetected || faceStatus !== 'ready' || isValidating) && styles.disabledButton]}
-          onPress={handleTakePicture}
-            disabled={isLoading || !permission?.granted || !faceDetected || faceStatus !== 'ready' || isValidating}
-          activeOpacity={0.9}
-        >
-          <LinearGradient
-              colors={permission?.granted && faceDetected && faceStatus === 'ready' ? ['#10B981', '#059669'] : ['#9CA3AF', '#6B7280']}
-            style={styles.takePictureGradient}
-          >
-            {isValidating ? (
-              <>
-                <ActivityIndicator color="#FFFFFF" size="small" />
-                <Text style={styles.takePictureText}>Checking photo...</Text>
-              </>
-            ) : isLoading ? (
-              <>
-                <ActivityIndicator color="#FFFFFF" size="small" />
-                <Text style={styles.takePictureText}>Processing...</Text>
-              </>
-            ) : (
-              <>
-                <CameraIcon color="#FFFFFF" size={24} strokeWidth={2.5} />
-            <Text style={styles.takePictureText}>
-                  {permission?.granted 
-                    ? (faceStatus === 'ready' && faceDetected 
-                        ? 'Take Picture' 
-                        : 'Position your face')
-                    : 'Preparing...'}
+      <Animated.View style={[styles.cameraFull, { opacity: cameraFadeAnim }]}>
+        {permission?.granted ? (
+          <CameraView
+            ref={cameraRef}
+            style={StyleSheet.absoluteFillObject}
+            facing="front"
+            mode="picture"
+          />
+        ) : (
+          <View style={styles.cameraPlaceholder}>
+            <ActivityIndicator color={palette.primary} size="large" />
+            <Text style={styles.cameraPlaceholderText}>
+              {permission === null ? "Requesting camera permission..." : "Camera permission required"}
             </Text>
-              </>
+            {permission && !permission.granted && (
+              <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+                <Text style={styles.permissionButtonText}>Grant Permission</Text>
+              </TouchableOpacity>
             )}
-          </LinearGradient>
-        </TouchableOpacity>
-        </Animated.View>
+          </View>
+        )}
 
-        {/* Tips */}
-        <View style={styles.tipsContainer}>
-          {TIPS.map((tip, index) => (
-            <View key={index} style={styles.tipItem}>
-              <Text style={styles.tipIcon}>{tip.icon}</Text>
-              <Text style={styles.tipText}>{tip.text}</Text>
+        <View style={styles.cameraOverlay}>
+          <SafeAreaView style={styles.cameraOverlaySafe} edges={["top"]}>
+            <View style={styles.cameraHeader}>
+              <TouchableOpacity
+                onPress={handleClose}
+                style={styles.cameraCloseBtn}
+                activeOpacity={0.7}
+              >
+                <X color="#FFFFFF" size={22} />
+              </TouchableOpacity>
+              <Text style={styles.cameraTitle}>Position your face</Text>
+              <View style={{ width: 40 }} />
+            </View>
+          </SafeAreaView>
+
+          <View style={styles.guideContainer}>
+            <Animated.View
+              style={[
+                styles.faceGuideOval,
+                faceStatus === "ready" && styles.faceGuideReady,
+                faceStatus === "tooFar" && styles.faceGuideWarning,
+                faceStatus === "centering" && styles.faceGuideWarning,
+                { transform: [{ scale: guidePulseAnim }] },
+              ]}
+            >
+              <View style={styles.cornerTL} />
+              <View style={styles.cornerTR} />
+              <View style={styles.cornerBL} />
+              <View style={styles.cornerBR} />
+            </Animated.View>
+          </View>
+
+          <Animated.View
+            style={[
+              styles.feedbackBar,
+              { opacity: feedbackFadeAnim, transform: [{ translateY: feedbackSlideAnim }] },
+            ]}
+          >
+            {faceStatus === "ready" && faceDetected && (
+              <Animated.View
+                style={[
+                  styles.feedbackPill,
+                  styles.feedbackReady,
+                  {
+                    transform: [
+                      {
+                        scale: statusChangeAnim.interpolate({
+                          inputRange: [0, 0.5, 1],
+                          outputRange: [1, 1.08, 1],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <CheckCircle color="#FFFFFF" size={18} strokeWidth={3} />
+                <Text style={styles.feedbackText}>Perfect! Tap to capture</Text>
+              </Animated.View>
+            )}
+            {faceStatus === "centering" && (
+              <View style={[styles.feedbackPill, styles.feedbackWarn]}>
+                <Move color="#FFFFFF" size={18} strokeWidth={2.5} />
+                <Text style={styles.feedbackText}>Center your face</Text>
               </View>
-          ))}
+            )}
+            {faceStatus === "tooFar" && (
+              <View style={[styles.feedbackPill, styles.feedbackWarn]}>
+                <Text style={styles.feedbackText}>Move closer to the camera</Text>
+              </View>
+            )}
+            {faceStatus === "none" && (
+              <View style={[styles.feedbackPill, styles.feedbackNone]}>
+                <Text style={styles.feedbackText}>Position your face in the oval</Text>
+              </View>
+            )}
+          </Animated.View>
+
+          <SafeAreaView edges={["bottom"]} style={styles.cameraBottomSafe}>
+            <View style={styles.captureRow}>
+              <View style={{ width: 56 }} />
+
+              <Animated.View style={{ transform: [{ scale: buttonScaleAnim }] }}>
+                <TouchableOpacity
+                  onPress={handleTakePicture}
+                  disabled={isLoading || !permission?.granted || !faceDetected || faceStatus !== "ready" || isValidating}
+                  activeOpacity={0.85}
+                  style={[
+                    styles.captureOuter,
+                    faceDetected && faceStatus === "ready" && styles.captureOuterReady,
+                    (isLoading || !faceDetected || faceStatus !== "ready") && styles.captureOuterDisabled,
+                  ]}
+                  testID="capture-button"
+                >
+                  {isLoading || isValidating ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <View
+                      style={[
+                        styles.captureInner,
+                        faceDetected && faceStatus === "ready" && styles.captureInnerReady,
+                      ]}
+                    />
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
+
+              <View style={{ width: 56 }} />
+            </View>
+
+            <View style={styles.cameraTipsRow}>
+              <View style={styles.cameraTip}>
+                <Text style={styles.cameraTipEmoji}>💡</Text>
+                <Text style={styles.cameraTipText}>Good light</Text>
+              </View>
+              <View style={styles.cameraTip}>
+                <Text style={styles.cameraTipEmoji}>👓</Text>
+                <Text style={styles.cameraTipText}>No glasses</Text>
+              </View>
+              <View style={styles.cameraTip}>
+                <Text style={styles.cameraTipEmoji}>😐</Text>
+                <Text style={styles.cameraTipText}>Neutral face</Text>
+              </View>
+              <View style={styles.cameraTip}>
+                <Text style={styles.cameraTipEmoji}>💇</Text>
+                <Text style={styles.cameraTipText}>Hair back</Text>
+              </View>
+            </View>
+          </SafeAreaView>
         </View>
-      </View>
-    </SafeAreaView>
+      </Animated.View>
+    </View>
   );
 }
 
-const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F0',
-  },
-  // Instructions Screen Styles
-  instructionsContainer: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-  },
-  closeButtonTop: {
-    alignSelf: 'flex-end',
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  instructionsContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingBottom: 40,
-  },
-  iconCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: palette.surfaceAlt,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 40,
-    ...shadow.elevated,
-    borderWidth: 3,
-    borderColor: palette.primary + '20',
-  },
-  instructionsTitle: {
-    fontSize: 32,
-    fontWeight: '800' as const,
-    color: palette.textPrimary,
-    textAlign: 'center',
-    marginBottom: 16,
-    letterSpacing: -0.8,
-  },
-  instructionsSubtitle: {
-    fontSize: 17,
-    color: palette.textSecondary,
-    textAlign: 'center',
-    marginBottom: 56,
-    lineHeight: 26,
-    paddingHorizontal: 24,
-    fontWeight: '500' as const,
-  },
-  stepsContainer: {
-    width: '100%',
-    marginBottom: 48,
-    gap: 20,
-  },
-  step: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  stepNumber: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: palette.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...shadow.elevated,
-  },
-  stepNumberText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800' as const,
-  },
-  stepText: {
-    flex: 1,
-    fontSize: 17,
-    color: palette.textPrimary,
-    fontWeight: '600' as const,
-    lineHeight: 24,
-  },
-  startButton: {
-    width: '100%',
-    borderRadius: 16,
-    overflow: 'hidden',
-    ...shadow.elevated,
-  },
-  startButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-    gap: 10,
-  },
-  startButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700' as const,
-    letterSpacing: 0.3,
-  },
-  // Camera Screen Styles
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  headerText: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800' as const,
-    color: palette.textPrimary,
-    letterSpacing: -0.6,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: palette.textSecondary,
-    marginTop: 4,
-    fontWeight: '500' as const,
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-  },
-  cameraContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  cameraFrame: {
-    width: SCREEN_WIDTH - 40,
-    height: (SCREEN_WIDTH - 40) * 1.3,
-    borderRadius: 24,
-    backgroundColor: palette.surfaceAlt,
-    borderWidth: 3,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-    ...shadow.elevated,
-  },
-  camera: {
-    width: '100%',
-    height: '100%',
-  },
-  cameraPlaceholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: palette.surfaceAlt,
-    gap: 16,
-  },
-  cameraPlaceholderText: {
-    fontSize: 16,
-    color: palette.textSecondary,
-    fontWeight: '600' as const,
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
-  permissionButton: {
-    marginTop: 12,
-    backgroundColor: palette.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  permissionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700' as const,
-  },
-  faceGuide: {
-    width: '70%',
-    height: '85%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'absolute',
-    top: '7.5%',
-    left: '15%',
-  },
-  faceGuideDashed: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 200,
-    borderWidth: 3,
-    borderColor: '#EF4444', // Red default (no face)
-    borderStyle: 'dashed',
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  faceGuideNone: {
-    borderColor: '#EF4444', // Red - no face detected
-  },
-  faceGuideTooFar: {
-    borderColor: '#F59E0B', // Orange - too far
-  },
-  faceGuideCentering: {
-    borderColor: '#F59E0B', // Orange - need to center
-  },
-  faceGuideReady: {
-    borderColor: '#14B8A6', // Teal/Cyan - ready
-    shadowColor: '#14B8A6',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-  },
-  feedbackContainer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  faceReadyBubble: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#14B8A6', // Teal
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 28,
-    gap: 12,
-    ...shadow.elevated,
-    borderWidth: 2,
-    borderColor: '#FFFFFF40',
-  },
-  faceReadyText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700' as const,
-    letterSpacing: 0.3,
-  },
-  faceNoneBubble: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.95)', // Red
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 28,
-    gap: 12,
-    borderWidth: 2,
-    borderColor: '#FFFFFF30',
-  },
-  faceNoneText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600' as const,
-  },
-  frameIcon: {
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  frameIconText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800' as const,
-  },
-  faceCenteringBubble: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.95)', // Orange
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 28,
-    gap: 12,
-    ...shadow.elevated,
-    borderWidth: 2,
-    borderColor: '#FFFFFF30',
-  },
-  faceCenteringText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700' as const,
-  },
-  centerIcon: {
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  centerIconText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800' as const,
-  },
-  faceTooFarBubble: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.95)', // Orange
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 28,
-    gap: 12,
-    ...shadow.elevated,
-    borderWidth: 2,
-    borderColor: '#FFFFFF30',
-  },
-  faceTooFarText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700' as const,
-  },
-  loadingBubble: {
-    position: 'absolute',
-    bottom: 50,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#6B7280',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-    gap: 10,
-  },
-  loadingText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600' as const,
-  },
-  buttonContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  buttonWrapper: {
-    marginBottom: 20,
-    ...shadow.elevated,
-  },
-  takePictureButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  takePictureGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 22,
-    gap: 12,
-  },
-  takePictureText: {
-    color: '#FFFFFF',
-    fontSize: 19,
-    fontWeight: '700' as const,
-    letterSpacing: 0.5,
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  tipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  tipItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: palette.surfaceAlt,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  tipIcon: {
-    fontSize: 16,
-  },
-  tipText: {
-    fontSize: 12,
-    color: palette.textSecondary,
-    fontWeight: '600' as const,
-  },
-});
+const createStyles = (palette: ReturnType<typeof getPalette>) =>
+  StyleSheet.create({
+    instructionRoot: {
+      flex: 1,
+      backgroundColor: palette.background,
+    },
+    instructionSafe: {
+      flex: 1,
+    },
+    instructionInner: {
+      flex: 1,
+    },
+    instructionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-end",
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 4,
+    },
+    closeBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: palette.surfaceAlt,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    scrollContent: {
+      paddingHorizontal: 24,
+      paddingBottom: 20,
+    },
+    heroSection: {
+      alignItems: "center",
+      paddingTop: 12,
+      marginBottom: 28,
+    },
+    faceIllustration: {
+      width: 120,
+      height: 120,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 24,
+    },
+    pulseRing: {
+      position: "absolute",
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      borderWidth: 2,
+      borderColor: palette.gold,
+    },
+    faceOvalOuter: {
+      width: 96,
+      height: 96,
+      borderRadius: 48,
+      backgroundColor: palette.gold + "15",
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 2,
+      borderColor: palette.gold + "40",
+    },
+    faceOvalInner: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: palette.gold + "20",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    scanLine: {
+      position: "absolute",
+      width: 60,
+      height: 2,
+      backgroundColor: palette.gold,
+      borderRadius: 1,
+      opacity: 0.6,
+    },
+    heroTitle: {
+      fontSize: 30,
+      fontWeight: "800" as const,
+      color: palette.textPrimary,
+      textAlign: "center",
+      letterSpacing: -0.8,
+      marginBottom: 10,
+    },
+    heroSubtitle: {
+      fontSize: 16,
+      fontWeight: "500" as const,
+      color: palette.textSecondary,
+      textAlign: "center",
+      lineHeight: 22,
+    },
+    tipsCard: {
+      backgroundColor: palette.surface,
+      borderRadius: 20,
+      paddingVertical: 4,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: palette.borderLight,
+      ...shadow.soft,
+    },
+    tipRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 16,
+      paddingHorizontal: 20,
+      gap: 14,
+    },
+    tipRowBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor: palette.divider,
+    },
+    tipIconWrap: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: palette.gold + "12",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    tipEmoji: {
+      fontSize: 18,
+    },
+    tipLabel: {
+      flex: 1,
+      fontSize: 15,
+      fontWeight: "500" as const,
+      color: palette.textPrimary,
+      lineHeight: 21,
+    },
+    examplesSection: {
+      marginBottom: 8,
+      gap: 10,
+    },
+    doRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#10B98112",
+      borderRadius: 14,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      gap: 12,
+    },
+    doBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: "#10B98120",
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
+    doText: {
+      fontSize: 12,
+      fontWeight: "800" as const,
+      color: "#10B981",
+      letterSpacing: 0.5,
+    },
+    doDescription: {
+      flex: 1,
+      fontSize: 14,
+      fontWeight: "500" as const,
+      color: palette.textPrimary,
+    },
+    dontRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#EF444412",
+      borderRadius: 14,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      gap: 12,
+    },
+    dontBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: "#EF444420",
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
+    dontText: {
+      fontSize: 12,
+      fontWeight: "800" as const,
+      color: "#EF4444",
+      letterSpacing: 0.5,
+    },
+    dontDescription: {
+      flex: 1,
+      fontSize: 14,
+      fontWeight: "500" as const,
+      color: palette.textPrimary,
+    },
+    ctaContainer: {
+      paddingHorizontal: 24,
+      paddingBottom: 12,
+      paddingTop: 8,
+    },
+    ctaButton: {
+      borderRadius: 18,
+      overflow: "hidden",
+      ...shadow.medium,
+    },
+    ctaGradient: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 18,
+      gap: 8,
+    },
+    ctaText: {
+      color: "#FFFFFF",
+      fontSize: 18,
+      fontWeight: "700" as const,
+      letterSpacing: 0.3,
+    },
+    ctaArrow: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: "rgba(255,255,255,0.15)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    ctaFootnote: {
+      textAlign: "center",
+      fontSize: 13,
+      fontWeight: "500" as const,
+      color: palette.textTertiary,
+      marginTop: 12,
+    },
+
+    cameraRoot: {
+      flex: 1,
+      backgroundColor: "#000000",
+    },
+    cameraFull: {
+      flex: 1,
+    },
+    cameraOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: "space-between",
+    },
+    cameraOverlaySafe: {
+      zIndex: 10,
+    },
+    cameraHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 12,
+    },
+    cameraCloseBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: "rgba(0,0,0,0.45)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    cameraTitle: {
+      color: "#FFFFFF",
+      fontSize: 17,
+      fontWeight: "700" as const,
+      textShadowColor: "rgba(0,0,0,0.5)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 4,
+    },
+    guideContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    faceGuideOval: {
+      width: GUIDE_OVAL_WIDTH,
+      height: GUIDE_OVAL_HEIGHT,
+      borderRadius: GUIDE_OVAL_WIDTH,
+      borderWidth: 2.5,
+      borderColor: "rgba(255,255,255,0.5)",
+      borderStyle: "dashed",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    faceGuideReady: {
+      borderColor: "#10B981",
+      borderStyle: "solid",
+      shadowColor: "#10B981",
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.5,
+      shadowRadius: 16,
+    },
+    faceGuideWarning: {
+      borderColor: "#F59E0B",
+    },
+    cornerTL: {
+      position: "absolute",
+      top: -2,
+      left: -2,
+      width: 28,
+      height: 28,
+      borderTopWidth: 4,
+      borderLeftWidth: 4,
+      borderColor: "rgba(255,255,255,0.9)",
+      borderTopLeftRadius: 14,
+    },
+    cornerTR: {
+      position: "absolute",
+      top: -2,
+      right: -2,
+      width: 28,
+      height: 28,
+      borderTopWidth: 4,
+      borderRightWidth: 4,
+      borderColor: "rgba(255,255,255,0.9)",
+      borderTopRightRadius: 14,
+    },
+    cornerBL: {
+      position: "absolute",
+      bottom: -2,
+      left: -2,
+      width: 28,
+      height: 28,
+      borderBottomWidth: 4,
+      borderLeftWidth: 4,
+      borderColor: "rgba(255,255,255,0.9)",
+      borderBottomLeftRadius: 14,
+    },
+    cornerBR: {
+      position: "absolute",
+      bottom: -2,
+      right: -2,
+      width: 28,
+      height: 28,
+      borderBottomWidth: 4,
+      borderRightWidth: 4,
+      borderColor: "rgba(255,255,255,0.9)",
+      borderBottomRightRadius: 14,
+    },
+    feedbackBar: {
+      alignItems: "center",
+      paddingHorizontal: 24,
+      marginBottom: 16,
+    },
+    feedbackPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 22,
+      paddingVertical: 12,
+      borderRadius: 28,
+      gap: 10,
+    },
+    feedbackReady: {
+      backgroundColor: "rgba(16,185,129,0.92)",
+    },
+    feedbackWarn: {
+      backgroundColor: "rgba(245,158,11,0.92)",
+    },
+    feedbackNone: {
+      backgroundColor: "rgba(0,0,0,0.6)",
+    },
+    feedbackText: {
+      color: "#FFFFFF",
+      fontSize: 15,
+      fontWeight: "700" as const,
+      letterSpacing: 0.2,
+    },
+    cameraBottomSafe: {
+      paddingBottom: 8,
+    },
+    captureRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingBottom: 16,
+      gap: 32,
+    },
+    captureOuter: {
+      width: 76,
+      height: 76,
+      borderRadius: 38,
+      borderWidth: 4,
+      borderColor: "rgba(255,255,255,0.4)",
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.1)",
+    },
+    captureOuterReady: {
+      borderColor: "#10B981",
+      backgroundColor: "rgba(16,185,129,0.15)",
+    },
+    captureOuterDisabled: {
+      opacity: 0.4,
+    },
+    captureInner: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: "rgba(255,255,255,0.85)",
+    },
+    captureInnerReady: {
+      backgroundColor: "#10B981",
+    },
+    cameraTipsRow: {
+      flexDirection: "row",
+      justifyContent: "center",
+      gap: 16,
+      paddingHorizontal: 16,
+      paddingBottom: 4,
+    },
+    cameraTip: {
+      alignItems: "center",
+      gap: 4,
+    },
+    cameraTipEmoji: {
+      fontSize: 16,
+    },
+    cameraTipText: {
+      color: "rgba(255,255,255,0.7)",
+      fontSize: 11,
+      fontWeight: "600" as const,
+    },
+    cameraPlaceholder: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "#1A1A1A",
+      gap: 16,
+    },
+    cameraPlaceholderText: {
+      fontSize: 16,
+      color: "rgba(255,255,255,0.7)",
+      fontWeight: "600" as const,
+      textAlign: "center",
+      paddingHorizontal: 40,
+    },
+    permissionButton: {
+      marginTop: 12,
+      backgroundColor: palette.gold,
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      borderRadius: 12,
+    },
+    permissionButtonText: {
+      color: "#FFFFFF",
+      fontSize: 16,
+      fontWeight: "700" as const,
+    },
+  });

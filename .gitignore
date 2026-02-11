@@ -45,3 +45,5 @@ rork-eslint.config.js
 ios/
 android/
 core
+node_modules
+.expo
