@@ -26,6 +26,7 @@
     "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.10",
     "expo-blur": "~15.0.8",
+    "expo-camera": "~17.0.10",
     "expo-clipboard": "~8.0.8",
     "expo-constants": "~18.0.13",
     "expo-crypto": "~15.0.8",
@@ -58,8 +59,7 @@
     "react-native-svg": "15.12.1",
     "react-native-web": "^0.21.0",
     "zod": "^4.1.13",
-    "zustand": "^5.0.2",
-    "@rork-ai/toolkit-sdk": "latest"
+    "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

@@ -359,7 +359,7 @@ export default function GlowAnalysisScreen() {
   const totalAngles = 3;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
         <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
       <Stack.Screen 
         options={{ 

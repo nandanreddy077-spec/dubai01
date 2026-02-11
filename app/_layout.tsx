@@ -64,7 +64,6 @@ function RootLayoutNav() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="signup" options={{ headerShown: false }} />
       <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-      <Stack.Screen name="glow-analysis" options={{ headerShown: true, headerBackTitle: "Back" }} />
       <Stack.Screen name="analysis-loading" options={{ headerShown: false }} />
       <Stack.Screen name="analysis-results" options={{ headerShown: true, headerBackTitle: "Back" }} />
       <Stack.Screen name="skincare-plan-selection" options={{ headerShown: true, headerBackTitle: "Back" }} />
@@ -75,7 +74,7 @@ function RootLayoutNav() {
       <Stack.Screen name="style-results" options={{ headerShown: true, headerBackTitle: "Back" }} />
       <Stack.Screen name="subscribe" options={{ headerShown: true, headerBackTitle: "Back" }} />
       <Stack.Screen name="privacy-care" options={{ headerShown: true, headerBackTitle: "Back" }} />
-      <Stack.Screen name="product-tracking" options={{ headerShown: true, headerBackTitle: "Back" }} />
+      <Stack.Screen name="product-details" options={{ headerShown: true, title: "Product Details", headerBackTitle: "Back" }} />
       <Stack.Screen name="user-profile" options={{ headerShown: false }} />
       <Stack.Screen name="post-detail" options={{ headerShown: false }} />
       <Stack.Screen name="notification-settings" options={{ headerShown: true, title: 'Notification Settings', headerBackTitle: 'Back' }} />

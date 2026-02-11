@@ -12,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus,
@@ -411,31 +411,41 @@ export default function ProductTrackingScreen() {
                       </View>
                     )}
                     
-                    <View style={styles.productImageContainer}>
-                      <Image
-                        source={{ uri: rec.imageUrl || 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80' }}
-                        style={styles.productRecommendationImage}
-                        resizeMode="cover"
-                      />
-                      <LinearGradient
-                        colors={['transparent', 'rgba(0,0,0,0.4)']}
-                        style={styles.productImageOverlay}
-                      />
-                    </View>
-                    
-                    <View style={styles.recHeaderSection}>
-                      <View style={styles.recTitleRow}>
-                        <Text style={styles.recStepName}>{rec.stepName}</Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        router.push({
+                          pathname: '/product-details',
+                          params: { id: rec.id },
+                        });
+                      }}
+                      activeOpacity={0.9}
+                    >
+                      <View style={styles.productImageContainer}>
+                        <Image
+                          source={{ uri: rec.imageUrl || 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80' }}
+                          style={styles.productRecommendationImage}
+                          resizeMode="cover"
+                        />
+                        <LinearGradient
+                          colors={['transparent', 'rgba(0,0,0,0.4)']}
+                          style={styles.productImageOverlay}
+                        />
                       </View>
-                      {rec.brand && (
-                        <Text style={styles.recBrand}>{rec.brand}</Text>
-                      )}
-                      <View style={styles.matchBadge}>
-                        <Star color="#6EE7B7" size={14} fill="#6EE7B7" strokeWidth={2} />
-                        <Text style={styles.matchText}>{rec.matchScore}% Match</Text>
+                      
+                      <View style={styles.recHeaderSection}>
+                        <View style={styles.recTitleRow}>
+                          <Text style={styles.recStepName}>{rec.stepName}</Text>
+                        </View>
+                        {rec.brand && (
+                          <Text style={styles.recBrand}>{rec.brand}</Text>
+                        )}
+                        <View style={styles.matchBadge}>
+                          <Star color="#6EE7B7" size={14} fill="#6EE7B7" strokeWidth={2} />
+                          <Text style={styles.matchText}>{rec.matchScore}% Match</Text>
+                        </View>
+                        <Text style={styles.recDescription}>{rec.description}</Text>
                       </View>
-                      <Text style={styles.recDescription}>{rec.description}</Text>
-                    </View>
+                    </TouchableOpacity>
                     
                     <ScrollView 
                       horizontal 

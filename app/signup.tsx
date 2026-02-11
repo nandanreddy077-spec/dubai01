@@ -18,6 +18,8 @@ import { router } from 'expo-router';
 import { Eye, EyeOff, Mail, Lock, User, Heart, Sparkles, Star } from 'lucide-react-native';
 import Logo from '@/components/Logo';
 import { getPalette, getGradient, shadow, spacing, radii } from '@/constants/theme';
+import GoogleLogo from '@/components/GoogleLogo';
+import AppleLogo from '@/components/AppleLogo';
 
 export default function SignupScreen() {
   const [fullName, setFullName] = useState('');
@@ -452,7 +454,7 @@ export default function SignupScreen() {
                   testID="google-signin-button"
                 >
                   <View style={styles.googleButtonContent}>
-                    <Text style={styles.googleIcon}>G</Text>
+                    <GoogleLogo size={20} />
                     <Text style={styles.googleButtonText}>
                       {isLoading ? 'Signing in...' : 'Continue with Google'}
                     </Text>
@@ -467,7 +469,7 @@ export default function SignupScreen() {
                     testID="apple-signin-button"
                   >
                     <View style={styles.appleButtonContent}>
-                      <Text style={styles.appleIcon}>🍎</Text>
+                      <AppleLogo size={20} color="#FFFFFF" />
                       <Text style={styles.appleButtonText}>
                         {isLoading ? 'Signing in...' : 'Continue with Apple'}
                       </Text>
@@ -685,11 +687,6 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     alignItems: 'center',
     gap: spacing.md,
   },
-  googleIcon: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#4285F4',
-  },
   googleButtonText: {
     color: palette.textPrimary,
     fontSize: 15,
@@ -713,10 +710,6 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     justifyContent: 'center',
     alignItems: 'center',
     gap: spacing.md,
-  },
-  appleIcon: {
-    fontSize: 20,
-    fontWeight: '900',
   },
   appleButtonText: {
     color: '#FFFFFF',

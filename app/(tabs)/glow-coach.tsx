@@ -161,7 +161,7 @@ export default function SimpleGlowCoachScreen() {
           </Text>
           <TouchableOpacity 
             style={styles.emptyButton}
-            onPress={() => router.push('/glow-analysis')}
+            onPress={() => router.push('/(tabs)/glow-analysis')}
             activeOpacity={0.9}
           >
             <LinearGradient colors={['#1A1A1A', '#000000']} style={styles.emptyButtonGradient}>

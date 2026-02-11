@@ -57,6 +57,32 @@ export interface ProductRecommendation {
   brand?: string;
   affiliateUrl?: string;
   price?: string;
+  // Enhanced with ingredient intelligence
+  ingredients?: string[];
+  analysis?: {
+    efficacy: {
+      score: number;
+      reasoning: string;
+    };
+    safety: {
+      score: number;
+      concerns: string[];
+    };
+    compatibility: {
+      compatible: boolean;
+      issues: Array<{
+        type: 'conflict' | 'irritation' | 'overuse' | 'pH' | 'ineffective';
+        severity: 'low' | 'medium' | 'high';
+        description: string;
+        solution: string;
+      }>;
+    };
+    actives: Array<{
+      name: string;
+      effectiveness: 'high' | 'medium' | 'low' | 'unproven';
+      conditions: string[];
+    }>;
+  };
 }
 
 export interface ProductTier {

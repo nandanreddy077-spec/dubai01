@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Scan, CheckCircle, User } from "lucide-react-native";
+import { Home, Scan, CheckCircle, User } from "lucide-react-native";
 import React, { useState, useEffect } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import { palette } from "@/constants/theme";
@@ -41,10 +41,27 @@ export default function TabLayout() {
           headerShown: false,
           tabBarActiveTintColor: palette.primary,
           tabBarInactiveTintColor: palette.textSecondary,
+          tabBarStyle: {
+            display: 'flex',
+          },
         }}
       >
         <Tabs.Screen
           name="home"
+          options={{
+            title: "Home",
+            tabBarIcon: ({ color, size, focused }) => (
+              <Home
+                color={focused ? palette.primary : color}
+                size={size}
+                strokeWidth={focused ? 2.5 : 2}
+                fill={focused ? palette.primary : "transparent"}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="scan"
           options={{
             title: "Scan",
             tabBarIcon: ({ color, size, focused }) => (
@@ -91,6 +108,12 @@ export default function TabLayout() {
         />
         <Tabs.Screen
           name="progress"
+          options={{
+            href: null, // Hide from tab bar but keep accessible
+          }}
+        />
+        <Tabs.Screen
+          name="glow-analysis"
           options={{
             href: null, // Hide from tab bar but keep accessible
           }}

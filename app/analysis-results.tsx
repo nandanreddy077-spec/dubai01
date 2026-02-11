@@ -7,10 +7,11 @@ import {
   TouchableOpacity,
   Image,
   Share,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
-import { Sparkles, Award, Crown, Share2, TrendingUp, Heart, Star, Gem } from 'lucide-react-native';
+import { Sparkles, Award, Crown, Share2, TrendingUp, Heart, Star, Gem, ChevronRight } from 'lucide-react-native';
 import { useAnalysis, AnalysisResult } from '@/contexts/AnalysisContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,6 +21,9 @@ import { getPalette, getGradient, shadow } from '@/constants/theme';
 import BlurredContent from '@/components/BlurredContent';
 import { useProducts } from '@/contexts/ProductContext';
 import MedicalDisclaimer from '@/components/MedicalDisclaimer';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CARD_WIDTH = SCREEN_WIDTH * 0.75;
 
 export default function AnalysisResultsScreen() {
   const { currentResult, analysisHistory } = useAnalysis();
@@ -35,9 +39,6 @@ export default function AnalysisResultsScreen() {
   const gradient = getGradient(theme);
   const styles = createStyles(palette);
 
-  const handleViewProducts = () => {
-    router.push('/product-tracking');
-  };
 
   const hasCountedRef = React.useRef<string | null>(null);
 
@@ -57,6 +58,7 @@ export default function AnalysisResultsScreen() {
     setTopStrength(strength);
     updateStreak();
   }, [currentResult, incrementScanCount, generateRecommendations]);
+
 
   const progressMessage = useMemo(() => {
     if (!analysisHistory || analysisHistory.length < 2 || !currentResult) return null;
@@ -168,7 +170,7 @@ export default function AnalysisResultsScreen() {
         <Stack.Screen options={{ title: 'Analysis Results', headerBackTitle: 'Back' }} />
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>No analysis results found</Text>
-          <TouchableOpacity style={styles.ctaButtonPrimary} onPress={() => router.push('/glow-analysis')}>
+          <TouchableOpacity style={styles.ctaButtonPrimary} onPress={() => router.push('/(tabs)/glow-analysis')}>
             <Text style={styles.ctaButtonPrimaryText}>Go Back</Text>
           </TouchableOpacity>
         </View>
@@ -361,23 +363,89 @@ export default function AnalysisResultsScreen() {
           </View>
         </View>
 
+        {/* Products Section - Embedded directly */}
+        {recommendations.length > 0 && (
+          <View style={styles.productsSection}>
+            <View style={styles.sectionHeader}>
+              <Sparkles color={palette.gold} size={20} fill={palette.gold} strokeWidth={2.5} />
+              <Text style={styles.sectionTitle}>Products for Your Skin</Text>
+            </View>
+            <Text style={styles.sectionSubtitle}>
+              Scientifically matched to your {currentResult.skinType.toLowerCase()} skin
+            </Text>
+            
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.productsScroll}
+              snapToInterval={CARD_WIDTH + 20}
+              decelerationRate="fast"
+            >
+              {recommendations.slice(0, 5).map((rec) => (
+                <TouchableOpacity
+                  key={rec.id}
+                  style={styles.productCard}
+                  onPress={() => {
+                    router.push({
+                      pathname: '/product-details',
+                      params: { id: rec.id },
+                    });
+                  }}
+                  activeOpacity={0.9}
+                >
+                  {/* Match Badge */}
+                  <View style={styles.productMatchBadge}>
+                    <Text style={styles.productMatchBadgeText}>{rec.matchScore}%</Text>
+                  </View>
+
+                  {/* Product Image */}
+                  <View style={styles.productImageContainer}>
+                    <Image
+                      source={{ uri: rec.imageUrl || 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80' }}
+                      style={styles.productCardImage}
+                      resizeMode="cover"
+                    />
+                  </View>
+
+                  {/* Product Info */}
+                  <View style={styles.productCardInfo}>
+                    {rec.brand && (
+                      <Text style={styles.productCardBrand} numberOfLines={1}>
+                        {rec.brand.toUpperCase()}
+                      </Text>
+                    )}
+                    <Text style={styles.productCardName} numberOfLines={2}>
+                      {rec.stepName}
+                    </Text>
+                    <Text style={styles.productCardDescription} numberOfLines={2}>
+                      {rec.description}
+                    </Text>
+
+                    {/* Key Benefits */}
+                    {rec.analysis?.actives && rec.analysis.actives.length > 0 && (
+                      <View style={styles.productBenefits}>
+                        {rec.analysis.actives.slice(0, 2).map((active, index) => (
+                          <View key={index} style={styles.productBenefitTag}>
+                            <Star color={palette.gold} size={10} fill={palette.gold} />
+                            <Text style={styles.productBenefitText}>
+                              {active.conditions[0] || active.name}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         <View style={styles.ctaSection}>
           <TouchableOpacity style={styles.ctaButtonPrimary} onPress={() => router.push('/(tabs)/progress')} testID="start-tracking">
             <TrendingUp color={palette.textLight} size={20} strokeWidth={2.5} />
             <Text style={styles.ctaButtonPrimaryText}>Start Tracking Progress</Text>
           </TouchableOpacity>
-
-          {recommendations.length > 0 && (
-            <TouchableOpacity style={styles.ctaButtonProduct} onPress={handleViewProducts}>
-              <LinearGradient colors={['#FFD700', '#FFA500']} style={styles.ctaButtonProductGradient}>
-                <Award color={palette.textLight} size={20} strokeWidth={2.5} />
-                <View style={styles.ctaButtonProductContent}>
-                  <Text style={styles.ctaButtonProductTitle}>View {recommendations.length} Product Recommendations</Text>
-                  <Text style={styles.ctaButtonProductSubtitle}>Personalized for your skin analysis</Text>
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
 
           <TouchableOpacity style={styles.ctaButtonSecondary} onPress={onShare} testID="share-button">
             <View style={styles.shareButtonContent}>
@@ -914,5 +982,93 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     color: 'rgba(255, 255, 255, 0.9)',
     fontSize: 13,
     fontWeight: '600',
+  },
+  productsSection: {
+    paddingHorizontal: 24,
+    marginBottom: 32,
+  },
+  productsScroll: {
+    paddingRight: 24,
+    gap: 16,
+  },
+  productCard: {
+    width: CARD_WIDTH,
+    backgroundColor: palette.surface,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    ...shadow.medium,
+    position: 'relative',
+  },
+  productMatchBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: palette.success,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    zIndex: 10,
+    ...shadow.soft,
+  },
+  productMatchBadgeText: {
+    fontSize: 13,
+    fontWeight: '800' as const,
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
+  },
+  productImageContainer: {
+    width: '100%',
+    height: 200,
+    backgroundColor: palette.surfaceAlt,
+  },
+  productCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  productCardInfo: {
+    padding: 16,
+  },
+  productCardBrand: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: palette.textSecondary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  productCardName: {
+    fontSize: 16,
+    fontWeight: '800' as const,
+    color: palette.textPrimary,
+    marginBottom: 8,
+    lineHeight: 22,
+  },
+  productCardDescription: {
+    fontSize: 12,
+    color: palette.textSecondary,
+    lineHeight: 16,
+    marginBottom: 12,
+  },
+  productBenefits: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  productBenefitTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: palette.overlayGold,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  productBenefitText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: palette.gold,
+    textTransform: 'capitalize' as const,
   },
 });

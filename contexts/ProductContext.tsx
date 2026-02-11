@@ -6,6 +6,7 @@ import { useUser } from './UserContext';
 import { getUserLocation, formatAmazonAffiliateLink, type LocationInfo } from '@/lib/location';
 import { useAnalysis, AnalysisResult } from './AnalysisContext';
 import { useSkincare } from './SkincareContext';
+import { analyzeProductIngredients, findIngredient, type Ingredient } from '@/lib/ingredient-intelligence';
 
 
 
@@ -25,6 +26,73 @@ const createProductTier = (title: string, description: string, guidance: string,
   affiliateUrl: formatAmazonAffiliateLink(searchQuery, location),
   keywords: searchQuery.split(' '),
 });
+
+/**
+ * Generate ingredient list based on product category and skin concerns
+ * Uses evidence-based ingredients that are proven to work
+ */
+function getRecommendedIngredients(
+  category: string,
+  skinType: string,
+  concerns: string[]
+): string[] {
+  const baseIngredients: string[] = [];
+  
+  // Base ingredients for all products
+  baseIngredients.push('Water', 'Glycerin');
+  
+  // Category-specific proven ingredients
+  switch (category) {
+    case 'cleansers':
+      baseIngredients.push('Sodium Lauryl Sulfate', 'Cocamidopropyl Betaine');
+      if (skinType === 'sensitive' || skinType === 'dry') {
+        baseIngredients.push('Hyaluronic Acid', 'Ceramides');
+      }
+      break;
+      
+    case 'serums':
+      // Add proven actives based on concerns
+      if (concerns.includes('acne') || concerns.includes('Acne')) {
+        baseIngredients.push('Niacinamide', 'Salicylic Acid');
+      }
+      if (concerns.includes('Fine lines') || concerns.includes('Aging') || concerns.includes('Wrinkles')) {
+        baseIngredients.push('Retinol', 'Peptides');
+      }
+      if (concerns.includes('hyperpigmentation') || concerns.includes('Dark spots')) {
+        baseIngredients.push('Niacinamide', 'Vitamin C');
+      }
+      // Always include hydration
+      baseIngredients.push('Hyaluronic Acid');
+      break;
+      
+    case 'moisturizers':
+      baseIngredients.push('Ceramides', 'Hyaluronic Acid');
+      if (skinType === 'dry') {
+        baseIngredients.push('Squalane', 'Shea Butter');
+      } else if (skinType === 'oily') {
+        baseIngredients.push('Niacinamide');
+      }
+      break;
+      
+    case 'sunscreens':
+      baseIngredients.push('Zinc Oxide', 'Titanium Dioxide');
+      break;
+      
+    case 'treatments':
+      if (concerns.includes('acne') || concerns.includes('Acne')) {
+        baseIngredients.push('Salicylic Acid', 'Benzoyl Peroxide');
+      }
+      if (concerns.includes('Fine lines') || concerns.includes('Aging')) {
+        baseIngredients.push('Retinol', 'Peptides');
+      }
+      break;
+      
+    default:
+      baseIngredients.push('Hyaluronic Acid');
+  }
+  
+  return baseIngredients;
+}
 
 export const [ProductProvider, useProducts] = createContextHook(() => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -269,14 +337,43 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
         analysisRecommendations.forEach((rec) => {
           const baseSearchQuery = `${rec.name.toLowerCase()} ${skinType.toLowerCase()} skin`;
           
+          // Get recommended ingredients for this product
+          const ingredients = getRecommendedIngredients(rec.category, skinType, concerns);
+          
+          // Analyze ingredients for accuracy
+          const productAnalysis = analyzeProductIngredients(rec.name, ingredients);
+          
+          // Calculate match score based on actual analysis
+          const efficacyScore = productAnalysis.analysis.efficacy.score;
+          const safetyScore = productAnalysis.analysis.safety.score;
+          const compatibilityScore = productAnalysis.analysis.compatibility.compatible ? 100 : 70;
+          
+          // Weighted match score: 60% efficacy, 30% safety, 10% compatibility
+          const calculatedMatchScore = Math.round(
+            (efficacyScore * 0.6) +
+            (safetyScore * 0.3) +
+            (compatibilityScore * 0.1)
+          );
+          
           const recommendation: ProductRecommendation = {
             id: `analysis_${rec.name.toLowerCase().replace(/\s+/g, '_')}`,
             category: rec.category,
             stepName: rec.name,
             description: rec.description,
             imageUrl: rec.imageUrl,
-            matchScore: rec.matchScore,
+            matchScore: calculatedMatchScore, // Now based on actual analysis
             source: 'analysis',
+            ingredients: ingredients,
+            analysis: {
+              efficacy: productAnalysis.analysis.efficacy,
+              safety: productAnalysis.analysis.safety,
+              compatibility: productAnalysis.analysis.compatibility,
+              actives: productAnalysis.analysis.actives.map(ing => ({
+                name: ing.name,
+                effectiveness: ing.efficacy.effectiveness,
+                conditions: ing.efficacy.conditions,
+              })),
+            },
             tiers: {
               luxury: createProductTier(
                 'Premium Choice',
@@ -348,14 +445,44 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
           const baseSearchQuery = `${stepName.toLowerCase().replace(/[^a-z ]/g, '')} ${skinType.toLowerCase()} skin`;
           const imageUrl = categoryImages[stepData.category] || 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80';
           
+          // Get recommended ingredients for this product
+          const concerns = currentPlan.skinConcerns || [];
+          const ingredients = getRecommendedIngredients(stepData.category, skinType, concerns);
+          
+          // Analyze ingredients for accuracy
+          const productAnalysis = analyzeProductIngredients(stepName, ingredients);
+          
+          // Calculate match score based on actual analysis
+          const efficacyScore = productAnalysis.analysis.efficacy.score;
+          const safetyScore = productAnalysis.analysis.safety.score;
+          const compatibilityScore = productAnalysis.analysis.compatibility.compatible ? 100 : 70;
+          
+          // Weighted match score: 60% efficacy, 30% safety, 10% compatibility
+          const calculatedMatchScore = Math.round(
+            (efficacyScore * 0.6) +
+            (safetyScore * 0.3) +
+            (compatibilityScore * 0.1)
+          );
+          
           const recommendation: ProductRecommendation = {
             id: `coach_${stepName.toLowerCase().replace(/\s+/g, '_')}`,
             category: stepData.category,
             stepName: stepName,
             description: stepData.description,
             source: 'glow-coach',
-            matchScore: 90,
+            matchScore: calculatedMatchScore, // Now based on actual analysis
             imageUrl: imageUrl,
+            ingredients: ingredients,
+            analysis: {
+              efficacy: productAnalysis.analysis.efficacy,
+              safety: productAnalysis.analysis.safety,
+              compatibility: productAnalysis.analysis.compatibility,
+              actives: productAnalysis.analysis.actives.map(ing => ({
+                name: ing.name,
+                effectiveness: ing.efficacy.effectiveness,
+                conditions: ing.efficacy.conditions,
+              })),
+            },
             tiers: {
               luxury: createProductTier(
                 'Luxury Option',
