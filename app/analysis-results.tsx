@@ -29,7 +29,7 @@ export default function AnalysisResultsScreen() {
   const { currentResult, analysisHistory, setCurrentResult, loadHistory } = useAnalysis();
   const { incrementScanCount } = useSubscription();
   const { theme } = useTheme();
-  const { generateRecommendations, recommendations } = useProducts();
+  const { generateRecommendations, recommendations, isLoadingRecommendations } = useProducts();
   const [glowLevel, setGlowLevel] = useState<string>('');
   const [topStrength, setTopStrength] = useState<string>('');
   const [streak, setStreak] = useState<number>(0);
@@ -379,17 +379,28 @@ export default function AnalysisResultsScreen() {
           </View>
         </View>
 
-        {/* Products Section - Embedded directly */}
-        {recommendations.length > 0 && (
-          <View style={styles.productsSection}>
-            <View style={styles.sectionHeader}>
-              <Sparkles color={palette.gold} size={20} fill={palette.gold} strokeWidth={2.5} />
-              <Text style={styles.sectionTitle}>Products for Your Skin</Text>
+        <View style={styles.productsSection}>
+          <View style={styles.sectionHeader}>
+            <Sparkles color={palette.gold} size={20} fill={palette.gold} strokeWidth={2.5} />
+            <Text style={styles.sectionTitle}>Products for Your Skin</Text>
+          </View>
+          <Text style={styles.sectionSubtitle}>
+            Scientifically matched to your {currentResult.skinType.toLowerCase()} skin
+          </Text>
+          
+          {isLoadingRecommendations ? (
+            <View style={styles.productsLoadingContainer}>
+              <View style={styles.productsLoadingCard}>
+                <View style={styles.productsLoadingShimmer} />
+                <View style={styles.productsLoadingInfo}>
+                  <View style={[styles.shimmerLine, { width: '60%' }]} />
+                  <View style={[styles.shimmerLine, { width: '80%', marginTop: 8 }]} />
+                  <View style={[styles.shimmerLine, { width: '40%', marginTop: 8 }]} />
+                </View>
+              </View>
+              <Text style={styles.productsLoadingText}>Analyzing your skin profile for the best product matches...</Text>
             </View>
-            <Text style={styles.sectionSubtitle}>
-              Scientifically matched to your {currentResult.skinType.toLowerCase()} skin
-            </Text>
-            
+          ) : recommendations.length > 0 ? (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -409,12 +420,10 @@ export default function AnalysisResultsScreen() {
                   }}
                   activeOpacity={0.9}
                 >
-                  {/* Match Badge */}
                   <View style={styles.productMatchBadge}>
                     <Text style={styles.productMatchBadgeText}>{rec.matchScore}%</Text>
                   </View>
 
-                  {/* Product Image */}
                   <View style={styles.productImageContainer}>
                     <Image
                       source={{ uri: rec.imageUrl || 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80' }}
@@ -423,7 +432,6 @@ export default function AnalysisResultsScreen() {
                     />
                   </View>
 
-                  {/* Product Info */}
                   <View style={styles.productCardInfo}>
                     {rec.brand && (
                       <Text style={styles.productCardBrand} numberOfLines={1}>
@@ -482,8 +490,19 @@ export default function AnalysisResultsScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          </View>
-        )}
+          ) : (
+            <View style={styles.productsEmptyContainer}>
+              <Sparkles color={palette.textMuted} size={32} strokeWidth={1.5} />
+              <Text style={styles.productsEmptyText}>No product matches found yet</Text>
+              <TouchableOpacity
+                style={styles.productsRetryButton}
+                onPress={() => currentResult && generateRecommendations(currentResult)}
+              >
+                <Text style={styles.productsRetryText}>Try Again</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
         <View style={styles.ctaSection}>
           <TouchableOpacity style={styles.ctaButtonPrimary} onPress={() => router.push('/(tabs)/progress')} testID="start-tracking">
@@ -1142,5 +1161,64 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontWeight: '500' as const,
     color: palette.textSecondary,
     fontStyle: 'italic' as const,
+  },
+  productsLoadingContainer: {
+    alignItems: 'center' as const,
+    paddingVertical: 24,
+  },
+  productsLoadingCard: {
+    width: CARD_WIDTH,
+    backgroundColor: palette.surface,
+    borderRadius: 20,
+    overflow: 'hidden' as const,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  productsLoadingShimmer: {
+    width: '100%' as const,
+    height: 160,
+    backgroundColor: palette.surfaceElevated,
+  },
+  productsLoadingInfo: {
+    padding: 16,
+  },
+  shimmerLine: {
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: palette.surfaceElevated,
+  },
+  productsLoadingText: {
+    fontSize: 13,
+    color: palette.textSecondary,
+    fontWeight: '500' as const,
+    marginTop: 16,
+    textAlign: 'center' as const,
+    fontStyle: 'italic' as const,
+  },
+  productsEmptyContainer: {
+    alignItems: 'center' as const,
+    paddingVertical: 32,
+    backgroundColor: palette.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  productsEmptyText: {
+    fontSize: 14,
+    color: palette.textMuted,
+    fontWeight: '500' as const,
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  productsRetryButton: {
+    backgroundColor: palette.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  productsRetryText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: palette.textLight,
   },
 });
