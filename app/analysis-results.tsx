@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
-import { Sparkles, Award, Crown, Share2, TrendingUp, Heart, Star, Gem, ChevronRight } from 'lucide-react-native';
+import { Sparkles, Award, Crown, Share2, TrendingUp, Heart, Star, Gem, ChevronRight, Zap, Target } from 'lucide-react-native';
 import { useAnalysis, AnalysisResult } from '@/contexts/AnalysisContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -433,12 +433,32 @@ export default function AnalysisResultsScreen() {
                     <Text style={styles.productCardName} numberOfLines={2}>
                       {rec.stepName}
                     </Text>
-                    <Text style={styles.productCardDescription} numberOfLines={2}>
-                      {rec.description}
-                    </Text>
 
-                    {/* Key Benefits */}
-                    {rec.analysis?.actives && rec.analysis.actives.length > 0 && (
+                    {rec.personalReason ? (
+                      <View style={styles.personalReasonContainer}>
+                        <Target color={palette.gold} size={12} />
+                        <Text style={styles.personalReasonText} numberOfLines={3}>
+                          {rec.personalReason}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.productCardDescription} numberOfLines={2}>
+                        {rec.description}
+                      </Text>
+                    )}
+
+                    {rec.concernsAddressed && rec.concernsAddressed.length > 0 ? (
+                      <View style={styles.productBenefits}>
+                        {rec.concernsAddressed.slice(0, 2).map((concern, index) => (
+                          <View key={index} style={styles.productBenefitTag}>
+                            <Zap color={palette.gold} size={10} fill={palette.gold} />
+                            <Text style={styles.productBenefitText}>
+                              {concern}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : rec.analysis?.actives && rec.analysis.actives.length > 0 ? (
                       <View style={styles.productBenefits}>
                         {rec.analysis.actives.slice(0, 2).map((active, index) => (
                           <View key={index} style={styles.productBenefitTag}>
@@ -448,6 +468,14 @@ export default function AnalysisResultsScreen() {
                             </Text>
                           </View>
                         ))}
+                      </View>
+                    ) : null}
+
+                    {rec.usageTip && (
+                      <View style={styles.usageTipContainer}>
+                        <Text style={styles.usageTipText} numberOfLines={1}>
+                          💡 {rec.usageTip}
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -1086,5 +1114,33 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontWeight: '600' as const,
     color: palette.gold,
     textTransform: 'capitalize' as const,
+  },
+  personalReasonContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: palette.overlayGold,
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  personalReasonText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: palette.textPrimary,
+    lineHeight: 16,
+    flex: 1,
+  },
+  usageTipContainer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: palette.divider,
+  },
+  usageTipText: {
+    fontSize: 10,
+    fontWeight: '500' as const,
+    color: palette.textSecondary,
+    fontStyle: 'italic' as const,
   },
 });

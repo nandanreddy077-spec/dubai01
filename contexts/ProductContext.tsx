@@ -7,6 +7,7 @@ import { getUserLocation, formatAmazonAffiliateLink, type LocationInfo } from '@
 import { useAnalysis, AnalysisResult } from './AnalysisContext';
 import { useSkincare } from './SkincareContext';
 import { analyzeProductIngredients, findIngredient, type Ingredient } from '@/lib/ingredient-intelligence';
+import { generatePersonalizedRecommendations, type PersonalizedProduct } from '@/lib/ai-product-recommendations';
 // Legacy support - keeping old imports for backward compatibility
 import {
   REAL_PRODUCT_DATABASE,
@@ -298,7 +299,6 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
     console.log('🎯 Generating personalized recommendations...');
     
     try {
-      // Get location with fallback to default US location
       const defaultLocation: LocationInfo = {
         country: 'United States',
         countryCode: 'US',
@@ -310,97 +310,112 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
       const recommendations: ProductRecommendation[] = [];
       
       if (analysisResult) {
-        const skinType = analysisResult.skinType || 'combination';
-        const concerns = analysisResult.dermatologyInsights?.skinConcerns || [];
-        
-        // Use GLOBAL PRODUCT DATABASE with verified ingredient lists
-        const requiredCategories: Array<'cleansers' | 'toners' | 'serums' | 'moisturizers' | 'sunscreens' | 'treatments'> = ['cleansers', 'serums', 'moisturizers', 'sunscreens'];
-        if (concerns.includes('Fine lines') || concerns.includes('Aging')) {
-          requiredCategories.push('treatments');
+        let aiProducts: PersonalizedProduct[] = [];
+        try {
+          aiProducts = await generatePersonalizedRecommendations(analysisResult, location);
+          console.log(`🧠 AI returned ${aiProducts.length} personalized products`);
+        } catch (aiError) {
+          console.warn('⚠️ AI recommendations failed, using rule-based fallback:', aiError);
         }
 
-        const analysisRecommendations: Array<{
-          name: string;
-          brand: string;
-          description: string;
-          category: string;
-          imageUrl: string;
-          matchScore: number;
-          globalProduct: GlobalProduct;
-        }> = [];
+        if (aiProducts.length >= 3) {
+          aiProducts.forEach((pp) => {
+            const globalProduct = pp.globalProduct;
+            const actualIngredients = globalProduct.ingredients;
+            const productAnalysis = analyzeProductIngredients(globalProduct.name, actualIngredients);
 
-        // For each required category, find the best matching global product
-        requiredCategories.forEach(category => {
-          // Get recommended ingredients for this category
-          const recommendedIngredients = getRecommendedIngredients(category, skinType, concerns);
-          
-          // Find global products that match (check regional availability)
-          const matchingProducts = findProductsWithIngredients(
-            recommendedIngredients,
-            category,
-            skinType,
-            concerns
-          ).filter(product => {
-            // Filter by regional availability if location is known
-            if (location.countryCode) {
-              return product.regionalAvailability.some(
-                avail => avail.countryCode === location.countryCode && avail.available
-              );
-            }
-            return true; // If no location, show all available products
-          });
+            const regionalAvailability = globalProduct.regionalAvailability.find(
+              avail => avail.countryCode === location.countryCode && avail.available
+            ) || globalProduct.regionalAvailability[0];
 
-          if (matchingProducts.length > 0) {
-            // Calculate match scores for each product
-            const productsWithScores = matchingProducts.map(product => {
-              const ingredientMatch = calculateIngredientMatchScore(product, recommendedIngredients);
-              
-              // Analyze the actual product ingredients
-              const productAnalysis = analyzeProductIngredients(product.name, product.ingredients);
-              const efficacyScore = productAnalysis.analysis.efficacy.score;
-              const safetyScore = productAnalysis.analysis.safety.score;
-              const compatibilityScore = productAnalysis.analysis.compatibility.compatible ? 100 : 70;
-              
-              // Weighted match score: 40% ingredient match, 40% efficacy, 15% safety, 5% compatibility
-              const calculatedMatchScore = Math.round(
-                (ingredientMatch * 0.4) +
-                (efficacyScore * 0.4) +
-                (safetyScore * 0.15) +
-                (compatibilityScore * 0.05)
-              );
+            const baseSearchQuery = `${globalProduct.brand} ${globalProduct.name}`;
+            const primaryImage = globalProduct.images.find(img => img.type === 'primary')?.url || globalProduct.images[0]?.url || '';
 
-              return {
-                product,
-                matchScore: calculatedMatchScore,
-                ingredientMatch,
-                productAnalysis,
-              };
-            });
-
-            // Sort by match score and pick the best one
-            productsWithScores.sort((a, b) => b.matchScore - a.matchScore);
-            const bestMatch = productsWithScores[0];
-
-            // Get primary image URL
-            const primaryImage = bestMatch.product.images.find(img => img.type === 'primary')?.url || bestMatch.product.images[0]?.url || '';
-
-            analysisRecommendations.push({
-              name: bestMatch.product.name,
-              brand: bestMatch.product.brand,
-              description: bestMatch.product.description,
-              category: bestMatch.product.category,
+            const recommendation: ProductRecommendation = {
+              id: globalProduct.id,
+              category: globalProduct.category,
+              stepName: globalProduct.name,
+              description: globalProduct.description,
               imageUrl: primaryImage,
-              matchScore: bestMatch.matchScore,
-              globalProduct: bestMatch.product,
-            });
-          } else {
-            // Fallback: find any product in this category for this skin type
-            const fallbackProducts = getProductsByCategory(category).filter(product => {
-              // Filter by skin type
-              if (skinType && !product.targetSkinTypes.includes(skinType) && !product.targetSkinTypes.includes('all')) {
-                return false;
-              }
-              // Filter by regional availability
+              brand: globalProduct.brand,
+              matchScore: pp.matchScore,
+              source: 'analysis',
+              ingredients: actualIngredients,
+              personalReason: pp.aiInsight.personalReason,
+              whyForYou: pp.aiInsight.whyForYou,
+              skinTypeMatch: pp.aiInsight.skinTypeMatch,
+              usageTip: pp.aiInsight.usageTip,
+              concernsAddressed: pp.aiInsight.concernsAddressed,
+              price: regionalAvailability?.price || globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : undefined,
+              analysis: {
+                efficacy: productAnalysis.analysis.efficacy,
+                safety: productAnalysis.analysis.safety,
+                compatibility: productAnalysis.analysis.compatibility,
+                actives: productAnalysis.analysis.actives.map(ing => ({
+                  name: ing.name,
+                  effectiveness: ing.efficacy.effectiveness,
+                  conditions: ing.efficacy.conditions,
+                })),
+              },
+              tiers: {
+                luxury: createProductTier(
+                  'Premium Choice',
+                  'Professional-grade formulation with advanced ingredients',
+                  `Top-tier products with clinically-proven results.`,
+                  regionalAvailability?.price || (globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : '$60-150+'),
+                  `${globalProduct.brand} ${globalProduct.name} premium`,
+                  location
+                ),
+                medium: createProductTier(
+                  'Best Value',
+                  'High-quality products at accessible prices',
+                  `Excellent quality without the premium price tag.`,
+                  regionalAvailability?.price || (globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : '$20-60'),
+                  `${globalProduct.brand} ${globalProduct.name}`,
+                  location
+                ),
+                budget: createProductTier(
+                  'Budget-Friendly',
+                  'Affordable options that work',
+                  `Effective products at wallet-friendly prices.`,
+                  regionalAvailability?.price || (globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : '$5-20'),
+                  `${globalProduct.brand} ${globalProduct.name} affordable`,
+                  location
+                ),
+              },
+              affiliateUrl: regionalAvailability?.affiliateUrl || formatAmazonAffiliateLink(baseSearchQuery, location),
+            };
+
+            recommendations.push(recommendation);
+          });
+        } else {
+          const skinType = analysisResult.skinType || 'combination';
+          const concerns = analysisResult.dermatologyInsights?.skinConcerns || [];
+          
+          const requiredCategories: Array<'cleansers' | 'toners' | 'serums' | 'moisturizers' | 'sunscreens' | 'treatments'> = ['cleansers', 'serums', 'moisturizers', 'sunscreens'];
+          if (concerns.includes('Fine lines') || concerns.includes('Aging')) {
+            requiredCategories.push('treatments');
+          }
+
+          const analysisRecommendations: Array<{
+            name: string;
+            brand: string;
+            description: string;
+            category: string;
+            imageUrl: string;
+            matchScore: number;
+            globalProduct: GlobalProduct;
+          }> = [];
+
+          requiredCategories.forEach(category => {
+            const recommendedIngredients = getRecommendedIngredients(category, skinType, concerns);
+            
+            const matchingProducts = findProductsWithIngredients(
+              recommendedIngredients,
+              category,
+              skinType,
+              concerns
+            ).filter(product => {
               if (location.countryCode) {
                 return product.regionalAvailability.some(
                   avail => avail.countryCode === location.countryCode && avail.available
@@ -409,106 +424,143 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
               return true;
             });
 
-            if (fallbackProducts.length > 0) {
-              const fallbackProduct = fallbackProducts[0];
-              const recommendedIngredients = getRecommendedIngredients(category, skinType, concerns);
-              const productAnalysis = analyzeProductIngredients(fallbackProduct.name, fallbackProduct.ingredients);
-              
-              const efficacyScore = productAnalysis.analysis.efficacy.score;
-              const safetyScore = productAnalysis.analysis.safety.score;
-              const compatibilityScore = productAnalysis.analysis.compatibility.compatible ? 100 : 70;
-              
-              const matchScore = Math.round(
-                (efficacyScore * 0.6) +
-                (safetyScore * 0.3) +
-                (compatibilityScore * 0.1)
-              );
+            if (matchingProducts.length > 0) {
+              const productsWithScores = matchingProducts.map(product => {
+                const ingredientMatch = calculateIngredientMatchScore(product, recommendedIngredients);
+                const productAnalysis = analyzeProductIngredients(product.name, product.ingredients);
+                const efficacyScore = productAnalysis.analysis.efficacy.score;
+                const safetyScore = productAnalysis.analysis.safety.score;
+                const compatibilityScore = productAnalysis.analysis.compatibility.compatible ? 100 : 70;
+                
+                const calculatedMatchScore = Math.round(
+                  (ingredientMatch * 0.4) +
+                  (efficacyScore * 0.4) +
+                  (safetyScore * 0.15) +
+                  (compatibilityScore * 0.05)
+                );
 
-              const primaryImage = fallbackProduct.images.find(img => img.type === 'primary')?.url || fallbackProduct.images[0]?.url || '';
+                return { product, matchScore: calculatedMatchScore, ingredientMatch, productAnalysis };
+              });
+
+              productsWithScores.sort((a, b) => b.matchScore - a.matchScore);
+              const bestMatch = productsWithScores[0];
+              const primaryImage = bestMatch.product.images.find(img => img.type === 'primary')?.url || bestMatch.product.images[0]?.url || '';
 
               analysisRecommendations.push({
-                name: fallbackProduct.name,
-                brand: fallbackProduct.brand,
-                description: fallbackProduct.description,
-                category: fallbackProduct.category,
+                name: bestMatch.product.name,
+                brand: bestMatch.product.brand,
+                description: bestMatch.product.description,
+                category: bestMatch.product.category,
                 imageUrl: primaryImage,
-                matchScore,
-                globalProduct: fallbackProduct,
+                matchScore: bestMatch.matchScore,
+                globalProduct: bestMatch.product,
               });
-            }
-          }
-        });
+            } else {
+              const fallbackProducts = getProductsByCategory(category).filter(product => {
+                if (skinType && !product.targetSkinTypes.includes(skinType) && !product.targetSkinTypes.includes('all')) return false;
+                if (location.countryCode) {
+                  return product.regionalAvailability.some(
+                    avail => avail.countryCode === location.countryCode && avail.available
+                  );
+                }
+                return true;
+              });
 
-        analysisRecommendations.forEach((rec) => {
-          // Use ACTUAL product ingredients from global product database
-          const globalProduct = rec.globalProduct;
-          const actualIngredients = globalProduct.ingredients;
-          
-          // Analyze ACTUAL product ingredients (not theoretical ones)
-          const productAnalysis = analyzeProductIngredients(rec.name, actualIngredients);
-          
-          // Use the match score calculated from global product matching
-          const calculatedMatchScore = rec.matchScore;
-          
-          // Get regional pricing and affiliate link
-          const regionalAvailability = globalProduct.regionalAvailability.find(
-            avail => avail.countryCode === location.countryCode && avail.available
-          ) || globalProduct.regionalAvailability[0];
-          
-          const baseSearchQuery = `${rec.brand} ${rec.name}`;
-          
-          const recommendation: ProductRecommendation = {
-            id: globalProduct.id,
-            category: rec.category,
-            stepName: rec.name,
-            description: rec.description,
-            imageUrl: rec.imageUrl,
-            brand: rec.brand,
-            matchScore: calculatedMatchScore, // Based on ACTUAL product ingredients
-            source: 'analysis',
-            ingredients: actualIngredients, // ACTUAL ingredient list from global product
-            price: regionalAvailability?.price || globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : undefined,
-            analysis: {
-              efficacy: productAnalysis.analysis.efficacy,
-              safety: productAnalysis.analysis.safety,
-              compatibility: productAnalysis.analysis.compatibility,
-              actives: productAnalysis.analysis.actives.map(ing => ({
-                name: ing.name,
-                effectiveness: ing.efficacy.effectiveness,
-                conditions: ing.efficacy.conditions,
-              })),
-            },
-            tiers: {
-              luxury: createProductTier(
-                'Premium Choice',
-                'Professional-grade formulation with advanced ingredients',
-                `Top-tier products with clinically-proven results. Perfect for achieving maximum effectiveness.`,
-                regionalAvailability?.price || (globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : '$60-150+'),
-                `${rec.brand} ${rec.name} premium`,
-                location
-              ),
-              medium: createProductTier(
-                'Best Value',
-                'High-quality products at accessible prices',
-                `Excellent quality without the premium price tag. Scientifically-backed formulations that deliver results.`,
-                regionalAvailability?.price || (globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : '$20-60'),
-                `${rec.brand} ${rec.name}`,
-                location
-              ),
-              budget: createProductTier(
-                'Budget-Friendly',
-                'Affordable options that work',
-                `Effective products at wallet-friendly prices. Great for starting your skincare journey.`,
-                regionalAvailability?.price || (globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : '$5-20'),
-                `${rec.brand} ${rec.name} affordable`,
-                location
-              ),
-            },
-            affiliateUrl: regionalAvailability?.affiliateUrl || formatAmazonAffiliateLink(baseSearchQuery, location),
-          };
-          
-          recommendations.push(recommendation);
-        });
+              if (fallbackProducts.length > 0) {
+                const fallbackProduct = fallbackProducts[0];
+                const productAnalysis = analyzeProductIngredients(fallbackProduct.name, fallbackProduct.ingredients);
+                const efficacyScore = productAnalysis.analysis.efficacy.score;
+                const safetyScore = productAnalysis.analysis.safety.score;
+                const compatibilityScore = productAnalysis.analysis.compatibility.compatible ? 100 : 70;
+                const matchScore = Math.round((efficacyScore * 0.6) + (safetyScore * 0.3) + (compatibilityScore * 0.1));
+                const primaryImage = fallbackProduct.images.find(img => img.type === 'primary')?.url || fallbackProduct.images[0]?.url || '';
+
+                analysisRecommendations.push({
+                  name: fallbackProduct.name,
+                  brand: fallbackProduct.brand,
+                  description: fallbackProduct.description,
+                  category: fallbackProduct.category,
+                  imageUrl: primaryImage,
+                  matchScore,
+                  globalProduct: fallbackProduct,
+                });
+              }
+            }
+          });
+
+          analysisRecommendations.forEach((rec) => {
+            const globalProduct = rec.globalProduct;
+            const actualIngredients = globalProduct.ingredients;
+            const productAnalysis = analyzeProductIngredients(rec.name, actualIngredients);
+            const calculatedMatchScore = rec.matchScore;
+            
+            const regionalAvailability = globalProduct.regionalAvailability.find(
+              avail => avail.countryCode === location.countryCode && avail.available
+            ) || globalProduct.regionalAvailability[0];
+            
+            const baseSearchQuery = `${rec.brand} ${rec.name}`;
+            
+            const recommendation: ProductRecommendation = {
+              id: globalProduct.id,
+              category: rec.category,
+              stepName: rec.name,
+              description: rec.description,
+              imageUrl: rec.imageUrl,
+              brand: rec.brand,
+              matchScore: calculatedMatchScore,
+              source: 'analysis',
+              ingredients: actualIngredients,
+              personalReason: `Selected for your ${analysisResult.skinType} skin based on ingredient analysis.`,
+              whyForYou: [
+                `Targets your ${concerns[0] || 'skin'} concerns`,
+                `Key ingredients: ${globalProduct.keyIngredients?.slice(0, 2).join(', ') || 'Verified formula'}`,
+                `Safe for ${analysisResult.skinType} skin type`,
+              ],
+              skinTypeMatch: `Formulated for ${analysisResult.skinType} skin`,
+              concernsAddressed: concerns.slice(0, 3),
+              price: regionalAvailability?.price || globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : undefined,
+              analysis: {
+                efficacy: productAnalysis.analysis.efficacy,
+                safety: productAnalysis.analysis.safety,
+                compatibility: productAnalysis.analysis.compatibility,
+                actives: productAnalysis.analysis.actives.map(ing => ({
+                  name: ing.name,
+                  effectiveness: ing.efficacy.effectiveness,
+                  conditions: ing.efficacy.conditions,
+                })),
+              },
+              tiers: {
+                luxury: createProductTier(
+                  'Premium Choice',
+                  'Professional-grade formulation with advanced ingredients',
+                  `Top-tier products with clinically-proven results.`,
+                  regionalAvailability?.price || (globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : '$60-150+'),
+                  `${rec.brand} ${rec.name} premium`,
+                  location
+                ),
+                medium: createProductTier(
+                  'Best Value',
+                  'High-quality products at accessible prices',
+                  `Excellent quality without the premium price tag.`,
+                  regionalAvailability?.price || (globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : '$20-60'),
+                  `${rec.brand} ${rec.name}`,
+                  location
+                ),
+                budget: createProductTier(
+                  'Budget-Friendly',
+                  'Affordable options that work',
+                  `Effective products at wallet-friendly prices.`,
+                  regionalAvailability?.price || (globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : '$5-20'),
+                  `${rec.brand} ${rec.name} affordable`,
+                  location
+                ),
+              },
+              affiliateUrl: regionalAvailability?.affiliateUrl || formatAmazonAffiliateLink(baseSearchQuery, location),
+            };
+            
+            recommendations.push(recommendation);
+          });
+        }
       }
       
       if (currentPlan) {

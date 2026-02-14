@@ -57,7 +57,11 @@ export interface ProductRecommendation {
   brand?: string;
   affiliateUrl?: string;
   price?: string;
-  // Enhanced with ingredient intelligence
+  personalReason?: string;
+  whyForYou?: string[];
+  skinTypeMatch?: string;
+  usageTip?: string;
+  concernsAddressed?: string[];
   ingredients?: string[];
   analysis?: {
     efficacy: {

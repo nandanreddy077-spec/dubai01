@@ -4,6 +4,7 @@
  */
 
 import { GlobalProduct } from '../product-database-structure';
+export type { GlobalProduct };
 import { CLEANSERS } from './cleansers';
 import { TONERS } from './toners';
 import { SERUMS } from './serums';

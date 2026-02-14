@@ -27,6 +27,9 @@ import {
   ShoppingBag,
   ExternalLink,
   Sparkles,
+  Target,
+  Lightbulb,
+  Zap,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProducts } from '@/contexts/ProductContext';
@@ -63,65 +66,31 @@ export default function ProductDetailsScreen() {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const tabSlideAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    // Entrance animation
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Animate match score if personalized match exists
-    if (personalizedMatch) {
-      Animated.spring(matchScoreAnim, {
-        toValue: 1,
-        tension: 40,
-        friction: 7,
-        delay: 200,
-        useNativeDriver: true,
-      }).start(() => {
-        if (Platform.OS !== 'web') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-      });
-    }
-  }, [personalizedMatch]);
-
-  useEffect(() => {
-    // Tab transition animation
-    Animated.spring(tabSlideAnim, {
-      toValue: activeTab === 'match' ? 1 : 0,
-      tension: 50,
-      friction: 8,
-      useNativeDriver: true,
-    }).start();
-  }, [activeTab]);
-
   // Find the product - either from recommendations or from user's shelf
   const product = useMemo(() => {
     const searchId = id || productId;
     if (!searchId) return null;
     
-    // First check recommendations
     const rec = recommendations.find(r => r.id === searchId);
     if (rec) return rec;
     
-    // Then check user's products
     const userProduct = getProductById(searchId);
     if (userProduct) {
-      // Convert Product to ProductRecommendation format for display
-      const analysis = userProduct.ingredients && userProduct.ingredients.length > 0
+      const analysisData = userProduct.ingredients && userProduct.ingredients.length > 0
         ? analyzeProductIngredients(userProduct.name, userProduct.ingredients)
         : null;
       
+      const mappedAnalysis = analysisData ? {
+        efficacy: analysisData.analysis.efficacy,
+        safety: analysisData.analysis.safety,
+        compatibility: analysisData.analysis.compatibility,
+        actives: analysisData.analysis.actives.map(ing => ({
+          name: ing.name,
+          effectiveness: ing.efficacy.effectiveness,
+          conditions: ing.efficacy.conditions,
+        })),
+      } : undefined;
+
       return {
         id: userProduct.id,
         category: userProduct.category,
@@ -131,34 +100,24 @@ export default function ProductDetailsScreen() {
         brand: userProduct.brand,
         price: userProduct.price?.toString(),
         ingredients: userProduct.ingredients || [],
-        analysis: analysis?.analysis,
-        matchScore: analysis ? analysis.analysis.efficacy.score : 50,
+        analysis: mappedAnalysis,
+        matchScore: analysisData ? analysisData.analysis.efficacy.score : 50,
         source: 'shelf' as const,
+        personalReason: undefined as string | undefined,
+        whyForYou: undefined as string[] | undefined,
+        skinTypeMatch: undefined as string | undefined,
+        usageTip: undefined as string | undefined,
+        concernsAddressed: undefined as string[] | undefined,
+        tiers: undefined as any,
+        affiliateUrl: undefined as string | undefined,
       };
     }
     
     return null;
   }, [id, productId, recommendations, products, getProductById]);
 
-  if (!product) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ title: 'Product Details', headerBackTitle: 'Back' }} />
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Product not found</Text>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.backButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const analysis = product.analysis;
-  const ingredients = product.ingredients || [];
+  const analysis = product?.analysis;
+  const ingredients = product?.ingredients || [];
 
   // Categorize ingredients
   const ingredientData = useMemo(() => {
@@ -253,7 +212,6 @@ export default function ProductDetailsScreen() {
     return Array.from(benefits);
   }, [analysis?.actives]);
 
-  // Calculate personalized skin match based on user's analysis
   const personalizedMatch = useMemo(() => {
     if (!currentResult || !analysis || !ingredients.length) {
       return null;
@@ -261,18 +219,15 @@ export default function ProductDetailsScreen() {
 
     const skinType = currentResult.skinType.toLowerCase();
     const userConcerns = currentResult.dermatologyInsights?.skinConcerns || [];
-    const userSkinQuality = currentResult.skinQuality?.toLowerCase() || '';
 
     let matchScore = analysis.efficacy.score || 50;
     const benefits: string[] = [];
     const warnings: string[] = [];
     const worksForConcerns: string[] = [];
 
-    // Check if ingredients address user's concerns
     if (analysis.actives && analysis.actives.length > 0) {
-      analysis.actives.forEach(active => {
-        // Check if this active addresses any of the user's concerns
-        const addressesConcern = active.efficacy.conditions.some(condition =>
+      analysis.actives.forEach((active: { name: string; effectiveness: string; conditions: string[] }) => {
+        const addressesConcern = active.conditions.some((condition: string) =>
           userConcerns.some(concern =>
             concern.toLowerCase().includes(condition.toLowerCase()) ||
             condition.toLowerCase().includes(concern.toLowerCase())
@@ -281,27 +236,17 @@ export default function ProductDetailsScreen() {
 
         if (addressesConcern) {
           worksForConcerns.push(active.name);
-          benefits.push(`${active.name} addresses your ${active.efficacy.conditions.join(', ')} concerns`);
-          matchScore += 10; // Boost score for addressing concerns
+          benefits.push(`${active.name} addresses your ${active.conditions.join(', ')} concerns`);
+          matchScore += 10;
         }
 
-        // Skin type specific warnings
-        if (skinType === 'sensitive' && active.safety.irritation === 'high') {
-          warnings.push(`${active.name} may cause irritation for sensitive skin. Patch test first.`);
-          matchScore -= 15;
-        }
         if (skinType === 'dry' && active.name.includes('Acid') && !active.name.includes('Hyaluronic')) {
           warnings.push(`${active.name} may be drying. Use with a rich moisturizer.`);
-          matchScore -= 10;
-        }
-        if (skinType === 'oily' && active.safety.comedogenic >= 3) {
-          warnings.push(`${active.name} may clog pores for oily skin. Monitor for breakouts.`);
           matchScore -= 10;
         }
       });
     }
 
-    // Check compatibility issues
     if (!analysis.compatibility.compatible && analysis.compatibility.issues.length > 0) {
       analysis.compatibility.issues.forEach(issue => {
         warnings.push(issue.description);
@@ -309,33 +254,89 @@ export default function ProductDetailsScreen() {
       });
     }
 
-    // Check ingredient safety for user's skin type
-    ingredientData.forEach(({ ingredient, rating }) => {
+    ingredientData.forEach(({ ingredient }) => {
       if (!ingredient) return;
 
       if (skinType === 'sensitive' && ingredient.safety.irritation === 'high') {
         warnings.push(`${ingredient.name} may irritate sensitive skin`);
+        matchScore -= 15;
       }
       if (skinType === 'oily' && ingredient.safety.comedogenic >= 4) {
         warnings.push(`${ingredient.name} is highly comedogenic - may cause breakouts`);
+        matchScore -= 10;
       }
       if (skinType === 'dry' && ingredient.name.toLowerCase().includes('alcohol') && !ingredient.name.toLowerCase().includes('fatty')) {
         warnings.push(`${ingredient.name} may be drying for dry skin`);
       }
     });
 
-    // Final score should be between 0-100
     matchScore = Math.max(0, Math.min(100, matchScore));
 
     return {
       score: Math.round(matchScore),
       benefits,
-      warnings: [...new Set(warnings)], // Remove duplicates
+      warnings: [...new Set(warnings)],
       worksForConcerns,
-      skinTypeMatch: true, // We'll determine this based on warnings
+      skinTypeMatch: true,
       recommendation: matchScore >= 80 ? 'excellent' : matchScore >= 60 ? 'good' : matchScore >= 40 ? 'moderate' : 'poor',
     };
   }, [currentResult, analysis, ingredients, ingredientData]);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    if (personalizedMatch) {
+      Animated.spring(matchScoreAnim, {
+        toValue: 1,
+        tension: 40,
+        friction: 7,
+        delay: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        if (Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      });
+    }
+  }, [personalizedMatch, fadeAnim, slideAnim, matchScoreAnim]);
+
+  useEffect(() => {
+    Animated.spring(tabSlideAnim, {
+      toValue: activeTab === 'match' ? 1 : 0,
+      tension: 50,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab, tabSlideAnim]);
+
+  if (!product) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ title: 'Product Details', headerBackTitle: 'Back' }} />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Product not found</Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -418,6 +419,44 @@ export default function ProductDetailsScreen() {
             <Text style={styles.productName}>{product.stepName}</Text>
             <Text style={styles.description}>{product.description}</Text>
           </View>
+
+          {product.personalReason && (
+            <View style={styles.aiInsightCard}>
+              <View style={styles.aiInsightHeader}>
+                <Target color={palette.gold} size={16} />
+                <Text style={styles.aiInsightLabel}>PICKED FOR YOU</Text>
+              </View>
+              <Text style={styles.aiInsightReason}>{product.personalReason}</Text>
+              {product.skinTypeMatch && (
+                <View style={styles.aiSkinTypeRow}>
+                  <CheckCircle color={palette.success} size={14} />
+                  <Text style={styles.aiSkinTypeText}>{product.skinTypeMatch}</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {product.whyForYou && product.whyForYou.length > 0 && (
+            <View style={styles.whyForYouCard}>
+              <Text style={styles.whyForYouTitle}>Why This Works For You</Text>
+              {product.whyForYou.map((reason, idx) => (
+                <View key={idx} style={styles.whyForYouItem}>
+                  <Zap color={palette.gold} size={14} fill={palette.gold} />
+                  <Text style={styles.whyForYouText}>{reason}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {product.usageTip && (
+            <View style={styles.usageTipCard}>
+              <Lightbulb color={palette.warning || '#F59E0B'} size={16} />
+              <View style={styles.usageTipContent}>
+                <Text style={styles.usageTipLabel}>YOUR USAGE TIP</Text>
+                <Text style={styles.usageTipText}>{product.usageTip}</Text>
+              </View>
+            </View>
+          )}
         </Animated.View>
 
         {/* Tab Selector */}
@@ -892,10 +931,10 @@ export default function ProductDetailsScreen() {
                           )}
                         </Text>
                         <Text style={styles.effectDescription}>
-                          Addresses: {active.conditions.map(c => c.toLowerCase()).join(', ')}
+                          Addresses: {active.conditions.map((c: string) => c.toLowerCase()).join(', ')}
                         </Text>
                         <Text style={styles.effectIngredients}>
-                          Efficacy: {active.effectiveness} • {active.efficacy.proven ? 'Proven ingredient' : 'Limited evidence'}
+                          Efficacy: {active.effectiveness}
                         </Text>
                       </View>
                       <ChevronRight color={palette.textMuted} size={18} />
@@ -1422,12 +1461,32 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   effectIngredients: {
     fontSize: 12,
     color: palette.textMuted,
-    fontStyle: 'italic',
+    fontStyle: 'italic' as const,
   },
-  effectBadge: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: palette.success,
+  emptyFilterState: {
+    padding: 24,
+    alignItems: 'center' as const,
+  },
+  emptyFilterText: {
+    fontSize: 14,
+    color: palette.textSecondary,
+    fontWeight: '500' as const,
+  },
+  benefitCard: {
+    flexDirection: 'row' as const,
+    gap: 10,
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
+  },
+  benefitCardText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: palette.textPrimary,
+    flex: 1,
   },
   productImpactCard: {
     backgroundColor: 'rgba(16, 185, 129, 0.05)',
@@ -1615,6 +1674,102 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  aiInsightCard: {
+    backgroundColor: palette.overlayGold,
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: `${palette.gold}30`,
+  },
+  aiInsightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  aiInsightLabel: {
+    fontSize: 11,
+    fontWeight: '800' as const,
+    color: palette.gold,
+    letterSpacing: 1,
+  },
+  aiInsightReason: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: palette.textPrimary,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  aiSkinTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  aiSkinTypeText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: palette.success,
+  },
+  whyForYouCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 12,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: palette.border,
+    ...shadow.soft,
+  },
+  whyForYouTitle: {
+    fontSize: 15,
+    fontWeight: '800' as const,
+    color: palette.textPrimary,
+    marginBottom: 12,
+  },
+  whyForYouItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 10,
+  },
+  whyForYouText: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+    color: palette.textPrimary,
+    lineHeight: 18,
+    flex: 1,
+  },
+  usageTipCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 12,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.15)',
+  },
+  usageTipContent: {
+    flex: 1,
+  },
+  usageTipLabel: {
+    fontSize: 10,
+    fontWeight: '800' as const,
+    color: palette.warning || '#F59E0B',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  usageTipText: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+    color: palette.textPrimary,
+    lineHeight: 18,
   },
 });
 
