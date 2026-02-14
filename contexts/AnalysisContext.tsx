@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import { Platform } from 'react-native';
+import { supabase } from '@/lib/supabase';
 
 // Web-compatible storage wrapper with quota management
 const storage = {
@@ -168,6 +169,53 @@ export const [AnalysisProvider, useAnalysis] = createContextHook((): AnalysisCon
 
   const loadHistory = useCallback(async () => {
     try {
+      // First, try to load from Supabase if user is logged in
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        try {
+          const { data, error } = await supabase
+            .from('glow_analyses')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('timestamp', { ascending: false })
+            .limit(10);
+          
+          if (error) throw error;
+          
+          if (data && data.length > 0) {
+            // Convert database format to AnalysisResult format
+            const analyses: AnalysisResult[] = data.map((item: any) => ({
+              overallScore: item.overall_score || 0,
+              rating: item.rating || '',
+              skinPotential: item.skin_potential || '',
+              skinQuality: item.skin_quality || '',
+              skinTone: item.skin_tone || '',
+              skinType: item.skin_type || '',
+              detailedScores: item.detailed_scores || {},
+              dermatologyInsights: item.dermatology_insights || {
+                acneRisk: 'Low' as const,
+                agingSigns: [],
+                skinConcerns: [],
+                recommendedTreatments: [],
+              },
+              personalizedTips: item.personalized_tips || [],
+              imageUri: item.image_url,
+              timestamp: item.timestamp || Date.now(),
+              confidence: item.confidence || 0,
+            }));
+            
+            setAnalysisHistory(analyses);
+            // Also save to local storage as backup
+            await storage.setItem(STORAGE_KEY, JSON.stringify(analyses));
+            return;
+          }
+        } catch (dbError) {
+          console.warn('Error loading from Supabase, falling back to local storage:', dbError);
+        }
+      }
+      
+      // Fallback to local storage
       const stored = await storage.getItem(STORAGE_KEY);
       if (stored) {
         try {
@@ -175,7 +223,6 @@ export const [AnalysisProvider, useAnalysis] = createContextHook((): AnalysisCon
           setAnalysisHistory(Array.isArray(parsed) ? parsed : []);
         } catch (parseError) {
           console.error('Error parsing analysis history:', parseError);
-          // Clear corrupted data and reset to empty array
           await storage.setItem(STORAGE_KEY, JSON.stringify([]));
           setAnalysisHistory([]);
         }
@@ -202,7 +249,48 @@ export const [AnalysisProvider, useAnalysis] = createContextHook((): AnalysisCon
       
       const newHistory = [lightweightResult, ...analysisHistory.slice(0, 4)]; // Keep only last 5 analyses
       setAnalysisHistory(newHistory);
+      
+      // Save to local storage first (fast)
       await storage.setItem(STORAGE_KEY, JSON.stringify(newHistory));
+      
+      // Also save to Supabase if user is logged in
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        try {
+          const { error } = await supabase
+            .from('glow_analyses')
+            .insert({
+              user_id: user.id,
+              image_url: result.imageUri,
+              overall_score: result.overallScore,
+              rating: result.rating,
+              skin_potential: result.skinPotential,
+              skin_quality: result.skinQuality,
+              skin_tone: result.skinTone,
+              skin_type: result.skinType,
+              detailed_scores: result.detailedScores,
+              dermatology_insights: result.dermatologyInsights,
+              personalized_tips: result.personalizedTips,
+              confidence: result.confidence,
+              timestamp: result.timestamp,
+              analysis_data: {
+                overallScore: result.overallScore,
+                rating: result.rating,
+                skinType: result.skinType,
+              },
+            });
+          
+          if (error) {
+            console.warn('Error saving to Supabase:', error);
+            // Continue anyway - local storage is saved
+          } else {
+            console.log('✅ Analysis saved to Supabase');
+          }
+        } catch (dbError) {
+          console.warn('Error saving to Supabase, but local storage is saved:', dbError);
+        }
+      }
     } catch (error) {
       console.error('Error saving analysis:', error);
       // If save fails, try with even less data

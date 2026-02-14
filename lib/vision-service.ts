@@ -116,3 +116,15 @@ export async function analyzeLabels(
   ]);
 }
 
+/**
+ * Extract text from product image (OCR)
+ */
+export async function extractTextFromImage(
+  base64Image: string
+): Promise<VisionAnalysisResult> {
+  return analyzeImageWithVision(base64Image, [
+    { type: 'TEXT_DETECTION', maxResults: 50 },
+    { type: 'LABEL_DETECTION', maxResults: 10 },
+  ]);
+}
+

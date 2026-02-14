@@ -66,6 +66,7 @@ function RootLayoutNav() {
       <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
       <Stack.Screen name="analysis-loading" options={{ headerShown: false }} />
       <Stack.Screen name="analysis-results" options={{ headerShown: true, headerBackTitle: "Back" }} />
+      <Stack.Screen name="routine-goal-setup" options={{ headerShown: true, title: "Set Your Goals", headerBackTitle: "Back" }} />
       <Stack.Screen name="skincare-plan-selection" options={{ headerShown: true, headerBackTitle: "Back" }} />
       <Stack.Screen name="skincare-plan-overview" options={{ headerShown: true, headerBackTitle: "Back" }} />
       <Stack.Screen name="style-check" options={{ headerShown: true, headerBackTitle: "Back" }} />

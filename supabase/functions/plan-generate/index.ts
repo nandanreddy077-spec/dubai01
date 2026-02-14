@@ -153,7 +153,97 @@ IMPORTANT: While following the template's focus (${templateTitle}), you MUST per
       planContext = `Create a comprehensive 30-day personalized skincare plan based on the beauty analysis results.`;
     }
 
-    const prompt = `You are a beauty and skincare advisor providing cosmetic guidance. ${planContext} The plan should be practical, safe, and use only over-the-counter products. IMPORTANT: This is for beauty enhancement only, NOT medical treatment. Always recommend consulting a dermatologist for medical concerns.
+    const prompt = `You are a board-certified dermatologist and skincare expert with 20+ years of clinical experience. You're creating a personalized 30-day skincare routine based on comprehensive skin analysis. This is for BEAUTY ENHANCEMENT and SKINCARE GUIDANCE ONLY - NOT medical diagnosis or treatment.
+
+🎯 YOUR EXPERTISE:
+- Evidence-based skincare recommendations
+- Product ingredient efficacy and safety
+- Skin barrier health and repair
+- Progressive treatment protocols
+- Realistic timeline expectations
+- Product compatibility and layering
+
+📋 ANALYSIS DATA PROVIDED:
+Skin Type: ${analysisResult.skinType}
+Skin Quality: ${analysisResult.skinQuality}
+Acne Risk: ${analysisResult.dermatologyInsights.acneRisk}
+Aging Signs: ${analysisResult.dermatologyInsights.agingSigns.join(', ')}
+Skin Concerns: ${analysisResult.dermatologyInsights.skinConcerns.join(', ')}
+Recommended Treatments: ${analysisResult.dermatologyInsights.recommendedTreatments.join(', ')}
+
+Detailed Scores (Focus on areas below 80%):
+- Hydration: ${analysisResult.detailedScores.hydrationLevel}%
+- Texture: ${analysisResult.detailedScores.skinTexture}%
+- Pore Visibility: ${analysisResult.detailedScores.poreVisibility}%
+- Brightness: ${analysisResult.detailedScores.brightnessGlow}%
+- Evenness: ${analysisResult.detailedScores.evenness}%
+- Elasticity: ${analysisResult.detailedScores.elasticity}%
+
+${customGoal ? `User's Primary Goal: ${customGoal}` : ''}
+
+🔬 EVIDENCE-BASED REQUIREMENTS:
+
+1. INGREDIENT SELECTION:
+   - Use ONLY proven, research-backed ingredients
+   - Specify exact ingredient names and typical concentrations
+   - For acne: Salicylic Acid (0.5-2%), Niacinamide (2-10%), Benzoyl Peroxide (2.5-5%)
+   - For anti-aging: Retinol (0.025-1%), Peptides, Vitamin C (5-20%), Niacinamide
+   - For hydration: Hyaluronic Acid (0.1-2%), Ceramides, Glycerin
+   - For brightening: Niacinamide, Vitamin C, Alpha Arbutin, Kojic Acid
+   - AVOID: Unproven ingredients, high alcohol content, harsh fragrances
+
+2. PROGRESSIVE PROTOCOL:
+   - Week 1-2: Gentle introduction, barrier repair focus
+   - Week 3-4: Introduce actives gradually
+   - Week 5-6: Full routine with active treatments
+   - Week 7-8: Maintenance and optimization
+   - Include "skin barrier check" points
+
+3. PRODUCT LAYERING (Correct Order):
+   - Morning: Cleanser → Toner → Serum → Moisturizer → SPF
+   - Evening: Cleanser → Exfoliant (2-3x/week) → Treatment Serum → Moisturizer
+   - Wait times between actives (pH-dependent products)
+
+4. SAFETY & COMPATIBILITY:
+   - NO mixing: Retinol + Vitamin C (use at different times)
+   - NO mixing: Retinol + AHA/BHA (alternate days)
+   - YES pairing: Niacinamide + most actives (very compatible)
+   - Include patch testing instructions
+   - Include irritation warning signs
+
+5. REALISTIC TIMELINES:
+   - Hydration improvements: 1-2 weeks
+   - Texture improvements: 4-6 weeks
+   - Acne reduction: 6-8 weeks
+   - Hyperpigmentation: 8-12 weeks
+   - Fine lines: 12-16 weeks
+   - Set realistic expectations in each week's description
+
+6. PRODUCT SPECIFICITY:
+   - Recommend specific product TYPES with key ingredients
+   - Include price ranges (Budget: $5-20, Mid: $20-60, Luxury: $60+)
+   - Explain WHY each product is recommended for THIS user
+   - Include alternatives for different budgets
+
+7. SKIN BARRIER PROTECTION:
+   - Always include barrier repair steps
+   - Recommend ceramides, niacinamide, fatty acids
+   - Include "rest days" if using strong actives
+   - Monitor for over-exfoliation
+
+${templateId && templateTitle ? `
+TEMPLATE FOCUS: ${templateTitle}
+While following this template's approach, personalize EVERY step based on the user's actual analysis.
+Focus on their lowest scores: ${Object.entries(analysisResult.detailedScores).sort((a, b) => a[1] - b[1]).slice(0, 3).map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1').trim()}: ${value}%`).join(', ')}
+` : ''}
+
+⚠️ CRITICAL SAFETY RULES:
+- NO prescription medications (OTC only)
+- NO medical claims or diagnoses
+- Always recommend dermatologist consultation for persistent issues
+- Include patch testing for new products
+- Warn about potential irritation with actives
+- Include "stop if irritation occurs" warnings
 
 IMPORTANT: Return ONLY a valid JSON object. Do not include any markdown formatting, code blocks, or explanatory text. Just the raw JSON object with this exact structure:
 {
@@ -169,8 +259,8 @@ IMPORTANT: Return ONLY a valid JSON object. Do not include any markdown formatti
         {
           "id": "unique_id",
           "name": "step_name",
-          "description": "detailed_description",
-          "products": ["product1", "product2"],
+          "description": "Detailed description explaining WHY this step helps THIS user's specific concerns (${analysisResult.dermatologyInsights.skinConcerns.join(', ')}) and how it addresses their lowest scores. Must be at least 100 characters and genuinely personalized.",
+          "products": ["Product type with key ingredients (e.g., 'Niacinamide 10% serum')"],
           "timeOfDay": "morning|evening|both",
           "frequency": "daily|weekly|bi-weekly|monthly",
           "order": 1,
@@ -189,51 +279,32 @@ IMPORTANT: Return ONLY a valid JSON object. Do not include any markdown formatti
       "category": "Cleansers",
       "items": [
         {
-          "name": "Product Name",
-          "brand": "Brand Name",
-          "price": "$XX",
+          "name": "Product Type with Key Ingredients",
+          "brand": "Look for brands with [specific ingredients]",
+          "price": "$XX-XX (Budget/Mid/Luxury range)",
           "where": "Where to buy",
-          "priority": "essential|recommended|optional"
+          "priority": "essential|recommended|optional",
+          "keyIngredients": ["Ingredient1", "Ingredient2"],
+          "why": "Explains why this product addresses THIS user's specific concerns"
         }
       ]
     }
   ]
 }
 
-Create a 30-day skincare plan based on this analysis:
+📊 CREATE THE PLAN:
 
-Skin Analysis Results:
-- Overall Score: ${analysisResult.overallScore}/100
-- Skin Type: ${analysisResult.skinType}
-- Skin Tone: ${analysisResult.skinTone}
-- Skin Quality: ${analysisResult.skinQuality}
-- Acne Risk: ${analysisResult.dermatologyInsights.acneRisk}
-- Aging Signs: ${analysisResult.dermatologyInsights.agingSigns.join(', ')}
-- Skin Concerns: ${analysisResult.dermatologyInsights.skinConcerns.join(', ')}
-- Recommended Treatments: ${analysisResult.dermatologyInsights.recommendedTreatments.join(', ')}
+Create a progressive 30-day plan with 4 weekly phases. ${templateId ? 'While following the template focus, ' : ''}Focus on the lowest scoring areas and address the specific skin concerns. Include morning and evening routines, weekly treatments, and product recommendations with realistic pricing.
 
-Detailed Scores:
-- Jawline Sharpness: ${analysisResult.detailedScores.jawlineSharpness}%
-- Brightness & Glow: ${analysisResult.detailedScores.brightnessGlow}%
-- Hydration Level: ${analysisResult.detailedScores.hydrationLevel}%
-- Facial Symmetry: ${analysisResult.detailedScores.facialSymmetry}%
-- Pore Visibility: ${analysisResult.detailedScores.poreVisibility}%
-- Skin Texture: ${analysisResult.detailedScores.skinTexture}%
-- Skin Evenness: ${analysisResult.detailedScores.evenness}%
-- Skin Elasticity: ${analysisResult.detailedScores.elasticity}%
-
-${customGoal ? `Custom Goal: ${customGoal}` : ''}
-
-${templateId && templateTitle ? `
-TEMPLATE REQUIREMENTS:
-- Follow the "${templateTitle}" approach and focus
-- BUT personalize every step, product, and routine based on the user's actual skin analysis above
-- Address their specific skin type (${analysisResult.skinType}), concerns (${analysisResult.dermatologyInsights.skinConcerns.join(', ')}), and scores
-- Make recommendations that will genuinely help THIS user see real improvements
+CRITICAL REQUIREMENTS FOR EACH STEP:
+- Every step must explain WHY it helps THIS user's specific concerns
+- Include specific ingredient names and concentrations when possible
+- Set realistic expectations (not promises)
 - Focus on their lowest scoring areas: ${Object.entries(analysisResult.detailedScores).sort((a, b) => a[1] - b[1]).slice(0, 3).map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1').trim()}: ${value}%`).join(', ')}
-` : ''}
-
-Create a progressive 30-day plan with 4 weekly phases. ${templateId ? 'While following the template focus, ' : ''}Focus on the lowest scoring areas and address the specific skin concerns. Include morning and evening routines, weekly treatments, and product recommendations with realistic pricing. Make it feel personalized and tailored to THIS user's unique skin profile.`;
+- Make it feel genuinely personalized, not generic
+- Include safety warnings where appropriate
+- Explain the science behind each recommendation
+- Each step description should be at least 100 characters explaining the benefit for THIS user`;
 
     // Call OpenAI API
     console.log('🤖 Calling OpenAI API for plan generation...');
@@ -254,15 +325,27 @@ Create a progressive 30-day plan with 4 weekly phases. ${templateId ? 'While fol
           messages: [
             {
               role: 'system',
-              content: 'You are an expert beauty and skincare advisor. Always return valid JSON without markdown formatting.',
+              content: `You are a board-certified dermatologist creating evidence-based skincare routines. 
+
+CRITICAL RULES:
+1. Always return valid JSON without markdown code blocks
+2. Every step must be personalized to THIS user's specific analysis
+3. Include specific ingredient names and concentrations
+4. Explain WHY each step helps their specific concerns
+5. Set realistic timelines (not false promises)
+6. Include safety warnings where appropriate
+7. Focus on their lowest scoring areas
+8. Make descriptions at least 100 characters explaining benefits
+
+Your response must be ONLY the JSON object, no additional text.`,
             },
             {
               role: 'user',
               content: prompt,
             },
           ],
-          max_tokens: 3000,
-          temperature: 0.7,
+          max_tokens: 4000, // More tokens for detailed, helpful routines
+          temperature: 0.3, // Lower for more consistent, accurate results
         }),
       });
 
@@ -342,6 +425,36 @@ Create a progressive 30-day plan with 4 weekly phases. ${templateId ? 'While fol
         }
       }
       console.log('✅ JSON parsed successfully, keys:', Object.keys(planData || {}));
+      
+      // Validate plan helpfulness and specificity
+      if (planData.weeklyPlans && Array.isArray(planData.weeklyPlans)) {
+        planData.weeklyPlans.forEach((week: any, weekIndex: number) => {
+          if (week.steps && Array.isArray(week.steps)) {
+            week.steps.forEach((step: any, stepIndex: number) => {
+              // Ensure descriptions are specific, not generic
+              if (!step.description || step.description.length < 50) {
+                console.warn(`⚠️ Step ${stepIndex} in week ${weekIndex + 1} has generic description (${step.description?.length || 0} chars)`);
+              }
+              
+              // Ensure benefits are explained
+              if (!step.benefits || step.benefits.length === 0) {
+                console.warn(`⚠️ Step ${stepIndex} in week ${weekIndex + 1} missing benefits`);
+              }
+              
+              // Ensure products are specific
+              if (!step.products || step.products.length === 0) {
+                console.warn(`⚠️ Step ${stepIndex} in week ${weekIndex + 1} missing product recommendations`);
+              }
+              
+              // Ensure instructions are provided
+              if (!step.instructions || step.instructions.length === 0) {
+                console.warn(`⚠️ Step ${stepIndex} in week ${weekIndex + 1} missing instructions`);
+              }
+            });
+          }
+        });
+        console.log('✅ Plan helpfulness validation complete');
+      }
     } catch (parseError) {
       console.error('❌ JSON parsing error:', parseError);
       console.error('Response content (first 500 chars):', content.substring(0, 500));

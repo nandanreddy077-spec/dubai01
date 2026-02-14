@@ -24,9 +24,10 @@ import {
   Zap,
   Target,
   Calendar,
-  Image as ImageIcon,
+  ShoppingBag,
+  Flame,
 } from "lucide-react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -39,6 +40,7 @@ import { getPalette, getGradient, shadow } from "@/constants/theme";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { Lock } from "lucide-react-native";
+import Logo from "@/components/Logo";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_PADDING = 20;
@@ -56,8 +58,8 @@ export default function SimpleHomeScreen() {
   const { theme } = useTheme();
   const { currentPlan, activePlans } = useSkincare();
   const { hasCompletedToday, hasCompletedForPlanDay, dailyCompletions } = useGamification();
-  const { analysisHistory } = useAnalysis();
-  const { recommendations } = useProducts();
+  const { analysisHistory, loadHistory, currentResult } = useAnalysis();
+  const { recommendations, products } = useProducts();
   const { state: subscriptionState } = useSubscription();
   const isPremium = subscriptionState.isPremium;
   
@@ -145,6 +147,13 @@ export default function SimpleHomeScreen() {
     return improvements.length > 0 ? improvements : null;
   }, [analysisHistory]);
 
+  // Load analysis history when screen mounts or becomes focused
+  useFocusEffect(
+    React.useCallback(() => {
+      loadHistory();
+    }, [loadHistory])
+  );
+
   useEffect(() => {
     // Entrance animations
     Animated.parallel([
@@ -207,7 +216,17 @@ export default function SimpleHomeScreen() {
 
   const handleRoutinePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push("/(tabs)/glow-coach");
+    
+    // If user has analysis but no plan, redirect to goal setup
+    if (currentResult && activePlans.length === 0) {
+      router.push('/routine-goal-setup');
+    } else if (currentResult && activePlans.length > 0) {
+      // User has analysis and active plan - allow creating new one
+      // Goal setup screen will handle the conflict dialog
+      router.push('/routine-goal-setup');
+    } else {
+      router.push("/(tabs)/glow-coach");
+    }
   };
 
   const handleProgressPress = () => {
@@ -262,27 +281,41 @@ export default function SimpleHomeScreen() {
             },
           ]}
         >
-          {/* Header */}
-        <View style={styles.header}>
-            <View>
-              <Text style={styles.greeting}>{timeGreeting}, {userName}</Text>
-              <Text style={styles.reassurance}>{REASSURANCE_MESSAGES[reassuranceIndex]}</Text>
+          {/* App Header with Logo and Streak */}
+          <View style={styles.appHeader}>
+            {/* Logo and App Name */}
+            <View style={styles.logoAndName}>
+              <View style={styles.logoWrapper}>
+                <Logo size={32} />
               </View>
-            {/* Streak Badge */}
+              <View style={styles.appNameContainer}>
+                <Text style={styles.appName}>GLOWCHECK</Text>
+                <View style={styles.appNameUnderline} />
+              </View>
+            </View>
+            
+            {/* Streak Badge with Flame */}
             <TouchableOpacity 
               style={styles.streakBadge}
               onPress={handleProgressPress}
               activeOpacity={0.8}
-        >
-          <LinearGradient
-                colors={currentStreak > 0 ? ['#FFD700', '#FFA500'] : [palette.surfaceAlt, palette.surface]}
-                style={styles.streakBadgeGradient}
-              >
+            >
+              <View style={styles.streakBadgeContent}>
+                <Flame color="#FF6B35" size={18} fill="#FF6B35" />
                 <Text style={styles.streakBadgeNumber}>{currentStreak}</Text>
-                <Text style={styles.streakBadgeLabel}>day</Text>
-              </LinearGradient>
-          </TouchableOpacity>
-        </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Greeting Section */}
+          <View style={styles.greetingSection}>
+            <Text style={styles.greeting}>{timeGreeting.toUpperCase()},</Text>
+            <View style={styles.userNameContainer}>
+              <Text style={styles.userName}>{userName.toUpperCase()}</Text>
+              <Sparkles color={palette.gold} size={16} fill={palette.gold} style={styles.userNameSparkle} />
+            </View>
+            <Text style={styles.tagline}>Your glow, engineered — one check-in at a time.</Text>
+          </View>
 
           {/* Primary Scan Action */}
           <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
@@ -458,14 +491,18 @@ export default function SimpleHomeScreen() {
 
             <TouchableOpacity
               style={styles.quickActionCard}
-              onPress={() => router.push('/(tabs)/progress?tab=photos')}
+              onPress={() => router.push('/(tabs)/product-shelf')}
               activeOpacity={0.8}
             >
               <View style={styles.quickActionIcon}>
-                <ImageIcon color={palette.primary} size={22} />
+                <ShoppingBag color={palette.primary} size={22} />
                   </View>
-              <Text style={styles.quickActionTitle}>Photos</Text>
-              <Text style={styles.quickActionSubtitle}>Track changes</Text>
+              <Text style={styles.quickActionTitle}>Products</Text>
+              <Text style={styles.quickActionSubtitle}>
+                {products && products.length > 0 
+                  ? `${products.length} in shelf`
+                  : 'Your product shelf'}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -657,51 +694,92 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   content: {
     paddingHorizontal: CARD_PADDING,
   },
-  header: {
+  appHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingTop: 20,
-    paddingBottom: 24,
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 16,
   },
-  greeting: {
-    fontSize: 32,
-    fontWeight: '800' as const,
-    color: palette.textPrimary,
-    letterSpacing: -1,
-    marginBottom: 4,
+  logoAndName: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  reassurance: {
-    fontSize: 16,
-    color: palette.textSecondary,
-    fontWeight: '500' as const,
-  },
-  streakBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    overflow: 'hidden',
-    ...shadow.medium,
-  },
-  streakBadgeGradient: {
-    width: '100%',
-    height: '100%',
+  logoWrapper: {
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  appNameContainer: {
+    position: 'relative',
+  },
+  appName: {
+    fontSize: 20,
+    fontWeight: '800' as const,
+    color: palette.textPrimary,
+    letterSpacing: 0.5,
+  },
+  appNameUnderline: {
+    position: 'absolute',
+    bottom: -2,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: palette.gold,
+    width: '60%',
+  },
+  streakBadge: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    ...shadow.medium,
+  },
+  streakBadgeContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   streakBadgeNumber: {
-    fontSize: 24,
-    fontWeight: '900' as const,
+    fontSize: 16,
+    fontWeight: '800' as const,
     color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  greetingSection: {
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
+  greeting: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: palette.textSecondary,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    textTransform: 'uppercase' as const,
+  },
+  userNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  userName: {
+    fontSize: 36,
+    fontWeight: '800' as const,
+    color: palette.textPrimary,
     letterSpacing: -1,
   },
-  streakBadgeLabel: {
-    fontSize: 10,
-    fontWeight: '700' as const,
-    color: 'rgba(255,255,255,0.9)',
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
-    marginTop: -2,
+  userNameSparkle: {
+    marginTop: 4,
+  },
+  tagline: {
+    fontSize: 14,
+    color: palette.textSecondary,
+    fontWeight: '400' as const,
+    lineHeight: 20,
   },
   scanButton: {
     borderRadius: 24,

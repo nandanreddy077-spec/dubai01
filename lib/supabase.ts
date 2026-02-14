@@ -27,16 +27,15 @@ const safeStorage = {
       const value = await AsyncStorage.getItem(key);
       if (value) {
         const parsed = JSON.parse(value);
-        // Check if refresh token is expired or invalid
-        if (parsed?.refresh_token && parsed?.expires_at) {
-          const expiresAt = parsed.expires_at * 1000;
-          if (Date.now() > expiresAt) {
-            console.log('🔄 Refresh token expired, clearing...');
-            await AsyncStorage.removeItem(key);
-            return null;
-          }
+        // Note: expires_at refers to the access token expiration, not refresh token
+        // Refresh tokens in Supabase don't expire the same way - they can be revoked
+        // but don't have a simple expiration timestamp. We should let Supabase handle
+        // refresh token validation rather than preemptively clearing it.
+        // Only check if the session data structure is valid
+        if (parsed && typeof parsed === 'object') {
+          return value;
         }
-        return value;
+        return null;
       }
       return null;
     } catch (error) {

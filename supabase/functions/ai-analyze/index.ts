@@ -192,80 +192,189 @@ serve(async (req) => {
     if (imageData.analysisType === 'glow') {
       const analysisType = imageData.multiAngle ? 'multi-angle professional' : 'single-angle';
       let visionContext = '';
+      let visionInstructions = '';
       
+      // Extract and format Vision API data for AI
       if (imageData.visionData) {
-        const visionDataStr = typeof imageData.visionData === 'string' 
-          ? imageData.visionData 
-          : JSON.stringify(imageData.visionData, null, 2);
+        const vision = imageData.visionData;
+        const frontFace = vision.front?.faceAnnotations?.[0];
+        const leftFace = vision.left?.faceAnnotations?.[0];
+        const rightFace = vision.right?.faceAnnotations?.[0];
+        const imageProps = vision.front?.imagePropertiesAnnotation;
         
-        visionContext = `\n\nGOOGLE VISION ANALYSIS DATA:\n${visionDataStr}\n\nUse this vision data to enhance your analysis accuracy. Consider facial landmarks, face detection confidence, and any detected features when providing your analysis.`;
+        // Build detailed vision context
+        const visionDetails: string[] = [];
+        
+        if (frontFace) {
+          visionDetails.push(`FRONT VIEW ANALYSIS:
+- Face Detection Confidence: ${(frontFace.detectionConfidence * 100).toFixed(1)}%
+- Facial Landmarks Detected: ${frontFace.landmarks?.map((l: any) => l.type).join(', ') || 'None'}
+- Face Angles: Roll ${frontFace.rollAngle?.toFixed(1)}°, Pan ${frontFace.panAngle?.toFixed(1)}°, Tilt ${frontFace.tiltAngle?.toFixed(1)}°
+- Face Position: ${frontFace.boundingPoly ? 'Centered' : 'Not detected'}
+- Joy Likelihood: ${frontFace.joyLikelihood || 'UNKNOWN'}
+- Sorrow Likelihood: ${frontFace.sorrowLikelihood || 'UNKNOWN'}
+- Anger Likelihood: ${frontFace.angerLikelihood || 'UNKNOWN'}
+- Surprise Likelihood: ${frontFace.surpriseLikelihood || 'UNKNOWN'}
+- Under Exposed: ${frontFace.underExposedLikelihood || 'UNKNOWN'}
+- Blurred: ${frontFace.blurredLikelihood || 'UNKNOWN'}
+- Headwear: ${frontFace.headwearLikelihood || 'UNKNOWN'}`);
+        }
+        
+        if (imageData.multiAngle && leftFace && rightFace) {
+          visionDetails.push(`LEFT PROFILE ANALYSIS:
+- Face Detection Confidence: ${(leftFace.detectionConfidence * 100).toFixed(1)}%
+- Pan Angle: ${leftFace.panAngle?.toFixed(1)}° (negative = left turn)
+- Key Landmarks: ${leftFace.landmarks?.filter((l: any) => ['NOSE_TIP', 'LEFT_EYE', 'CHIN'].includes(l.type)).map((l: any) => l.type).join(', ') || 'None'}`);
+
+          visionDetails.push(`RIGHT PROFILE ANALYSIS:
+- Face Detection Confidence: ${(rightFace.detectionConfidence * 100).toFixed(1)}%
+- Pan Angle: ${rightFace.panAngle?.toFixed(1)}° (positive = right turn)
+- Key Landmarks: ${rightFace.landmarks?.filter((l: any) => ['NOSE_TIP', 'RIGHT_EYE', 'CHIN'].includes(l.type)).map((l: any) => l.type).join(', ') || 'None'}`);
+        }
+        
+        if (imageProps?.dominantColors?.colors) {
+          const colors = imageProps.dominantColors.colors.slice(0, 5);
+          visionDetails.push(`IMAGE PROPERTIES:
+- Dominant Colors: ${colors.map((c: any) => `RGB(${c.color?.red || 0},${c.color?.green || 0},${c.color?.blue || 0}) ${(c.score * 100).toFixed(1)}% coverage`).join('; ')}
+- Color Analysis: Use these color values to assess skin tone, brightness, and overall complexion`);
+        }
+        
+        visionContext = `\n\n=== GOOGLE VISION API ANALYSIS DATA ===\n${visionDetails.join('\n\n')}\n\n=== END VISION DATA ===\n`;
+        
+        visionInstructions = `\n\nCRITICAL: Use the Vision API data above to enhance your analysis:
+1. FACE DETECTION CONFIDENCE: Higher confidence (>0.7) = more reliable analysis. Lower confidence = be more cautious.
+2. FACIAL LANDMARKS: Use detected landmarks (eyes, nose, mouth, chin) to assess symmetry, proportions, and facial structure accurately.
+3. FACE ANGLES: 
+   - Roll angle (head tilt): Use to assess if face is straight or tilted
+   - Pan angle (left/right turn): For profiles, expect -30° to -60° (left) or +30° to +60° (right)
+   - Tilt angle (up/down): Use to assess if looking up/down
+4. IMAGE QUALITY INDICATORS:
+   - Under Exposed: If VERY_LIKELY or LIKELY, mention lighting limitations
+   - Blurred: If VERY_LIKELY or LIKELY, note that texture analysis may be less accurate
+   - Headwear: If detected, note any obstruction
+5. EMOTION LIKELIHOODS: Use to assess facial expression (neutral is best for analysis)
+6. COLOR DATA: Use dominant colors to assess skin tone, brightness, and complexion characteristics
+7. MULTI-ANGLE DATA: If available, use left/right profiles to assess facial symmetry and 3D structure
+
+INTEGRATE THIS DATA: Don't just mention it - USE it to make your scores and assessments more accurate. For example:
+- If confidence is 0.9+ and landmarks are complete, you can be more confident in symmetry scores
+- If pan angle shows proper profile (45-60°), use that angle's data for side analysis
+- If colors show warm undertones, factor that into skin tone assessment
+- If blur is detected, lower texture/clarity scores appropriately`;
       }
       
-      prompt = `You are a supportive beauty and skincare coach helping someone start their glow journey. You're analyzing a ${analysisType} photo to provide a helpful starting point, but you're honest about what you can and cannot determine from a single photo.
+      prompt = `You are a board-certified dermatologist and aesthetic medicine expert with 20+ years of experience. You're analyzing ${analysisType} facial photographs to provide evidence-based skincare and beauty assessments. This is for BEAUTY ENHANCEMENT and SKINCARE GUIDANCE ONLY - NOT medical diagnosis.
 
-🎯 YOUR MISSION: Give encouraging, actionable guidance that helps them track their REAL progress over time.
+🎯 YOUR EXPERTISE:
+- Dermatological skin analysis (acne, aging, texture, pigmentation)
+- Aesthetic medicine (facial symmetry, proportions, skin quality)
+- Evidence-based skincare recommendations
+- Product ingredient efficacy and safety
+- Multi-angle facial structure assessment
 
-IMPORTANT HONESTY:
-- You're providing initial observations from a photo (not a medical diagnosis)
-- Real accuracy comes from tracking changes over weeks/months
-- What matters most is THEIR journey and what THEY notice improving
-- Photos can be affected by lighting, angles, camera quality
-- For medical concerns, always recommend seeing a dermatologist
+📋 ANALYSIS METHODOLOGY:
+1. VISUAL INSPECTION: Examine the image(s) systematically:
+   - Skin texture and pore visibility
+   - Pigmentation and evenness
+   - Hydration indicators (plumpness, glow, fine lines)
+   - Acne, blemishes, or skin concerns
+   - Facial symmetry and proportions
+   - Jawline definition and facial contours
+   - Eye area (dark circles, fine lines, puffiness)
+   - Overall skin radiance and brightness
 
-ANALYSIS APPROACH:
-1. Observe visible characteristics in this specific photo (skin appearance, tone, texture as visible in this lighting)
-2. Identify areas that could benefit from targeted care
-3. Note what looks healthy and working well
-4. Provide ${imageData.multiAngle ? 'multi-angle' : 'single-angle'} observations
-5. Give 7 SPECIFIC, actionable recommendations they can start TODAY
-6. Emphasize that CONSISTENCY and TRACKING will reveal their real results
+2. USE VISION API DATA: ${visionContext ? 'The Vision API has provided detailed facial analysis data. You MUST use this data to enhance your assessment:' : 'No Vision API data available - rely on visual inspection only.'}
+${visionInstructions}
 
-YOUR TONE:
-- Encouraging and supportive ("Here's what I notice...", "Let's start here...")
-- Honest about limitations ("From this photo, I can see...", "This is a great baseline to track from")
-- Focused on their journey ("Track this area over 30 days to see real changes")
-- Actionable and specific (not generic advice)
+3. DERMATOLOGICAL ASSESSMENT:
+   - Skin Type: Determine from visible characteristics (oiliness, dryness, combination patterns)
+   - Skin Concerns: Identify specific issues (acne, hyperpigmentation, fine lines, texture, pores)
+   - Aging Signs: Assess visible signs (fine lines, loss of elasticity, volume changes)
+   - Acne Risk: Evaluate based on visible blemishes, pore size, and skin texture
+   - Skin Quality: Overall health indicators (radiance, evenness, texture smoothness)
 
-REMEMBER: The real magic happens when they track consistently. This analysis is their DAY 1 baseline.
-${visionContext}
+4. BEAUTY SCORING (0-100 scale):
+   - Overall Score: Weighted average considering all factors
+   - Facial Symmetry: ${imageData.multiAngle ? 'Use multi-angle data for 3D symmetry assessment' : 'Assess from front view only'}
+   - Skin Glow: Radiance, brightness, healthy appearance
+   - Jawline Definition: Clarity and sharpness of jawline
+   - Eye Area: Brightness, lack of dark circles, minimal fine lines
+   - Lip Area: Fullness, definition, hydration
+   - Cheekbone Definition: Prominence and structure
+   - Skin Tightness: Firmness, lack of sagging
+   - Facial Harmony: Overall balance and proportions
 
-Respond with ONLY a valid JSON object with this exact structure:
+5. EVIDENCE-BASED RECOMMENDATIONS:
+   - Base recommendations on VISIBLE characteristics
+   - Include specific ingredients (e.g., "Niacinamide 10% for pore visibility")
+   - Provide realistic timelines ("Visible improvement typically seen in 4-6 weeks with consistent use")
+   - Consider skin type and concerns identified
+   - Recommend OTC products only (no prescriptions)
+   - Include preventive measures (SPF, antioxidants)
+
+⚠️ IMPORTANT LIMITATIONS:
+- Photo analysis has limitations (lighting, angles, camera quality)
+- Cannot diagnose medical conditions
+- Cannot assess internal skin health
+- Results are estimates based on visual appearance
+- Always recommend dermatologist consultation for medical concerns
+
+📊 OUTPUT REQUIREMENTS:
+You MUST return a valid JSON object with this EXACT structure. All scores are 0-100 integers. All arrays must contain specific, actionable items:
+
 {
   "skinAnalysis": {
-    "skinType": "Normal/Dry/Oily/Combination/Sensitive",
-    "skinTone": "Very Light/Light/Medium Light/Medium/Medium Dark/Dark/Very Dark + Warm/Cool/Neutral undertone",
-    "skinQuality": "Poor/Fair/Good/Very Good/Excellent",
-    "textureScore": 85,
-    "clarityScore": 90,
-    "hydrationLevel": 80,
-    "poreVisibility": 75,
-    "elasticity": 88,
-    "pigmentationEvenness": 82
+    "skinType": "Normal" | "Dry" | "Oily" | "Combination" | "Sensitive" (choose ONE based on visible characteristics),
+    "skinTone": "Very Light/Warm" | "Light/Cool" | "Medium/Warm" | "Medium Dark/Neutral" | "Dark/Warm" | "Very Dark/Cool" (include undertone),
+    "skinQuality": "Poor" | "Fair" | "Good" | "Very Good" | "Excellent",
+    "textureScore": 0-100 (smoothness, roughness, visible texture),
+    "clarityScore": 0-100 (lack of blemishes, evenness),
+    "hydrationLevel": 0-100 (plumpness, lack of fine lines, glow),
+    "poreVisibility": 0-100 (lower = more visible pores, higher = less visible),
+    "elasticity": 0-100 (firmness, lack of sagging),
+    "pigmentationEvenness": 0-100 (uniformity of skin tone, lack of dark spots)
   },
   "dermatologyAssessment": {
-    "acneRisk": "Low/Medium/High",
-    "agingSigns": ["Fine lines", "Loss of elasticity", "Volume loss", "Pigmentation"],
-    "skinConcerns": ["Enlarged pores", "Uneven texture", "Dark spots"],
-    "recommendedProducts": ["Over-the-counter skincare products only - no prescription treatments"],
-    "skinConditions": ["Any detected conditions like rosacea, melasma, etc."],
-    "preventiveMeasures": ["SPF 30+ daily", "Antioxidant serums", "Gentle cleansing"]
+    "acneRisk": "Low" | "Medium" | "High" (based on visible blemishes and pore characteristics),
+    "agingSigns": ["Specific signs like 'Fine lines around eyes'", "Loss of cheek volume", "Nasolabial folds", "Crow's feet"] (be SPECIFIC),
+    "skinConcerns": ["Enlarged pores in T-zone", "Hyperpigmentation on cheeks", "Uneven texture", "Dullness"] (be SPECIFIC and location-based),
+    "recommendedTreatments": ["Niacinamide 10% serum for pore visibility", "Vitamin C 20% for brightening", "Retinol 0.5% for fine lines"] (include specific ingredients and percentages),
+    "skinConditions": ["Rosacea (mild redness on cheeks)", "Melasma (brown patches)", etc.] (only if clearly visible, otherwise empty array),
+    "preventiveMeasures": ["SPF 30+ daily", "Antioxidant serum (Vitamin C/E/Ferulic)", "Gentle cleanser pH 5.5", "Hydrating moisturizer with ceramides"]
   },
   "beautyScores": {
-    "overallScore": 88,
-    "facialSymmetry": 92,
-    "skinGlow": 85,
-    "jawlineDefinition": 78,
-    "eyeArea": 90,
-    "lipArea": 85,
-    "cheekboneDefinition": 87,
-    "skinTightness": 83,
-    "facialHarmony": 89
+    "overallScore": 0-100 (weighted average of all factors),
+    "facialSymmetry": 0-100 ${imageData.multiAngle ? '(use multi-angle data for 3D assessment)' : '(assess from front view)'},
+    "skinGlow": 0-100 (radiance, brightness, healthy appearance),
+    "jawlineDefinition": 0-100 (clarity, sharpness, definition),
+    "eyeArea": 0-100 (brightness, lack of dark circles/puffiness, minimal fine lines),
+    "lipArea": 0-100 (fullness, definition, hydration, lack of fine lines),
+    "cheekboneDefinition": 0-100 (prominence, structure, visibility),
+    "skinTightness": 0-100 (firmness, lack of sagging, elasticity),
+    "facialHarmony": 0-100 (overall balance, proportions, aesthetic appeal)
   },
-  "beautyRecommendations": ["Provide exactly 7 SPECIFIC, actionable recommendations based on what you observe in this photo. Each must: 1) Be specific and trackable (e.g., 'Based on the visible texture in your T-zone, try a niacinamide 10% serum morning and evening. Take a weekly close-up photo to track pore appearance changes - most people see improvement in 4-6 weeks'), 2) Include TIMELINE for when to reassess (not promises of specific results), 3) Tie to tracking ('Track this weekly to see if it helps YOUR skin'), 4) Include product types/ingredients suitable for their observed skin characteristics, 5) Be warm and supportive, acknowledging everyone's skin is different. Focus on: what to try, how to track it, when to reassess if not working. Always recommend dermatologist for medical concerns"],
-  "confidence": 0.75,
-  "analysisAccuracy": "Photo-based initial assessment. Real accuracy comes from tracking your progress over 2-4 weeks. Use this as your Day 1 baseline!",
-  "trackingTip": "Take photos in the same lighting/angle weekly to see YOUR real transformation. That's where the wow moments happen!"
-}`;
+  "beautyRecommendations": [
+    "EXACTLY 7 SPECIFIC recommendations. Each must:",
+    "1. Be specific and actionable ('Apply niacinamide 10% serum to T-zone morning and evening')",
+    "2. Include ingredient names and percentages when relevant",
+    "3. Reference visible characteristics ('Based on visible pore size in your T-zone...')",
+    "4. Include timeline ('Most users see improvement in 4-6 weeks')",
+    "5. Be evidence-based and realistic",
+    "6. Address specific concerns identified in analysis",
+    "7. Include tracking advice ('Take weekly photos to monitor progress')"
+  ],
+  "confidence": 0.0-1.0 (0.7 = good photo quality and complete data, 0.5 = limitations present, 0.9+ = excellent quality with multi-angle),
+  "analysisAccuracy": "Description of analysis quality and limitations",
+  "trackingTip": "Specific advice on how to track progress effectively"
+}
+
+CRITICAL: 
+- Use Vision API data to INFORM your scores (don't ignore it)
+- Be SPECIFIC in recommendations (ingredients, percentages, application methods)
+- Base scores on VISIBLE characteristics, not assumptions
+- If Vision data shows low confidence or poor quality, reflect that in confidence score
+- For multi-angle: Use profile data to assess symmetry and 3D structure
+- All recommendations must be actionable and evidence-based`;
     } else if (imageData.analysisType === 'style') {
       console.log('👔 Building style analysis prompt for occasion:', imageData.occasion);
       prompt = `You are a supportive style coach helping someone develop their personal style for a ${imageData.occasion || 'general'} occasion. You're providing helpful feedback based on this photo, while being honest about what you can see.
@@ -366,7 +475,19 @@ Respond in this exact JSON format:
         messages: [
           {
             role: 'system',
-            content: 'You are an expert beauty and style advisor. Always return valid JSON without markdown formatting.',
+            content: `You are a board-certified dermatologist and aesthetic medicine expert. You analyze facial photographs using Google Vision API data to provide evidence-based skincare assessments. 
+
+CRITICAL RULES:
+1. Always return valid JSON without markdown code blocks
+2. Use the Vision API data provided to enhance your analysis accuracy
+3. Base all scores on visible characteristics in the image(s)
+4. Be specific in recommendations (include ingredient names, percentages, application methods)
+5. All scores must be integers between 0-100
+6. All arrays must contain specific, actionable items
+7. If Vision API data indicates poor image quality, reflect that in confidence score
+8. For multi-angle analysis, use profile data to assess 3D facial structure
+
+Your response must be ONLY the JSON object, no additional text.`,
           },
           {
             role: 'user',
@@ -383,8 +504,8 @@ Respond in this exact JSON format:
             ],
           },
         ],
-        max_tokens: 2000,
-        temperature: 0.7,
+        max_tokens: 3000, // Increased for more detailed responses
+        temperature: 0.3, // Lower for more consistent, accurate results
       }),
     });
 
@@ -460,13 +581,104 @@ Respond in this exact JSON format:
         }
       } else if (imageData.analysisType === 'glow') {
         console.log('✨ Validating glow analysis response structure...');
-        const requiredGlowFields = ['skinAnalysis', 'beautyScores', 'beautyRecommendations'];
+        
+        // Check required fields
+        const requiredGlowFields = ['skinAnalysis', 'dermatologyAssessment', 'beautyScores', 'beautyRecommendations'];
         const missingFields = requiredGlowFields.filter(field => !(field in analysisResult));
         if (missingFields.length > 0) {
           console.warn('⚠️ Missing glow analysis fields:', missingFields);
-        } else {
-          console.log('✅ Glow analysis response structure is valid');
         }
+        
+        // Validate score ranges
+        if (analysisResult.beautyScores) {
+          const scores = analysisResult.beautyScores;
+          Object.keys(scores).forEach(key => {
+            if (typeof scores[key] === 'number') {
+              if (scores[key] < 0 || scores[key] > 100) {
+                console.warn(`⚠️ Score ${key} out of range: ${scores[key]}, clamping to 0-100`);
+                scores[key] = Math.max(0, Math.min(100, Math.round(scores[key])));
+              } else {
+                scores[key] = Math.round(scores[key]); // Ensure integer
+              }
+            }
+          });
+        }
+        
+        // Validate skin analysis scores
+        if (analysisResult.skinAnalysis) {
+          const skinScores = ['textureScore', 'clarityScore', 'hydrationLevel', 'poreVisibility', 'elasticity', 'pigmentationEvenness'];
+          skinScores.forEach(key => {
+            if (analysisResult.skinAnalysis[key] !== undefined) {
+              const value = analysisResult.skinAnalysis[key];
+              if (typeof value === 'number') {
+                analysisResult.skinAnalysis[key] = Math.max(0, Math.min(100, Math.round(value)));
+              }
+            }
+          });
+        }
+        
+        // Validate skin type enum
+        const validSkinTypes = ['Normal', 'Dry', 'Oily', 'Combination', 'Sensitive'];
+        if (analysisResult.skinAnalysis?.skinType && !validSkinTypes.includes(analysisResult.skinAnalysis.skinType)) {
+          console.warn(`⚠️ Invalid skin type: ${analysisResult.skinAnalysis.skinType}, defaulting to Normal`);
+          analysisResult.skinAnalysis.skinType = 'Normal';
+        }
+        
+        // Validate skin quality enum
+        const validSkinQualities = ['Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+        if (analysisResult.skinAnalysis?.skinQuality && !validSkinQualities.includes(analysisResult.skinAnalysis.skinQuality)) {
+          console.warn(`⚠️ Invalid skin quality: ${analysisResult.skinAnalysis.skinQuality}, defaulting to Good`);
+          analysisResult.skinAnalysis.skinQuality = 'Good';
+        }
+        
+        // Validate acne risk enum
+        const validAcneRisks = ['Low', 'Medium', 'High'];
+        if (analysisResult.dermatologyAssessment?.acneRisk && !validAcneRisks.includes(analysisResult.dermatologyAssessment.acneRisk)) {
+          console.warn(`⚠️ Invalid acne risk: ${analysisResult.dermatologyAssessment.acneRisk}, defaulting to Low`);
+          analysisResult.dermatologyAssessment.acneRisk = 'Low';
+        }
+        
+        // Ensure exactly 7 recommendations
+        if (analysisResult.beautyRecommendations) {
+          if (!Array.isArray(analysisResult.beautyRecommendations)) {
+            console.warn('⚠️ beautyRecommendations is not an array, converting...');
+            analysisResult.beautyRecommendations = [analysisResult.beautyRecommendations];
+          }
+          if (analysisResult.beautyRecommendations.length !== 7) {
+            console.warn(`⚠️ Expected 7 recommendations, got ${analysisResult.beautyRecommendations.length}`);
+            // Pad or trim to 7
+            while (analysisResult.beautyRecommendations.length < 7) {
+              analysisResult.beautyRecommendations.push('Continue tracking your progress weekly to see improvements');
+            }
+            analysisResult.beautyRecommendations = analysisResult.beautyRecommendations.slice(0, 7);
+          }
+        }
+        
+        // Ensure arrays exist and are arrays
+        if (!Array.isArray(analysisResult.dermatologyAssessment?.agingSigns)) {
+          analysisResult.dermatologyAssessment.agingSigns = [];
+        }
+        if (!Array.isArray(analysisResult.dermatologyAssessment?.skinConcerns)) {
+          analysisResult.dermatologyAssessment.skinConcerns = [];
+        }
+        if (!Array.isArray(analysisResult.dermatologyAssessment?.recommendedTreatments)) {
+          analysisResult.dermatologyAssessment.recommendedTreatments = [];
+        }
+        if (!Array.isArray(analysisResult.dermatologyAssessment?.skinConditions)) {
+          analysisResult.dermatologyAssessment.skinConditions = [];
+        }
+        if (!Array.isArray(analysisResult.dermatologyAssessment?.preventiveMeasures)) {
+          analysisResult.dermatologyAssessment.preventiveMeasures = [];
+        }
+        
+        // Validate confidence score
+        if (analysisResult.confidence !== undefined) {
+          analysisResult.confidence = Math.max(0, Math.min(1, parseFloat(analysisResult.confidence)));
+        } else {
+          analysisResult.confidence = 0.75; // Default confidence
+        }
+        
+        console.log('✅ Glow analysis response validated and normalized');
       }
       
       console.log('✅ JSON parsed successfully, keys:', Object.keys(analysisResult || {}));

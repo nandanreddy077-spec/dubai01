@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Animated,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react-native';
 import { useSkincare } from '@/contexts/SkincareContext';
 import { useGamification } from '@/contexts/GamificationContext';
+import { useAnalysis } from '@/contexts/AnalysisContext';
 import { SkincareStep, WeeklyPlan } from '@/types/skincare';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -38,6 +40,7 @@ const COMPLETION_MESSAGES = [
 export default function SimpleGlowCoachScreen() {
   const { currentPlan, activePlans, updatePlanProgress, setCurrentPlan } = useSkincare();
   const { completeDailyRoutine, hasCompletedForPlanDay } = useGamification();
+  const { currentResult } = useAnalysis();
   
   const [showCelebration, setShowCelebration] = useState(false);
   const celebrationAnim = useRef(new Animated.Value(0)).current;
@@ -63,10 +66,10 @@ export default function SimpleGlowCoachScreen() {
 
   const todaySteps = useMemo(() => {
     if (!currentPlan) return { morning: [], evening: [] };
-    
-    const currentWeek = Math.ceil(currentPlan.progress.currentDay / 7);
-    const currentWeekPlan = currentPlan.weeklyPlans.find((w: WeeklyPlan) => w.week === currentWeek);
-    
+
+  const currentWeek = Math.ceil(currentPlan.progress.currentDay / 7);
+  const currentWeekPlan = currentPlan.weeklyPlans.find((w: WeeklyPlan) => w.week === currentWeek);
+
     if (!currentWeekPlan) return { morning: [], evening: [] };
     
     return {
@@ -136,9 +139,9 @@ export default function SimpleGlowCoachScreen() {
 
     await completeDailyRoutine(currentPlan.id, currentPlan.progress.currentDay);
     
-    const isLastDay = currentPlan.progress.currentDay >= currentPlan.duration;
-    if (!isLastDay) {
-      await updatePlanProgress(currentPlan.id, {
+      const isLastDay = currentPlan.progress.currentDay >= currentPlan.duration;
+      if (!isLastDay) {
+    await updatePlanProgress(currentPlan.id, {
         currentDay: currentPlan.progress.currentDay + 1,
         completedSteps: []
       });
@@ -146,6 +149,14 @@ export default function SimpleGlowCoachScreen() {
   };
 
   
+
+  // Check if user has analysis but no plan - redirect to goal setup
+  React.useEffect(() => {
+    if (activePlans.length === 0 && currentResult) {
+      // User has analysis but no plan - redirect to goal setup
+      router.replace('/routine-goal-setup');
+    }
+  }, [activePlans.length, currentResult]);
 
   if (activePlans.length === 0) {
     return (
@@ -157,15 +168,25 @@ export default function SimpleGlowCoachScreen() {
           </View>
           <Text style={styles.emptyTitle}>No Routine Yet</Text>
           <Text style={styles.emptySubtitle}>
-            Scan your skin to get a personalized daily routine
+            {currentResult 
+              ? 'Set your goals to create a personalized routine'
+              : 'Scan your skin to get a personalized daily routine'}
           </Text>
           <TouchableOpacity 
             style={styles.emptyButton}
-            onPress={() => router.push('/(tabs)/glow-analysis')}
+            onPress={() => {
+              if (currentResult) {
+                router.push('/routine-goal-setup');
+      } else {
+                router.push('/(tabs)/glow-analysis');
+              }
+            }}
             activeOpacity={0.9}
           >
             <LinearGradient colors={['#1A1A1A', '#000000']} style={styles.emptyButtonGradient}>
-              <Text style={styles.emptyButtonText}>Get My Routine</Text>
+              <Text style={styles.emptyButtonText}>
+                {currentResult ? 'Set My Goals' : 'Get My Routine'}
+              </Text>
               <ChevronRight color="#FFFFFF" size={20} />
             </LinearGradient>
           </TouchableOpacity>
@@ -180,10 +201,10 @@ export default function SimpleGlowCoachScreen() {
     const isCompleted = currentPlan.progress.completedSteps.includes(step.id);
     
     return (
-      <TouchableOpacity
-        key={step.id}
+    <TouchableOpacity
+      key={step.id}
         onPress={() => handleStepToggle(step.id)}
-        activeOpacity={0.8}
+      activeOpacity={0.8}
         disabled={isAlreadyDone}
         style={[
           styles.stepCard,
@@ -192,25 +213,25 @@ export default function SimpleGlowCoachScreen() {
         ]}
       >
         <View style={[styles.stepCheckbox, isCompleted && styles.stepCheckboxCompleted]}>
-          {isCompleted ? (
+        {isCompleted ? (
             <Check color="#FFFFFF" size={16} strokeWidth={3} />
-          ) : (
+        ) : (
             <Circle color={palette.textMuted} size={16} />
-          )}
-        </View>
-        
-        <View style={styles.stepContent}>
+        )}
+      </View>
+      
+      <View style={styles.stepContent}>
           <Text style={[styles.stepName, isCompleted && styles.stepNameCompleted]}>
-            {step.name}
-          </Text>
+          {step.name}
+        </Text>
           {!isCompleted && (
             <Text style={styles.stepHint}>Tap to complete</Text>
-          )}
-        </View>
+        )}
+      </View>
         
         <Text style={styles.stepNumber}>{index + 1}</Text>
-      </TouchableOpacity>
-    );
+    </TouchableOpacity>
+  );
   };
 
   return (
@@ -223,51 +244,79 @@ export default function SimpleGlowCoachScreen() {
       >
         {/* Simple Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Today&apos;s Routine</Text>
-          <View style={styles.dayBadge}>
-            <Text style={styles.dayBadgeText}>Day {currentPlan.progress.currentDay}</Text>
+          <View style={styles.headerTop}>
+            <Text style={styles.headerTitle}>Today&apos;s Routine</Text>
+            <View style={styles.dayBadge}>
+              <Text style={styles.dayBadgeText}>Day {currentPlan.progress.currentDay}</Text>
+            </View>
           </View>
-        </View>
-
+          {/* Create New Routine Button - always visible */}
+            <TouchableOpacity 
+            style={styles.newRoutineButton}
+            onPress={() => {
+              if (currentResult) {
+                router.push('/routine-goal-setup');
+              } else {
+                // If no analysis, navigate to scan first
+                Alert.alert(
+                  'Scan Required',
+                  'Please scan your skin first to create a personalized routine.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { 
+                      text: 'Scan Now', 
+                      onPress: () => router.push('/(tabs)/glow-analysis')
+                    }
+                  ]
+                );
+              }
+            }}
+              activeOpacity={0.8}
+            >
+            <Sparkles color={palette.gold} size={16} />
+            <Text style={styles.newRoutineButtonText}>New Routine</Text>
+            </TouchableOpacity>
+          </View>
+          
         {/* Progress Bar - Simple and visual */}
         <View style={styles.progressSection}>
           <View style={styles.progressInfo}>
             <Text style={styles.progressLabel}>
               {isAlreadyDone ? "Completed! 🎉" : `${completedCount} of ${totalSteps} steps`}
-            </Text>
+                  </Text>
             <Text style={styles.progressPercent}>
               {totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0}%
-            </Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <Animated.View style={[styles.progressFill, { width: `${(completedCount / totalSteps) * 100}%` }]} />
-          </View>
+                  </Text>
         </View>
-
-        {/* Morning Routine */}
-        {todaySteps.morning.length > 0 && (
+              <View style={styles.progressTrack}>
+            <Animated.View style={[styles.progressFill, { width: `${(completedCount / totalSteps) * 100}%` }]} />
+              </View>
+          </View>
+          
+          {/* Morning Routine */}
+          {todaySteps.morning.length > 0 && (
           <View style={styles.routineSection}>
             <View style={styles.routineHeader}>
               <View style={styles.routineIconWrapper}>
                 <Sun color="#F59E0B" size={20} />
-              </View>
+                </View>
               <Text style={styles.routineTitle}>Morning</Text>
             </View>
             {todaySteps.morning.map((step, index) => renderStepItem(step, index))}
-          </View>
-        )}
+            </View>
+          )}
 
-        {/* Evening Routine */}
-        {todaySteps.evening.length > 0 && (
+          {/* Evening Routine */}
+          {todaySteps.evening.length > 0 && (
           <View style={styles.routineSection}>
             <View style={styles.routineHeader}>
               <View style={[styles.routineIconWrapper, { backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}>
                 <Moon color="#6366F1" size={20} />
-              </View>
+                </View>
               <Text style={styles.routineTitle}>Evening</Text>
             </View>
             {todaySteps.evening.map((step, index) => renderStepItem(step, todaySteps.morning.length + index))}
-          </View>
+        </View>
         )}
 
         {/* Complete Button */}
@@ -279,7 +328,7 @@ export default function SimpleGlowCoachScreen() {
               <Text style={styles.completedHint}>Come back tomorrow ✨</Text>
             </View>
           ) : allCompleted ? (
-            <TouchableOpacity
+            <TouchableOpacity 
               onPress={handleCompleteDay}
               activeOpacity={0.9}
               style={styles.completeButton}
@@ -297,9 +346,9 @@ export default function SimpleGlowCoachScreen() {
               <Text style={styles.incompleteText}>
                 Complete all steps to finish your day
               </Text>
-            </View>
-          )}
-        </View>
+          </View>
+                    )}
+                  </View>
 
         {/* Reassurance Message */}
         <View style={styles.reassuranceSection}>
@@ -312,14 +361,14 @@ export default function SimpleGlowCoachScreen() {
                   ? "You're doing great, keep going! 💪"
                   : "Almost there, you got this! 🔥"
             }
-          </Text>
+              </Text>
         </View>
       </ScrollView>
 
       {/* Celebration Overlay */}
       {showCelebration && (
         <Animated.View 
-          style={[
+                        style={[
             styles.celebrationOverlay,
             { 
               opacity: celebrationAnim,
@@ -331,9 +380,9 @@ export default function SimpleGlowCoachScreen() {
             <Text style={styles.celebrationEmoji}>🎉</Text>
             <Text style={styles.celebrationTitle}>
               {COMPLETION_MESSAGES[Math.floor(Math.random() * COMPLETION_MESSAGES.length)]}
-            </Text>
+                </Text>
             <Text style={styles.celebrationSubtitle}>Day {currentPlan.progress.currentDay} complete</Text>
-          </View>
+              </View>
         </Animated.View>
       )}
     </SafeAreaView>
@@ -349,12 +398,32 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 24,
     paddingTop: 16,
     paddingBottom: 8,
+    gap: 12,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  newRoutineButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(201, 169, 97, 0.1)',
+    borderWidth: 1,
+    borderColor: palette.gold,
+  },
+  newRoutineButtonText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: palette.gold,
   },
   headerTitle: {
     fontSize: 28,

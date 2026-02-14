@@ -4,7 +4,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { supabase } from '@/lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
-import { Platform } from 'react-native';
+import { Platform, AppState, AppStateStatus } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { makeRedirectUri } from 'expo-auth-session';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -48,15 +48,63 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         if (error) {
           console.log('Session error detected:', error.message);
           
-          // Handle any refresh token errors by clearing session
+          // Try to refresh the session before clearing it
+          // This handles cases where access token expired but refresh token is still valid
+          if (error.message?.includes('JWT') || error.status === 400) {
+            console.log('🔄 Attempting to refresh session...');
+            try {
+              const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+              
+              if (!refreshError && refreshedSession) {
+                console.log('✅ Session refreshed successfully');
+                if (mounted) {
+                  setSession(refreshedSession);
+                  setUser(refreshedSession.user);
+                  setLoading(false);
+                }
+                return;
+              }
+              
+              // If refresh failed, check if it's a real refresh token error
+              if (refreshError && (
+                refreshError.message?.includes('Invalid Refresh Token') || 
+                refreshError.message?.includes('Refresh Token Not Found')
+              )) {
+                console.log('🔄 Refresh token is invalid, clearing session...');
+                try {
+                  await supabase.auth.signOut({ scope: 'local' });
+                  const allKeys = await AsyncStorage.getAllKeys();
+                  const authKeys = allKeys.filter(key => 
+                    key.includes('supabase') || 
+                    key.includes('auth') ||
+                    key.includes('sb-') ||
+                    key.startsWith('@supabase')
+                  );
+                  if (authKeys.length > 0) {
+                    await AsyncStorage.multiRemove(authKeys);
+                  }
+                  console.log('✅ Session cleared');
+                } catch (clearError) {
+                  console.warn('Error clearing session:', clearError);
+                }
+                
+                if (mounted) {
+                  setSession(null);
+                  setUser(null);
+                  setLoading(false);
+                }
+                return;
+              }
+            } catch (refreshException) {
+              console.log('Error during refresh attempt:', refreshException);
+            }
+          }
+          
+          // Handle refresh token errors (only if refresh attempt failed)
           if (error.message?.includes('Invalid Refresh Token') || 
-              error.message?.includes('Refresh Token Not Found') ||
-              error.message?.includes('refresh_token') ||
-              error.message?.includes('JWT') ||
-              error.status === 400) {
+              error.message?.includes('Refresh Token Not Found')) {
             console.log('🔄 Clearing invalid session...');
             try {
-              // Clear all auth-related storage
               await supabase.auth.signOut({ scope: 'local' });
               const allKeys = await AsyncStorage.getAllKeys();
               const authKeys = allKeys.filter(key => 
@@ -73,7 +121,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
               console.warn('Error clearing session:', clearError);
             }
             
-            // Continue with no session
             if (mounted) {
               setSession(null);
               setUser(null);
@@ -92,10 +139,70 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
             return;
           }
           
-          // For other errors, continue without session
-          console.log('Continuing without session due to error');
+          // For other errors, try to refresh session before giving up
+          console.log('⚠️ Session error, attempting to refresh before giving up...');
+          try {
+            const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+            
+            if (!refreshError && refreshedSession) {
+              console.log('✅ Session restored after error');
+              if (mounted) {
+                setSession(refreshedSession);
+                setUser(refreshedSession.user);
+                setLoading(false);
+              }
+              return;
+            }
+            
+            // Only clear if refresh token is truly invalid
+            if (refreshError && (
+              refreshError.message?.includes('Invalid Refresh Token') || 
+              refreshError.message?.includes('Refresh Token Not Found')
+            )) {
+              console.log('🔄 Refresh token invalid, clearing session...');
+              try {
+                await supabase.auth.signOut({ scope: 'local' });
+                const allKeys = await AsyncStorage.getAllKeys();
+                const authKeys = allKeys.filter(key => 
+                  key.includes('supabase') || 
+                  key.includes('auth') ||
+                  key.includes('sb-') ||
+                  key.startsWith('@supabase')
+                );
+                if (authKeys.length > 0) {
+                  await AsyncStorage.multiRemove(authKeys);
+                }
+              } catch (clearError) {
+                console.warn('Error clearing session:', clearError);
+              }
+              
+              if (mounted) {
+                setSession(null);
+                setUser(null);
+                setLoading(false);
+              }
+              return;
+            }
+            
+            // If refresh failed but it's not a refresh token error, keep trying with existing session
+            console.log('⚠️ Refresh failed but not a token error, keeping existing session state');
+          } catch (refreshException) {
+            console.log('Error during refresh attempt:', refreshException);
+            // Don't clear on refresh exception - might be temporary
+          }
+          
+          // Continue with existing session if available, or null if truly no session
+          if (mounted) {
+            // Try to get session one more time
+            const { data: { session: finalSession } } = await supabase.auth.getSession();
+            setSession(finalSession);
+            setUser(finalSession?.user ?? null);
+            setLoading(false);
+          }
+          return; // Don't continue to set session below since we handled error case
         }
         
+        // No error - set the session normally
         if (mounted) {
           setSession(session);
           setUser(session?.user ?? null);
@@ -103,14 +210,54 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         }
       } catch (error: any) {
         console.log('Auth init exception:', error.message);
-        // Clear session on any exception
+        // Don't clear session on exception - try to restore it instead
         try {
-          await supabase.auth.signOut({ scope: 'local' });
-        } catch {}
+          // Try to get session from storage
+          const { data: { session: restoredSession }, error: restoreError } = await supabase.auth.getSession();
+          
+          if (!restoreError && restoredSession) {
+            console.log('✅ Session restored after exception');
+            if (mounted) {
+              setSession(restoredSession);
+              setUser(restoredSession.user);
+              setLoading(false);
+            }
+            return;
+          }
+          
+          // Try to refresh if we have a refresh token
+          if (restoreError) {
+            const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+            
+            if (!refreshError && refreshedSession) {
+              console.log('✅ Session refreshed after exception');
+              if (mounted) {
+                setSession(refreshedSession);
+                setUser(refreshedSession.user);
+                setLoading(false);
+              }
+              return;
+            }
+            
+            // Only clear if refresh token is truly invalid
+            if (refreshError && (
+              refreshError.message?.includes('Invalid Refresh Token') || 
+              refreshError.message?.includes('Refresh Token Not Found')
+            )) {
+              console.log('🔄 Refresh token invalid after exception, clearing...');
+              try {
+                await supabase.auth.signOut({ scope: 'local' });
+              } catch {}
+            }
+          }
+        } catch (recoveryError) {
+          console.log('Error during session recovery:', recoveryError);
+          // Don't clear - might be temporary network issue
+        }
         
         if (mounted) {
-          setSession(null);
-          setUser(null);
+          // Don't set to null unless we're absolutely sure there's no session
+          // Let the auth state change listener handle it
           setLoading(false);
         }
       }
@@ -160,11 +307,137 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
       console.error('Error setting up auth listener:', error);
     }
 
+    // Add AppState listener to refresh session when app comes to foreground
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active' && mounted) {
+        console.log('📱 App came to foreground, checking session...');
+        try {
+          // Get current session
+          const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+          
+          // If we have a session but it might be expired, try to refresh it
+          if (currentSession) {
+            // Check if access token is expired (expires_at is in seconds)
+            const expiresAt = currentSession.expires_at ? currentSession.expires_at * 1000 : null;
+            const now = Date.now();
+            
+            // If token expires in less than 5 minutes, refresh it proactively
+            if (expiresAt && (expiresAt - now) < 5 * 60 * 1000) {
+              console.log('🔄 Access token expiring soon, refreshing...');
+              const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+              
+              if (!refreshError && refreshedSession && mounted) {
+                console.log('✅ Session refreshed on foreground');
+                setSession(refreshedSession);
+                setUser(refreshedSession.user);
+              } else if (refreshError) {
+                console.log('⚠️ Refresh failed on foreground:', refreshError.message);
+                // Only clear if refresh token is actually invalid - retry a few times first
+                if (refreshError.message?.includes('Invalid Refresh Token') || 
+                    refreshError.message?.includes('Refresh Token Not Found')) {
+                  // Double-check by trying one more time after a short delay
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  const { data: { session: retrySession }, error: retryError } = await supabase.auth.refreshSession();
+                  
+                  if (!retryError && retrySession && mounted) {
+                    console.log('✅ Session restored on retry');
+                    setSession(retrySession);
+                    setUser(retrySession.user);
+                  } else if (retryError && (
+                    retryError.message?.includes('Invalid Refresh Token') || 
+                    retryError.message?.includes('Refresh Token Not Found')
+                  )) {
+                    // Only clear after confirmed failure
+                    console.log('🔄 Refresh token confirmed invalid, clearing session...');
+                    await supabase.auth.signOut({ scope: 'local' });
+                    if (mounted) {
+                      setSession(null);
+                      setUser(null);
+                    }
+                  } else {
+                    // Network or other temporary error - keep existing session
+                    console.log('⚠️ Temporary error, keeping existing session');
+                  }
+                } else {
+                  // Not a refresh token error - might be network, keep existing session
+                  console.log('⚠️ Non-token error, keeping existing session');
+                }
+              }
+            } else {
+              // Session is still valid, just update state
+              if (mounted) {
+                setSession(currentSession);
+                setUser(currentSession.user);
+              }
+            }
+          } else if (sessionError) {
+            // No session or error - try to refresh if we have a refresh token stored
+            console.log('⚠️ No session on foreground, attempting refresh...');
+            try {
+              const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+              
+              if (!refreshError && refreshedSession && mounted) {
+                console.log('✅ Session restored on foreground');
+                setSession(refreshedSession);
+                setUser(refreshedSession.user);
+              } else if (refreshError) {
+                // Retry once more before giving up
+                if (refreshError.message?.includes('Invalid Refresh Token') || 
+                    refreshError.message?.includes('Refresh Token Not Found')) {
+                  console.log('⚠️ Refresh token error, retrying once...');
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  const { data: { session: retrySession }, error: retryError } = await supabase.auth.refreshSession();
+                  
+                  if (!retryError && retrySession && mounted) {
+                    console.log('✅ Session restored on retry');
+                    setSession(retrySession);
+                    setUser(retrySession.user);
+                  } else if (retryError && (
+                    retryError.message?.includes('Invalid Refresh Token') || 
+                    retryError.message?.includes('Refresh Token Not Found')
+                  )) {
+                    // Only clear after confirmed failure
+                    console.log('🔄 Refresh token confirmed invalid, clearing session...');
+                    await supabase.auth.signOut({ scope: 'local' });
+                    if (mounted) {
+                      setSession(null);
+                      setUser(null);
+                    }
+                  } else {
+                    // Network or other temporary error - try to get existing session
+                    const { data: { session: existingSession } } = await supabase.auth.getSession();
+                    if (existingSession && mounted) {
+                      setSession(existingSession);
+                      setUser(existingSession.user);
+                    }
+                  }
+                } else {
+                  // Not a refresh token error - might be network, try to get existing session
+                  const { data: { session: existingSession } } = await supabase.auth.getSession();
+                  if (existingSession && mounted) {
+                    setSession(existingSession);
+                    setUser(existingSession.user);
+                  }
+                }
+              }
+            } catch (refreshException) {
+              console.log('Error refreshing on foreground:', refreshException);
+            }
+          }
+        } catch (error) {
+          console.log('Error checking session on foreground:', error);
+        }
+      }
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
     return () => {
       mounted = false;
       if (subscription) {
         subscription.unsubscribe();
       }
+      appStateSubscription?.remove();
     };
   }, []);
 

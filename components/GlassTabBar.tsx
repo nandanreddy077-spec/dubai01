@@ -43,6 +43,12 @@ export type GlassTabBarProps = {
 
 function GlassTabBarImpl({ state, descriptors, navigation }: GlassTabBarProps) {
   const routes = state.routes;
+  const currentRoute = state.routes[state.index];
+
+  // Hide tab bar completely when on glow-analysis screen
+  if (currentRoute?.name === 'glow-analysis') {
+    return null;
+  }
 
   const containerStyle = useMemo(
     () => [styles.container, shadow.soft],
@@ -50,7 +56,7 @@ function GlassTabBarImpl({ state, descriptors, navigation }: GlassTabBarProps) {
   );
 
   const visibleRoutes = useMemo(() => {
-    return routes.filter((route) => {
+    const filtered = routes.filter((route) => {
       const options = descriptors[route.key]?.options;
       const href = (options as { href?: unknown } | undefined)?.href;
       const tabBarButton = (options as { tabBarButton?: unknown } | undefined)?.tabBarButton;
@@ -72,6 +78,13 @@ function GlassTabBarImpl({ state, descriptors, navigation }: GlassTabBarProps) {
       
       return true;
     });
+    
+    // Debug: Log visible routes
+    if (__DEV__) {
+      console.log('Visible tab routes:', filtered.map(r => r.name));
+    }
+    
+    return filtered;
   }, [descriptors, routes]);
 
   return (

@@ -26,7 +26,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.75;
 
 export default function AnalysisResultsScreen() {
-  const { currentResult, analysisHistory } = useAnalysis();
+  const { currentResult, analysisHistory, setCurrentResult, loadHistory } = useAnalysis();
   const { incrementScanCount } = useSubscription();
   const { theme } = useTheme();
   const { generateRecommendations, recommendations } = useProducts();
@@ -41,6 +41,22 @@ export default function AnalysisResultsScreen() {
 
 
   const hasCountedRef = React.useRef<string | null>(null);
+
+  // Load history when component mounts
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
+  // If currentResult is null but we have history, load the latest one
+  useEffect(() => {
+    if (!currentResult && analysisHistory && analysisHistory.length > 0) {
+      // Get the most recent analysis (first item in history is latest)
+      const latestAnalysis = analysisHistory[0];
+      if (latestAnalysis) {
+        setCurrentResult(latestAnalysis);
+      }
+    }
+  }, [currentResult, analysisHistory, setCurrentResult]);
 
   useEffect(() => {
     if (!currentResult) return;

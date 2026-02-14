@@ -1,4 +1,4 @@
-import { Tabs } from "expo-router";
+import { Tabs, router } from "expo-router";
 import { Home, Scan, CheckCircle, User } from "lucide-react-native";
 import React, { useState, useEffect } from "react";
 import AuthGuard from "@/components/AuthGuard";
@@ -7,6 +7,7 @@ import ProfilePicturePopup from "@/components/ProfilePicturePopup";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
 import GlassTabBar from "@/components/GlassTabBar";
+import * as Haptics from "expo-haptics";
 
 export default function TabLayout() {
   const { user, hasProfilePicture } = useUser();
@@ -71,6 +72,15 @@ export default function TabLayout() {
                 strokeWidth={focused ? 2.5 : 2}
               />
             ),
+            listeners: {
+              tabPress: (e) => {
+                // Navigate directly to glow-analysis when Scan tab is pressed
+                // Same behavior as "Scan Your Skin" button on home screen
+                e.preventDefault();
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/(tabs)/glow-analysis');
+              },
+            },
           }}
         />
         <Tabs.Screen
@@ -114,6 +124,12 @@ export default function TabLayout() {
         />
         <Tabs.Screen
           name="glow-analysis"
+          options={{
+            href: null, // Hide from tab bar but keep accessible
+          }}
+        />
+        <Tabs.Screen
+          name="product-shelf"
           options={{
             href: null, // Hide from tab bar but keep accessible
           }}

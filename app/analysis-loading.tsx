@@ -100,55 +100,92 @@ export default function AnalysisLoadingScreen() {
       setEngagementTip(prev => (prev + 1) % ENGAGEMENT_TIPS.length);
     }, 3000);
 
-    // Simulate analysis progress
-    for (let i = 0; i < steps.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+    // Start actual analysis in parallel with progress updates
+    setIsAnalyzing(true);
+    
+    // Create a promise for the actual analysis
+    const analysisPromise = performAIAnalysis();
+    
+    // Fast simulation - only 30% for quick visual feedback, then real progress
+    const simulationSteps = Math.floor(steps.length * 0.3); // 30% for simulation
+    const analysisProgress = 30; // Start analysis at 30%
+    
+    // Much faster simulation - 150ms per step
+    for (let i = 0; i < simulationSteps; i++) {
+      await new Promise(resolve => setTimeout(resolve, 150)); // Much faster
       
       setCurrentStep(i);
       setSteps(prev => prev.map((step, index) => 
         index <= i ? { ...step, completed: true } : step
       ));
       
-      const newProgress = ((i + 1) / steps.length) * 100;
+      const newProgress = ((i + 1) / simulationSteps) * analysisProgress;
       setProgress(newProgress);
       
-      // Animate progress bar to match the actual progress
+      // Animate progress bar smoothly
       Animated.timing(progressAnim, {
         toValue: newProgress,
-        duration: 500,
+        duration: 100, // Faster animation
         useNativeDriver: false,
       }).start();
-      
-      // Stop flowing animation when we reach 100%
-      if (newProgress >= 100) {
-        setFlowAnimationRunning(false);
-        flowAnimation.stop();
-      }
     }
-
+    
+    // Update progress during actual analysis (remaining 70%)
+    const updateAnalysisProgress = (current: number, total: number) => {
+      const analysisStepProgress = (current / total) * 70; // 70% for analysis
+      const totalProgress = analysisProgress + analysisStepProgress;
+      setProgress(totalProgress);
+      Animated.timing(progressAnim, {
+        toValue: totalProgress,
+        duration: 150, // Faster animation
+        useNativeDriver: false,
+      }).start();
+    };
+    
+    // Faster progress updates during actual AI call
+    let analysisStep = 0;
+    const progressInterval = setInterval(() => {
+      analysisStep++;
+      if (analysisStep <= 6) { // More granular updates
+        updateAnalysisProgress(analysisStep, 6);
+      }
+    }, 500); // Much faster updates - 500ms instead of 2000ms
+    
     // Clear tip interval
     clearInterval(tipInterval);
     
-    // Show analyzing state
-    setIsAnalyzing(true);
-    
-    // Perform actual AI analysis
-      const analysisResult = await performAIAnalysis();
+    // Perform actual AI analysis (already started above)
+    const analysisResult = await analysisPromise;
+    clearInterval(progressInterval);
       
-      if (analysisResult) {
+    // Update progress to 100% when analysis completes
+    setProgress(100);
+    Animated.timing(progressAnim, {
+      toValue: 100,
+      duration: 200, // Faster animation
+      useNativeDriver: false,
+    }).start();
+    
+    // Mark all steps as completed
+    setSteps(prev => prev.map(step => ({ ...step, completed: true })));
+    
+    if (analysisResult) {
       // Store the result in context and AsyncStorage
-        setCurrentResult(analysisResult);
-        await saveAnalysis(analysisResult);
+      setCurrentResult(analysisResult);
+      await saveAnalysis(analysisResult);
       // Refresh user data to update stats
-        refreshUserData();
+      refreshUserData();
     }
     
     // Stop animations
-      setFlowAnimationRunning(false);
-      flowAnimation.stop();
-      pulseAnimation.stop();
-      setIsAnalyzing(false);
-      
+    setFlowAnimationRunning(false);
+    flowAnimation.stop();
+    pulseAnimation.stop();
+    setIsAnalyzing(false);
+    
+    // Minimal delay to show 100% before navigating (reduced from 500ms)
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
     // Navigate to results
     router.replace('/analysis-results');
   };
@@ -166,16 +203,22 @@ export default function AnalysisLoadingScreen() {
     try {
     console.log('🚀 Starting', isMultiAngle ? 'multi-angle' : 'single-angle', 'analysis...');
     
-      // Convert images to base64
-      const frontBase64 = await convertImageToBase64(frontImage);
-      let leftBase64: string | null = null;
-      let rightBase64: string | null = null;
+      // Convert images to base64 in parallel for faster processing
+      console.log('📸 Converting images to base64...');
+      const frontBase64Promise = convertImageToBase64(frontImage);
+      let leftBase64Promise: Promise<string> | null = null;
+      let rightBase64Promise: Promise<string> | null = null;
       
       if (isMultiAngle && leftImage && rightImage) {
-          leftBase64 = await convertImageToBase64(leftImage);
-          rightBase64 = await convertImageToBase64(rightImage);
-          console.log('📸 All three angles converted to base64');
+          leftBase64Promise = convertImageToBase64(leftImage);
+          rightBase64Promise = convertImageToBase64(rightImage);
       }
+      
+      // Wait for all conversions in parallel
+      const frontBase64 = await frontBase64Promise;
+      const leftBase64 = leftBase64Promise ? await leftBase64Promise : null;
+      const rightBase64 = rightBase64Promise ? await rightBase64Promise : null;
+      console.log('✅ All images converted to base64');
 
       // Perform comprehensive face analysis
       const analysisData = await performComprehensiveFaceAnalysis({
@@ -224,29 +267,60 @@ export default function AnalysisLoadingScreen() {
     }
 
     try {
-      // For React Native file:// URIs, use FileReader
+      // For React Native file:// URIs, use FileSystem (more reliable)
       if (imageUri.startsWith('file://')) {
-        // In React Native, we need to use a different approach
-        // Import the conversion utility
-        const { convertImageToDataURL } = await import('../lib/ai-service');
-        return await convertImageToDataURL(imageUri);
+        console.log('📸 Converting file:// URI to base64:', imageUri);
+        try {
+          // Use FileSystem for React Native (most reliable)
+          const FileSystem = await import('expo-file-system');
+          const base64 = await FileSystem.readAsStringAsync(imageUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          const dataUrl = `data:image/jpeg;base64,${base64}`;
+          console.log('✅ FileSystem conversion successful, length:', dataUrl.length);
+          return dataUrl;
+        } catch (fsError) {
+          console.log('⚠️ FileSystem failed, trying fetch...', fsError);
+          // Fallback to fetch
+          try {
+            const { convertImageToDataURL } = await import('../lib/ai-service');
+            return await convertImageToDataURL(imageUri);
+          } catch (fetchError) {
+            console.error('❌ Both FileSystem and fetch failed:', fetchError);
+            throw new Error('Failed to convert image to base64');
+          }
+        }
       }
 
       // For HTTP/HTTPS URLs, fetch and convert
-      const response = await fetch(imageUri);
-      const blob = await response.blob();
-      
-      return new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const result = reader.result as string;
-          resolve(result); // Keep full data URL
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+      if (imageUri.startsWith('http://') || imageUri.startsWith('https://')) {
+        console.log('📸 Converting HTTP URL to base64:', imageUri);
+        const response = await fetch(imageUri);
+        const blob = await response.blob();
+        
+        return new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            console.log('✅ HTTP conversion successful, length:', result.length);
+            resolve(result); // Keep full data URL
+          };
+          reader.onerror = (error) => {
+            console.error('❌ FileReader error:', error);
+            reject(error);
+          };
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      // If it's already base64 without data URL prefix, add it
+      if (!imageUri.includes(',') && !imageUri.includes('://')) {
+        return `data:image/jpeg;base64,${imageUri}`;
+      }
+
+      return imageUri;
     } catch (error) {
-      console.error('Error converting image to base64:', error);
+      console.error('❌ Error converting image to base64:', error);
       throw new Error('Failed to convert image to base64');
     }
   };
@@ -268,18 +342,22 @@ export default function AnalysisLoadingScreen() {
       console.log('4. 3D facial structure analysis (if multi-angle)');
       console.log('5. AI-powered beauty scoring & recommendations');
       
-      // Step 1: Analyze all available angles with Google Vision API
-      console.log('\n🔍 Step 1: Multi-angle Google Vision API analysis...');
-      const frontVisionData = await analyzeWithGoogleVision(images.front);
-      let leftVisionData = null;
-      let rightVisionData = null;
+      // Step 1: Analyze all available angles with Google Vision API IN PARALLEL
+      console.log('\n🔍 Step 1: Multi-angle Google Vision API analysis (parallel)...');
+      const frontVisionPromise = analyzeWithGoogleVision(images.front);
+      let leftVisionPromise: Promise<any> | null = null;
+      let rightVisionPromise: Promise<any> | null = null;
         
-        if (images.isMultiAngle && images.left && images.right) {
-        console.log('📸 Analyzing left profile...');
-        leftVisionData = await analyzeWithGoogleVision(images.left);
-        console.log('📸 Analyzing right profile...');
-        rightVisionData = await analyzeWithGoogleVision(images.right);
+      if (images.isMultiAngle && images.left && images.right) {
+        console.log('📸 Analyzing profiles in parallel...');
+        leftVisionPromise = analyzeWithGoogleVision(images.left);
+        rightVisionPromise = analyzeWithGoogleVision(images.right);
       }
+      
+      // Wait for all Vision API calls in parallel
+      const frontVisionData = await frontVisionPromise;
+      const leftVisionData = leftVisionPromise ? await leftVisionPromise : null;
+      const rightVisionData = rightVisionPromise ? await rightVisionPromise : null;
       
       // Step 2: Validate face detection across all angles
       console.log('\n✅ Step 2: Professional-grade face validation...');
@@ -327,19 +405,37 @@ export default function AnalysisLoadingScreen() {
 
   const analyzeWithGoogleVision = async (base64Image: string) => {
     try {
-      console.log('Calling Google Vision API via Edge Function...');
+      console.log('🔍 Calling Google Vision API via Edge Function...');
+      console.log('📊 Image data:', {
+        isDataUrl: base64Image.startsWith('data:'),
+        length: base64Image.length,
+        preview: base64Image.substring(0, 50) + '...',
+      });
       
       // Use secure Edge Function instead of direct API call
       const { analyzeImageWithVision } = await import('../lib/vision-service');
       
       const result = await analyzeImageWithVision(base64Image, [
         { type: 'FACE_DETECTION', maxResults: 1 },
+        { type: 'LANDMARK_DETECTION', maxResults: 10 }, // Get all landmarks for better analysis
         { type: 'IMAGE_PROPERTIES', maxResults: 1 },
         { type: 'SAFE_SEARCH_DETECTION', maxResults: 1 }
       ]);
       
       console.log('✅ Google Vision API response received');
-      console.log('Response keys:', Object.keys(result || {}));
+      console.log('📊 Response structure:', {
+        hasFaceAnnotations: !!result?.faceAnnotations,
+        faceCount: result?.faceAnnotations?.length || 0,
+        hasImageProperties: !!result?.imagePropertiesAnnotation,
+        hasSafeSearch: !!result?.safeSearchAnnotation,
+        hasError: !!result?.error,
+        error: result?.error,
+      });
+      
+      if (result?.error) {
+        console.error('❌ Vision API error:', result.error);
+        throw new Error(result.error);
+      }
       
       // Return in the expected format (Google Vision API response structure)
       // The Edge Function returns the Google Vision API response directly
@@ -1004,24 +1100,8 @@ export default function AnalysisLoadingScreen() {
           {/* Progress Section */}
           <View style={styles.progressSection}>
             <View style={styles.progressContainer}>
+              {/* Progress Bar */}
               <View style={styles.progressBackground}>
-                {/* Flowing animation bar - only show when animation is running */}
-                {flowAnimationRunning && (
-                  <Animated.View 
-                    style={[
-                      styles.flowingBar,
-                      {
-                        transform: [{
-                          translateX: flowAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [-120, 400],
-                          })
-                        }]
-                      }
-                    ]} 
-                  />
-                )}
-                {/* Actual progress bar */}
                 <Animated.View 
                   style={[
                     styles.progressBar,
@@ -1036,13 +1116,12 @@ export default function AnalysisLoadingScreen() {
                 />
               </View>
               
+              {/* Progress Info */}
               <View style={styles.progressInfo}>
                 <Text style={styles.progressText}>{Math.round(progress)}%</Text>
-                {isAnalyzing ? (
-                  <Text style={styles.analyzingText}>Finalizing analysis...</Text>
-                ) : (
-                  <Text style={styles.engagementTip}>{ENGAGEMENT_TIPS[engagementTip]}</Text>
-                )}
+                <Text style={styles.analyzingText}>
+                  {progress >= 90 ? 'Finalizing analysis...' : 'Analyzing your skin...'}
+                </Text>
               </View>
             </View>
           </View>
@@ -1149,12 +1228,11 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   progressBackground: {
     width: '100%',
-    height: 8,
-    backgroundColor: `${palette.primary}20`,
-    borderRadius: 12,
-    marginBottom: 20,
+    height: 4,
+    backgroundColor: '#E5E5E5', // Light gray background
+    borderRadius: 2,
+    marginBottom: 16,
     overflow: 'hidden',
-    ...shadow.card,
   },
   flowingBar: {
     position: 'absolute',
@@ -1172,28 +1250,27 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   progressBar: {
     height: '100%',
-    backgroundColor: palette.primary,
-    borderRadius: 12,
+    backgroundColor: '#000000', // Black fill
+    borderRadius: 2,
     minWidth: 2,
-    ...shadow.card,
   },
   progressInfo: {
     alignItems: 'center',
     width: '100%',
   },
   progressText: {
-    fontSize: 38,
+    fontSize: 48,
     fontWeight: '900',
-    color: palette.textPrimary,
-    letterSpacing: -0.6,
-    marginBottom: 8,
+    color: '#000000',
+    letterSpacing: -1,
+    marginBottom: 4,
     textAlign: 'center',
   },
   analyzingText: {
-    fontSize: 15,
-    color: palette.textSecondary,
+    fontSize: 14,
+    color: '#666666', // Gray text
     textAlign: 'center',
-    fontWeight: '600',
+    fontWeight: '400',
     marginTop: 4,
   },
   engagementTip: {

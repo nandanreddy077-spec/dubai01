@@ -13,7 +13,7 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Stack, router } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import {
   Camera as CameraIcon,
   X,
@@ -48,17 +48,27 @@ interface TipItem {
 
 export default function GlowAnalysisScreen() {
   const { theme } = useTheme();
+  const params = useLocalSearchParams<{ error?: string }>();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [faceDetected, setFaceDetected] = useState<boolean>(false);
   const [isValidating, setIsValidating] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<"instructions" | "camera">("instructions");
   const [faceStatus, setFaceStatus] = useState<"none" | "tooFar" | "centering" | "ready">("none");
   const [faceDistance, setFaceDistance] = useState<"close" | "far" | "unknown">("unknown");
+  // Multi-angle capture state
+  const [captureStep, setCaptureStep] = useState<"front" | "left" | "right">("front");
+  const [capturedPhotos, setCapturedPhotos] = useState<{
+    front?: string;
+    left?: string;
+    right?: string;
+  }>({});
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const faceDetectionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastDetectionTimeRef = useRef<number>(0);
   const consecutiveDetectionsRef = useRef<number>(0);
+  const isCapturingRef = useRef<boolean>(false); // Prevent concurrent captures
+  const isMountedRef = useRef<boolean>(true); // Track if component is mounted
 
   const guidePulseAnim = useRef(new Animated.Value(1)).current;
   const guideGlowAnim = useRef(new Animated.Value(0)).current;
@@ -79,7 +89,7 @@ export default function GlowAnalysisScreen() {
   const pulseOpacityAnim = useRef(new Animated.Value(0.6)).current;
 
   const cameraFadeAnim = useRef(new Animated.Value(0)).current;
-
+  
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
 
@@ -293,8 +303,41 @@ export default function GlowAnalysisScreen() {
     }
   }, [faceDetected, faceStatus]);
 
+  // Show error message if analysis failed
   useEffect(() => {
-    if (Platform.OS !== "web" && permission && !permission.granted && !permission.canAskAgain) {
+    if (params.error) {
+      const errorMessage = params.error === 'no_face_detected' 
+        ? "We couldn't detect a face in your photos. Please try again with:\n\n• Good lighting\n• Face clearly visible\n• No glasses or hair covering face"
+        : "Analysis failed. Please try again.";
+      
+      Alert.alert(
+        params.error === 'no_face_detected' ? "No Face Detected" : "Analysis Error",
+        errorMessage,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              // Clear error from params by navigating to same route without error
+              router.setParams({ error: undefined });
+            },
+          },
+        ]
+      );
+    }
+  }, [params.error]);
+
+  // Request permission on mount if not granted
+  useEffect(() => {
+    if (Platform.OS !== "web" && permission === null) {
+      // Permission status is being checked, wait for it
+      return;
+    }
+
+    if (permission && !permission.granted && permission.canAskAgain) {
+      // Request permission automatically
+      requestPermission();
+    } else if (permission && !permission.granted && !permission.canAskAgain) {
+      // Permission denied permanently
       Alert.alert(
         "Camera Permission Required",
         "We need access to your camera to scan your skin. Please enable camera permissions in your device settings.",
@@ -304,7 +347,7 @@ export default function GlowAnalysisScreen() {
         ]
       );
     }
-  }, [permission]);
+  }, [permission, requestPermission]);
 
   useEffect(() => {
     if (currentStep === "camera" && permission?.granted) {
@@ -347,57 +390,183 @@ export default function GlowAnalysisScreen() {
     }
   }, [currentStep, permission]);
 
-  const checkFaceCentered = (face: any, imageWidth: number, imageHeight: number): boolean => {
-    if (!face.boundingPoly || !face.boundingPoly.vertices || face.boundingPoly.vertices.length < 4) {
-      return true;
-    }
-    const vertices = face.boundingPoly.vertices;
-    const faceLeft = vertices[0]?.x || 0;
-    const faceRight = vertices[2]?.x || imageWidth;
-    const faceTop = vertices[0]?.y || 0;
-    const faceBottom = vertices[2]?.y || imageHeight;
-    const faceCenterX = (faceLeft + faceRight) / 2;
-    const faceCenterY = (faceTop + faceBottom) / 2;
-    const imageCenterX = imageWidth / 2;
-    const imageCenterY = imageHeight / 2;
-    const centerThresholdX = imageWidth * 0.35;
-    const centerThresholdY = imageHeight * 0.35;
-    const isCenteredX = Math.abs(faceCenterX - imageCenterX) < centerThresholdX;
-    const isCenteredY = Math.abs(faceCenterY - imageCenterY) < centerThresholdY;
-    const faceWidth = faceRight - faceLeft;
-    const faceHeight = faceBottom - faceTop;
-    const faceSizeRatio = (faceWidth * faceHeight) / (imageWidth * imageHeight);
-    const isGoodSize = faceSizeRatio > 0.08 && faceSizeRatio < 0.75;
-    return isCenteredX && isCenteredY && isGoodSize;
-  };
-
+  /**
+   * ROI-Based Face Detection (SkanApp-style)
+   * Monitors the face guide zone (ROI) for face presence and auto-triggers when ready
+   */
   const startFaceDetection = () => {
     stopFaceDetection();
+    isMountedRef.current = true; // Mark as mounted
     setFaceStatus("none");
     consecutiveDetectionsRef.current = 0;
     lastDetectionTimeRef.current = 0;
 
-    const performDetection = async () => {
+    // Define ROI (Region of Interest) - the face guide area
+    // The guide is centered on screen, so ROI is centered in the image
+    const roiWidth = GUIDE_OVAL_WIDTH;
+    const roiHeight = GUIDE_OVAL_HEIGHT;
+    
+    // Calculate ROI bounds in image coordinates (assuming camera matches screen aspect)
+    // For front camera, we need to account for potential mirroring
+    const calculateROIBounds = (imageWidth: number, imageHeight: number) => {
+      const centerX = imageWidth / 2;
+      const centerY = imageHeight / 2;
+      const roiImageWidth = (roiWidth / SCREEN_WIDTH) * imageWidth;
+      const roiImageHeight = (roiHeight / SCREEN_HEIGHT) * imageHeight;
+      
+      return {
+        left: centerX - roiImageWidth / 2,
+        right: centerX + roiImageWidth / 2,
+        top: centerY - roiImageHeight / 2,
+        bottom: centerY + roiImageHeight / 2,
+        width: roiImageWidth,
+        height: roiImageHeight,
+      };
+    };
+
+    /**
+     * Check if face is within ROI bounds
+     * Similar to SkanApp's edge detection - validates face is in the guide zone
+     */
+    const isFaceInROI = (face: any, imageWidth: number, imageHeight: number, roiBounds: any): boolean => {
+      if (!face.boundingPoly?.vertices || face.boundingPoly.vertices.length < 4) {
+        return false;
+      }
+
+      const vertices = face.boundingPoly.vertices;
+      const faceLeft = vertices[0]?.x || 0;
+      const faceRight = vertices[2]?.x || imageWidth;
+      const faceTop = vertices[0]?.y || 0;
+      const faceBottom = vertices[2]?.y || imageHeight;
+      
+      const faceCenterX = (faceLeft + faceRight) / 2;
+      const faceCenterY = (faceTop + faceBottom) / 2;
+      
+      // Check if face center is within ROI bounds (with some tolerance)
+      const toleranceX = roiBounds.width * 0.15; // 15% tolerance
+      const toleranceY = roiBounds.height * 0.15;
+      
+      const inROI = 
+        faceCenterX >= roiBounds.left - toleranceX &&
+        faceCenterX <= roiBounds.right + toleranceX &&
+        faceCenterY >= roiBounds.top - toleranceY &&
+        faceCenterY <= roiBounds.bottom + toleranceY;
+      
+      return inROI;
+    };
+
+    /**
+     * Edge Detection & Validation
+     * Similar to SkanApp's perspective correction - validates face boundaries
+     */
+    const validateFaceEdges = (face: any, imageWidth: number, imageHeight: number, roiBounds: any): {
+      isValid: boolean;
+      isCentered: boolean;
+      isGoodSize: boolean;
+      sizeRatio: number;
+    } => {
+      if (!face.boundingPoly?.vertices || face.boundingPoly.vertices.length < 4) {
+        return { isValid: false, isCentered: false, isGoodSize: false, sizeRatio: 0 };
+      }
+
+      const vertices = face.boundingPoly.vertices;
+      const faceLeft = vertices[0]?.x || 0;
+      const faceRight = vertices[2]?.x || imageWidth;
+      const faceTop = vertices[0]?.y || 0;
+      const faceBottom = vertices[2]?.y || imageHeight;
+      
+      const faceWidth = faceRight - faceLeft;
+      const faceHeight = faceBottom - faceTop;
+      const faceSizeRatio = (faceWidth * faceHeight) / (imageWidth * imageHeight);
+      
+            // More lenient size requirements (5-85% of image) for easier capture
+            const isGoodSize = faceSizeRatio >= 0.05 && faceSizeRatio <= 0.85;
+      
+            // Check if face is centered in ROI (more lenient for side angles)
+            const faceCenterX = (faceLeft + faceRight) / 2;
+            const faceCenterY = (faceTop + faceBottom) / 2;
+            const roiCenterX = (roiBounds.left + roiBounds.right) / 2;
+            const roiCenterY = (roiBounds.top + roiBounds.bottom) / 2;
+            
+            // More lenient centering for side angles (40% vs 30%)
+            const centerThresholdX = roiBounds.width * (captureStep === "front" ? 0.35 : 0.45);
+            const centerThresholdY = roiBounds.height * 0.35;
+            const isCentered = 
+                Math.abs(faceCenterX - roiCenterX) < centerThresholdX &&
+                Math.abs(faceCenterY - roiCenterY) < centerThresholdY;
+      
+      return {
+        isValid: isGoodSize && isCentered,
+        isCentered,
+        isGoodSize,
+        sizeRatio: faceSizeRatio,
+      };
+    };
+
+    /**
+   * ROI Monitoring - Similar to SkanApp's motion detection
+   * Monitors the ROI zone for face presence and triggers analysis
+   */
+    const performROIDetection = async () => {
       const now = Date.now();
-      if (now - lastDetectionTimeRef.current < 1000) return;
+      // Monitor ROI every 800ms for responsive feedback
+      if (now - lastDetectionTimeRef.current < 800) {
+      return;
+    }
       lastDetectionTimeRef.current = now;
 
-      if (!cameraRef.current || Platform.OS === "web" || isLoading) return;
+      // Prevent concurrent captures
+      if (isCapturingRef.current) {
+        return;
+      }
+
+      // Check if component is still mounted
+      if (!isMountedRef.current) {
+        console.log('⏸️ Component unmounted, stopping detection');
+        return;
+      }
+
+      if (!cameraRef.current || Platform.OS === "web" || isLoading) {
+        return;
+      }
 
       try {
+        isCapturingRef.current = true;
+        
+        // Double-check camera is still available before capturing
+        if (!cameraRef.current || !isMountedRef.current) {
+          isCapturingRef.current = false;
+          return;
+        }
+        
+        // Capture frame for ROI analysis
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.08,
+          quality: 0.25, // Balanced quality for speed and accuracy
           base64: true,
           skipProcessing: true,
         });
 
-        if (!photo?.base64) return;
+        // Check if still mounted after async operation
+        if (!isMountedRef.current) {
+          isCapturingRef.current = false;
+          return;
+        }
 
+        isCapturingRef.current = false;
+
+        if (!photo?.base64 || !photo.width || !photo.height) {
+          return;
+        }
+
+        // Calculate ROI bounds for this image
+        const roiBounds = calculateROIBounds(photo.width, photo.height);
+
+        // Analyze face in ROI
         const base64Image = `data:image/jpeg;base64,${photo.base64}`;
         const visionResult = await analyzeFace(base64Image);
 
         if (visionResult?.error) {
-          setFaceStatus("none");
+          // Keep current state on API errors
           return;
         }
 
@@ -405,36 +574,38 @@ export default function GlowAnalysisScreen() {
           const face = visionResult.faceAnnotations[0];
           const confidence = face?.detectionConfidence || 0;
 
-          if (confidence >= 0.1) {
+          // Detect any face (very lenient threshold)
+          if (confidence >= 0.05) {
             const rollAngle = Math.abs(face.rollAngle || 0);
             const panAngle = Math.abs(face.panAngle || 0);
             const tiltAngle = Math.abs(face.tiltAngle || 0);
-            const isWellPositioned = rollAngle <= 50 && panAngle <= 50 && tiltAngle <= 50;
+            
+            // More lenient angle requirements for easier capture (75 degrees)
+            // For side angles, we expect higher pan angles
+            const maxAngle = captureStep === "front" ? 75 : 85;
+            const isWellPositioned = rollAngle <= maxAngle && panAngle <= maxAngle && tiltAngle <= maxAngle;
+            
+            // Check if face is within ROI (motion detection - face entered the zone)
+            const inROI = isFaceInROI(face, photo.width, photo.height, roiBounds);
+            
+            // Edge detection & validation
+            const edgeValidation = validateFaceEdges(face, photo.width, photo.height, roiBounds);
 
-            let isCentered = true;
-            let isCloseEnough = true;
+            console.log('🎯 ROI Detection:', {
+              inROI,
+              isWellPositioned,
+              edgeValidation,
+              confidence: confidence.toFixed(2),
+            });
 
-            if (photo.width && photo.height && face.boundingPoly?.vertices) {
-              isCentered = checkFaceCentered(face, photo.width, photo.height);
-              const vertices = face.boundingPoly.vertices;
-              if (vertices && vertices.length >= 4) {
-                const faceLeft = vertices[0]?.x || 0;
-                const faceRight = vertices[2]?.x || photo.width;
-                const faceTop = vertices[0]?.y || 0;
-                const faceBottom = vertices[2]?.y || photo.height;
-                const fw = faceRight - faceLeft;
-                const fh = faceBottom - faceTop;
-                const faceSizeRatio = (fw * fh) / (photo.width * photo.height);
-                isCloseEnough = faceSizeRatio >= 0.12;
-                setFaceDistance(isCloseEnough ? "close" : "far");
-              }
-            }
-
-            if (isWellPositioned && isCentered && isCloseEnough) {
+            // Auto-trigger when face is ready (all conditions met)
+            if (inROI && isWellPositioned && edgeValidation.isValid) {
               if (faceStatus !== "ready" || !faceDetected) {
+                console.log('✅ Face ready in ROI - Auto-enabled!');
                 setFaceStatus("ready");
                 setFaceDetected(true);
                 consecutiveDetectionsRef.current = 1;
+                setFaceDistance(edgeValidation.sizeRatio >= 0.15 ? "close" : "far");
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 Animated.sequence([
                   Animated.spring(statusChangeAnim, { toValue: 1, tension: 100, friction: 7, useNativeDriver: true }),
@@ -442,14 +613,23 @@ export default function GlowAnalysisScreen() {
                   Animated.timing(statusChangeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
                 ]).start();
               }
-            } else if (!isCloseEnough) {
+            } else if (!inROI) {
+              // Face not in ROI zone
+              consecutiveDetectionsRef.current = 0;
+              if (faceStatus !== "none") {
+                setFaceStatus("none");
+              }
+              if (faceDetected) setFaceDetected(false);
+            } else if (!edgeValidation.isGoodSize) {
+              // Face size issue
               consecutiveDetectionsRef.current = 0;
               if (faceStatus !== "tooFar") {
                 setFaceStatus("tooFar");
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               }
               if (faceDetected) setFaceDetected(false);
-            } else if (!isCentered) {
+            } else if (!edgeValidation.isCentered) {
+              // Face not centered in ROI
               consecutiveDetectionsRef.current = 0;
               if (faceStatus !== "centering") {
                 setFaceStatus("centering");
@@ -457,27 +637,72 @@ export default function GlowAnalysisScreen() {
               }
               if (faceDetected) setFaceDetected(false);
             } else {
+              // Face detected but not well positioned
               consecutiveDetectionsRef.current = 0;
-              if (faceStatus !== "none") setFaceStatus("none");
+              if (faceStatus !== "none") {
+                setFaceStatus("none");
+              }
               if (faceDetected) setFaceDetected(false);
             }
           } else {
             consecutiveDetectionsRef.current = 0;
-            if (faceStatus !== "none") setFaceStatus("none");
+            if (faceStatus !== "none") {
+              setFaceStatus("none");
+            }
             if (faceDetected) setFaceDetected(false);
           }
         } else {
+          // No face detected in ROI
           consecutiveDetectionsRef.current = 0;
-          if (faceStatus !== "none") setFaceStatus("none");
+          if (faceStatus !== "none") {
+            setFaceStatus("none");
+          }
           if (faceDetected) setFaceDetected(false);
         }
       } catch (error: any) {
-        console.error("Face detection error:", error?.message);
+        isCapturingRef.current = false;
+        const errorMessage = error?.message || 'Unknown error';
+        
+        // Ignore camera unmount errors and other common camera errors
+        if (!errorMessage.includes('Image could not be captured') && 
+            !errorMessage.includes('Camera is already taking a picture') &&
+            !errorMessage.includes('Camera is busy') &&
+            !errorMessage.includes('Camera unmounted') &&
+            !errorMessage.includes('unmounted') &&
+            !errorMessage.includes('Camera unmounted during')) {
+          // Only log unexpected errors if component is still mounted
+          if (isMountedRef.current) {
+            console.error("❌ ROI Detection error:", errorMessage);
+          }
+        }
+        
+        // If component unmounted, stop detection
+        if (!isMountedRef.current) {
+          stopFaceDetection();
+        }
       }
     };
 
-    performDetection();
-    faceDetectionIntervalRef.current = setInterval(performDetection, 1000);
+    // Start ROI monitoring
+    console.log('🎯 Starting ROI-based face detection (SkanApp-style)...');
+    
+    // Initial detection after camera is ready
+    const startDetection = () => {
+      if (cameraRef.current && !isCapturingRef.current) {
+        performROIDetection();
+      } else {
+        setTimeout(startDetection, 200);
+      }
+    };
+    
+    setTimeout(startDetection, 400);
+    
+    // Monitor ROI every 800ms (responsive but not overwhelming)
+    faceDetectionIntervalRef.current = setInterval(() => {
+      if (cameraRef.current && !isCapturingRef.current && !isLoading) {
+        performROIDetection();
+      }
+    }, 800);
   };
 
   const stopFaceDetection = () => {
@@ -485,6 +710,8 @@ export default function GlowAnalysisScreen() {
       clearInterval(faceDetectionIntervalRef.current);
       faceDetectionIntervalRef.current = null;
     }
+    isCapturingRef.current = false; // Reset capture flag
+    isMountedRef.current = false; // Mark as unmounted when stopping
   };
 
   const validateFaceFromBase64 = async (base64String: string): Promise<boolean> => {
@@ -502,11 +729,15 @@ export default function GlowAnalysisScreen() {
       const face = visionResult.faceAnnotations[0];
       if (!face) return false;
       const confidence = face.detectionConfidence || 0;
-      if (confidence < 0.4) return false;
+      // More lenient confidence threshold (0.2 instead of 0.4)
+      if (confidence < 0.2) return false;
       const rollAngle = Math.abs(face.rollAngle || 0);
       const panAngle = Math.abs(face.panAngle || 0);
       const tiltAngle = Math.abs(face.tiltAngle || 0);
-      if (rollAngle > 30 || panAngle > 30 || tiltAngle > 30) return false;
+      // More lenient angle requirements (50 degrees instead of 30)
+      // For side photos, we expect higher pan angles
+      const maxAngle = captureStep === "front" ? 50 : 70;
+      if (rollAngle > maxAngle || panAngle > maxAngle || tiltAngle > maxAngle) return false;
       return true;
     } catch {
       return false;
@@ -535,43 +766,62 @@ export default function GlowAnalysisScreen() {
     try {
       if (cameraRef.current) {
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.9,
+        quality: 0.9,
           base64: true,
         });
 
         if (photo?.uri) {
-          let isValid = true;
-          if (photo.base64) {
-            try {
-              isValid = await validateFaceFromBase64(photo.base64);
-            } catch {
-              isValid = false;
+          // Store both URI and base64 for proper processing
+          // Base64 will be used for validation during processing
+          const updatedPhotos = { ...capturedPhotos };
+          if (captureStep === "front") {
+            updatedPhotos.front = photo.uri;
+            // Store base64 if available for later validation
+            if (photo.base64) {
+              // Store base64 in a way that can be passed to analysis
+              // We'll pass it as a data URL
+              const base64DataUrl = `data:image/jpeg;base64,${photo.base64}`;
+              // Store in a ref or pass directly - for now, we'll pass URI and convert during processing
             }
+          } else if (captureStep === "left") {
+            updatedPhotos.left = photo.uri;
+          } else if (captureStep === "right") {
+            updatedPhotos.right = photo.uri;
           }
+          setCapturedPhotos(updatedPhotos);
 
-          if (!isValid) {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-            Alert.alert(
-              "Face Not Detected",
-              "We couldn't detect a clear face in your photo. Please try again with:\n\n• Good lighting\n• Face centered and looking at camera\n• No glasses or hair covering face",
-              [
-                {
-                  text: "Try Again",
-                  onPress: () => {
-                    setIsLoading(false);
-                    startFaceDetection();
-                  },
-                },
-              ]
-            );
-            return;
+          // Move to next step or complete
+          if (captureStep === "front") {
+            // Move to left profile
+            setCaptureStep("left");
+            setIsLoading(false);
+            setFaceStatus("none");
+            setFaceDetected(false);
+            startFaceDetection();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } else if (captureStep === "left") {
+            // Move to right profile
+            setCaptureStep("right");
+            setIsLoading(false);
+            setFaceStatus("none");
+            setFaceDetected(false);
+            startFaceDetection();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } else {
+            // All photos captured, proceed to analysis
+            const params: any = {
+              frontImage: updatedPhotos.front,
+              multiAngle: "true",
+            };
+            if (updatedPhotos.left) params.leftImage = updatedPhotos.left;
+            if (updatedPhotos.right) params.rightImage = updatedPhotos.right;
+
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            router.push({
+              pathname: "/analysis-loading",
+              params,
+            });
           }
-
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          router.push({
-            pathname: "/analysis-loading",
-            params: { frontImage: photo.uri, multiAngle: "false" },
-          });
         } else {
           setIsLoading(false);
           startFaceDetection();
@@ -616,7 +866,7 @@ export default function GlowAnalysisScreen() {
   const styles = createStyles(palette);
 
   if (currentStep === "instructions") {
-    return (
+  return (
       <View style={styles.instructionRoot}>
         <LinearGradient
           colors={[palette.background, palette.surfaceAlt, palette.background]}
@@ -633,15 +883,15 @@ export default function GlowAnalysisScreen() {
           >
             <View style={styles.instructionHeader}>
               <View style={{ flex: 1 }} />
-              <TouchableOpacity
-                onPress={handleClose}
+        <TouchableOpacity
+          onPress={handleClose}
                 style={styles.closeBtn}
-                activeOpacity={0.7}
+          activeOpacity={0.7}
                 testID="close-instructions"
-              >
+        >
                 <X color={palette.textSecondary} size={22} />
-              </TouchableOpacity>
-            </View>
+        </TouchableOpacity>
+      </View>
 
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -679,7 +929,7 @@ export default function GlowAnalysisScreen() {
                       },
                     ]}
                   />
-                </View>
+          </View>
 
                 <Text style={styles.heroTitle}>Let's scan your skin</Text>
                 <Text style={styles.heroSubtitle}>
@@ -702,11 +952,11 @@ export default function GlowAnalysisScreen() {
                   >
                     <View style={styles.tipIconWrap}>
                       <Text style={styles.tipEmoji}>{tip.emoji}</Text>
-                    </View>
+            </View>
                     <Text style={styles.tipLabel}>{tip.text}</Text>
                   </Animated.View>
                 ))}
-              </View>
+        </View>
 
               <Animated.View
                 style={[
@@ -718,7 +968,7 @@ export default function GlowAnalysisScreen() {
                   <View style={styles.doBadge}>
                     <CheckCircle color="#10B981" size={14} strokeWidth={3} />
                     <Text style={styles.doText}>DO</Text>
-                  </View>
+      </View>
                   <Text style={styles.doDescription}>
                     Clean face, even lighting, neutral expression
                   </Text>
@@ -741,13 +991,13 @@ export default function GlowAnalysisScreen() {
                 { opacity: ctaAnim, transform: [{ translateY: ctaSlideAnim }] },
               ]}
             >
-              <TouchableOpacity
+        <TouchableOpacity
                 onPress={handleContinueToCamera}
-                activeOpacity={0.9}
+          activeOpacity={0.9}
                 style={styles.ctaButton}
                 testID="continue-to-camera"
-              >
-                <LinearGradient
+        >
+          <LinearGradient
                   colors={["#1A1A1A", "#0A0A0A"]}
                   style={styles.ctaGradient}
                 >
@@ -755,13 +1005,27 @@ export default function GlowAnalysisScreen() {
                   <View style={styles.ctaArrow}>
                     <ChevronRight color="#FFFFFF" size={20} strokeWidth={2.5} />
                   </View>
-                </LinearGradient>
-              </TouchableOpacity>
+          </LinearGradient>
+        </TouchableOpacity>
 
               <Text style={styles.ctaFootnote}>Takes less than 10 seconds</Text>
             </Animated.View>
           </Animated.View>
         </SafeAreaView>
+              </View>
+    );
+  }
+
+  // Show loading state if permission is being checked
+  if (permission === null) {
+    return (
+      <View style={styles.cameraRoot}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
+        <View style={styles.cameraPlaceholder}>
+          <ActivityIndicator color={palette.primary} size="large" />
+          <Text style={styles.cameraPlaceholderText}>Requesting camera permission...</Text>
+        </View>
       </View>
     );
   }
@@ -780,108 +1044,140 @@ export default function GlowAnalysisScreen() {
           />
         ) : (
           <View style={styles.cameraPlaceholder}>
-            <ActivityIndicator color={palette.primary} size="large" />
+            <CameraIcon color={palette.primary} size={64} strokeWidth={2} />
             <Text style={styles.cameraPlaceholderText}>
-              {permission === null ? "Requesting camera permission..." : "Camera permission required"}
+              Camera permission required
             </Text>
-            {permission && !permission.granted && (
-              <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
-                <Text style={styles.permissionButtonText}>Grant Permission</Text>
-              </TouchableOpacity>
-            )}
+            <Text style={styles.cameraPlaceholderSubtext}>
+              We need access to your camera to scan your skin
+            </Text>
+            <TouchableOpacity 
+              style={styles.permissionButton} 
+              onPress={requestPermission}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.permissionButtonText}>Grant Permission</Text>
+            </TouchableOpacity>
           </View>
         )}
 
-        <View style={styles.cameraOverlay}>
-          <SafeAreaView style={styles.cameraOverlaySafe} edges={["top"]}>
-            <View style={styles.cameraHeader}>
-              <TouchableOpacity
-                onPress={handleClose}
-                style={styles.cameraCloseBtn}
-                activeOpacity={0.7}
-              >
-                <X color="#FFFFFF" size={22} />
-              </TouchableOpacity>
-              <Text style={styles.cameraTitle}>Position your face</Text>
-              <View style={{ width: 40 }} />
-            </View>
-          </SafeAreaView>
+        {permission?.granted && (
+          <View style={styles.cameraOverlay}>
+            <SafeAreaView style={styles.cameraOverlaySafe} edges={["top"]}>
+              <View style={styles.cameraHeader}>
+                <TouchableOpacity
+                  onPress={handleClose}
+                  style={styles.cameraCloseBtn}
+                  activeOpacity={0.7}
+                >
+                  <X color="#FFFFFF" size={22} />
+                </TouchableOpacity>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                  <Text style={styles.cameraTitle}>
+                    {captureStep === "front" 
+                      ? "Front Photo" 
+                      : captureStep === "left" 
+                      ? "Left Profile" 
+                      : "Right Profile"}
+                  </Text>
+                  <View style={styles.progressIndicator}>
+                    <View style={[styles.progressDot, captureStep === "front" && styles.progressDotActive]} />
+                    <View style={[styles.progressDot, captureStep === "left" && styles.progressDotActive]} />
+                    <View style={[styles.progressDot, captureStep === "right" && styles.progressDotActive]} />
+                  </View>
+                </View>
+                <View style={{ width: 40 }} />
+      </View>
+    </SafeAreaView>
 
-          <View style={styles.guideContainer}>
-            <Animated.View
-              style={[
-                styles.faceGuideOval,
-                faceStatus === "ready" && styles.faceGuideReady,
-                faceStatus === "tooFar" && styles.faceGuideWarning,
-                faceStatus === "centering" && styles.faceGuideWarning,
-                { transform: [{ scale: guidePulseAnim }] },
-              ]}
-            >
-              <View style={styles.cornerTL} />
-              <View style={styles.cornerTR} />
-              <View style={styles.cornerBL} />
-              <View style={styles.cornerBR} />
-            </Animated.View>
-          </View>
-
-          <Animated.View
-            style={[
-              styles.feedbackBar,
-              { opacity: feedbackFadeAnim, transform: [{ translateY: feedbackSlideAnim }] },
-            ]}
-          >
-            {faceStatus === "ready" && faceDetected && (
+            <View style={styles.guideContainer}>
               <Animated.View
                 style={[
-                  styles.feedbackPill,
-                  styles.feedbackReady,
-                  {
-                    transform: [
-                      {
-                        scale: statusChangeAnim.interpolate({
-                          inputRange: [0, 0.5, 1],
-                          outputRange: [1, 1.08, 1],
-                        }),
-                      },
-                    ],
-                  },
+                  styles.faceGuideOval,
+                  faceStatus === "ready" && styles.faceGuideReady,
+                  faceStatus === "tooFar" && styles.faceGuideWarning,
+                  faceStatus === "centering" && styles.faceGuideWarning,
+                  { transform: [{ scale: guidePulseAnim }] },
                 ]}
               >
-                <CheckCircle color="#FFFFFF" size={18} strokeWidth={3} />
-                <Text style={styles.feedbackText}>Perfect! Tap to capture</Text>
+                <View style={styles.cornerTL} />
+                <View style={styles.cornerTR} />
+                <View style={styles.cornerBL} />
+                <View style={styles.cornerBR} />
               </Animated.View>
-            )}
-            {faceStatus === "centering" && (
-              <View style={[styles.feedbackPill, styles.feedbackWarn]}>
-                <Move color="#FFFFFF" size={18} strokeWidth={2.5} />
-                <Text style={styles.feedbackText}>Center your face</Text>
-              </View>
-            )}
-            {faceStatus === "tooFar" && (
-              <View style={[styles.feedbackPill, styles.feedbackWarn]}>
-                <Text style={styles.feedbackText}>Move closer to the camera</Text>
-              </View>
-            )}
-            {faceStatus === "none" && (
-              <View style={[styles.feedbackPill, styles.feedbackNone]}>
-                <Text style={styles.feedbackText}>Position your face in the oval</Text>
-              </View>
-            )}
-          </Animated.View>
+            </View>
 
-          <SafeAreaView edges={["bottom"]} style={styles.cameraBottomSafe}>
+            <Animated.View
+              style={[
+                styles.feedbackBar,
+                { opacity: feedbackFadeAnim, transform: [{ translateY: feedbackSlideAnim }] },
+              ]}
+            >
+              {faceStatus === "ready" && faceDetected && (
+                <Animated.View
+                  style={[
+                    styles.feedbackPill,
+                    styles.feedbackReady,
+                    {
+                      transform: [
+                        {
+                          scale: statusChangeAnim.interpolate({
+                            inputRange: [0, 0.5, 1],
+                            outputRange: [1, 1.08, 1],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <CheckCircle color="#FFFFFF" size={18} strokeWidth={3} />
+                  <Text style={styles.feedbackText}>
+                    {captureStep === "front" 
+                      ? "Perfect! Tap to capture front" 
+                      : captureStep === "left" 
+                      ? "Perfect! Tap to capture left profile" 
+                      : "Perfect! Tap to capture right profile"}
+                  </Text>
+                </Animated.View>
+              )}
+              {faceStatus === "centering" && (
+                <View style={[styles.feedbackPill, styles.feedbackWarn]}>
+                  <Move color="#FFFFFF" size={18} strokeWidth={2.5} />
+                  <Text style={styles.feedbackText}>Center your face</Text>
+                </View>
+              )}
+              {faceStatus === "tooFar" && (
+                <View style={[styles.feedbackPill, styles.feedbackWarn]}>
+                  <Text style={styles.feedbackText}>Move closer to the camera</Text>
+                </View>
+              )}
+              {faceStatus === "none" && (
+                <View style={[styles.feedbackPill, styles.feedbackNone]}>
+                  <Text style={styles.feedbackText}>
+                    {captureStep === "front" 
+                      ? "Position your face in the oval, then tap to capture" 
+                      : captureStep === "left" 
+                      ? "Turn your head to the left, then tap to capture" 
+                      : "Turn your head to the right, then tap to capture"}
+                  </Text>
+                </View>
+              )}
+            </Animated.View>
+
+            <SafeAreaView edges={["bottom"]} style={styles.cameraBottomSafe}>
             <View style={styles.captureRow}>
               <View style={{ width: 56 }} />
 
               <Animated.View style={{ transform: [{ scale: buttonScaleAnim }] }}>
                 <TouchableOpacity
                   onPress={handleTakePicture}
-                  disabled={isLoading || !permission?.granted || !faceDetected || faceStatus !== "ready" || isValidating}
+                  disabled={isLoading || !permission?.granted || isValidating}
                   activeOpacity={0.85}
                   style={[
                     styles.captureOuter,
-                    faceDetected && faceStatus === "ready" && styles.captureOuterReady,
-                    (isLoading || !faceDetected || faceStatus !== "ready") && styles.captureOuterDisabled,
+                    // Always show as enabled (unless actually loading/validating)
+                    !isLoading && !isValidating && styles.captureOuterReady,
+                    (isLoading || isValidating) && styles.captureOuterDisabled,
                   ]}
                   testID="capture-button"
                 >
@@ -891,7 +1187,7 @@ export default function GlowAnalysisScreen() {
                     <View
                       style={[
                         styles.captureInner,
-                        faceDetected && faceStatus === "ready" && styles.captureInnerReady,
+                        styles.captureInnerReady, // Always show as ready
                       ]}
                     />
                   )}
@@ -920,7 +1216,8 @@ export default function GlowAnalysisScreen() {
               </View>
             </View>
           </SafeAreaView>
-        </View>
+          </View>
+        )}
       </Animated.View>
     </View>
   );
@@ -929,7 +1226,7 @@ export default function GlowAnalysisScreen() {
 const createStyles = (palette: ReturnType<typeof getPalette>) =>
   StyleSheet.create({
     instructionRoot: {
-      flex: 1,
+    flex: 1,
       backgroundColor: palette.background,
     },
     instructionSafe: {
@@ -942,7 +1239,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "flex-end",
-      paddingHorizontal: 20,
+    paddingHorizontal: 20,
       paddingTop: 8,
       paddingBottom: 4,
     },
@@ -960,7 +1257,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) =>
     },
     heroSection: {
       alignItems: "center",
-      paddingTop: 12,
+    paddingTop: 12,
       marginBottom: 28,
     },
     faceIllustration: {
@@ -1007,15 +1304,15 @@ const createStyles = (palette: ReturnType<typeof getPalette>) =>
     heroTitle: {
       fontSize: 30,
       fontWeight: "800" as const,
-      color: palette.textPrimary,
+    color: palette.textPrimary,
       textAlign: "center",
       letterSpacing: -0.8,
       marginBottom: 10,
-    },
+  },
     heroSubtitle: {
       fontSize: 16,
       fontWeight: "500" as const,
-      color: palette.textSecondary,
+    color: palette.textSecondary,
       textAlign: "center",
       lineHeight: 22,
     },
@@ -1032,7 +1329,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) =>
       flexDirection: "row",
       alignItems: "center",
       paddingVertical: 16,
-      paddingHorizontal: 20,
+    paddingHorizontal: 20,
       gap: 14,
     },
     tipRowBorder: {
@@ -1067,7 +1364,7 @@ const createStyles = (palette: ReturnType<typeof getPalette>) =>
       backgroundColor: "#10B98112",
       borderRadius: 14,
       paddingVertical: 14,
-      paddingHorizontal: 16,
+    paddingHorizontal: 16,
       gap: 12,
     },
     doBadge: {
@@ -1080,14 +1377,14 @@ const createStyles = (palette: ReturnType<typeof getPalette>) =>
       borderRadius: 8,
     },
     doText: {
-      fontSize: 12,
+    fontSize: 12,
       fontWeight: "800" as const,
       color: "#10B981",
       letterSpacing: 0.5,
-    },
+  },
     doDescription: {
       flex: 1,
-      fontSize: 14,
+    fontSize: 14,
       fontWeight: "500" as const,
       color: palette.textPrimary,
     },
@@ -1135,15 +1432,15 @@ const createStyles = (palette: ReturnType<typeof getPalette>) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      paddingVertical: 18,
+    paddingVertical: 18,
       gap: 8,
-    },
+  },
     ctaText: {
       color: "#FFFFFF",
-      fontSize: 18,
+    fontSize: 18,
       fontWeight: "700" as const,
-      letterSpacing: 0.3,
-    },
+    letterSpacing: 0.3,
+  },
     ctaArrow: {
       width: 28,
       height: 28,
@@ -1197,6 +1494,22 @@ const createStyles = (palette: ReturnType<typeof getPalette>) =>
       textShadowColor: "rgba(0,0,0,0.5)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
+      marginBottom: 6,
+    },
+    progressIndicator: {
+      flexDirection: "row",
+    gap: 8,
+      marginTop: 4,
+    },
+    progressDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: "rgba(255,255,255,0.3)",
+    },
+    progressDotActive: {
+      backgroundColor: "#FFFFFF",
+      width: 20,
     },
     guideContainer: {
       flex: 1,
@@ -1341,8 +1654,8 @@ const createStyles = (palette: ReturnType<typeof getPalette>) =>
     },
     cameraTip: {
       alignItems: "center",
-      gap: 4,
-    },
+    gap: 4,
+  },
     cameraTipEmoji: {
       fontSize: 16,
     },
@@ -1359,11 +1672,20 @@ const createStyles = (palette: ReturnType<typeof getPalette>) =>
       gap: 16,
     },
     cameraPlaceholderText: {
-      fontSize: 16,
-      color: "rgba(255,255,255,0.7)",
-      fontWeight: "600" as const,
+      fontSize: 18,
+      color: "rgba(255,255,255,0.9)",
+      fontWeight: "700" as const,
       textAlign: "center",
       paddingHorizontal: 40,
+      marginTop: 8,
+    },
+    cameraPlaceholderSubtext: {
+      fontSize: 14,
+      color: "rgba(255,255,255,0.6)",
+      fontWeight: "400" as const,
+      textAlign: "center",
+      paddingHorizontal: 40,
+      marginTop: 4,
     },
     permissionButton: {
       marginTop: 12,
@@ -1376,5 +1698,6 @@ const createStyles = (palette: ReturnType<typeof getPalette>) =>
       color: "#FFFFFF",
       fontSize: 16,
       fontWeight: "700" as const,
-    },
-  });
+  },
+});
+

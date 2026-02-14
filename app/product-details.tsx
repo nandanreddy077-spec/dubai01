@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Dimensions,
   Linking,
   Platform,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
@@ -25,11 +26,14 @@ import {
   TrendingUp,
   ShoppingBag,
   ExternalLink,
+  Sparkles,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProducts } from '@/contexts/ProductContext';
+import { useAnalysis } from '@/contexts/AnalysisContext';
 import { getPalette, getGradient, shadow } from '@/constants/theme';
-import { findIngredient, type Ingredient } from '@/lib/ingredient-intelligence';
+import { findIngredient, analyzeProductIngredients, type Ingredient } from '@/lib/ingredient-intelligence';
+import { getIngredientEducation, generateProductSkinImpact } from '@/lib/ingredient-education';
 import { Image as ExpoImage } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 
@@ -38,21 +42,103 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 type Tab = 'safety' | 'match';
 
 export default function ProductDetailsScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, productId } = useLocalSearchParams<{ id?: string; productId?: string }>();
   const { theme } = useTheme();
-  const { recommendations, trackAffiliateTap } = useProducts();
+  const { recommendations, products, trackAffiliateTap, getProductById } = useProducts();
+  const { currentResult } = useAnalysis();
   const [activeTab, setActiveTab] = useState<Tab>('safety');
   const [favorite, setFavorite] = useState(false);
+  const [selectedIngredient, setSelectedIngredient] = useState<string | null>(null);
+  const [expandedActives, setExpandedActives] = useState<Set<number>>(new Set());
+  const [ingredientFilter, setIngredientFilter] = useState<'all' | 'beneficial' | 'concerns'>('all');
   
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
   const styles = createStyles(palette);
 
-  // Find the product recommendation
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const matchScoreAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const tabSlideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Entrance animation
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Animate match score if personalized match exists
+    if (personalizedMatch) {
+      Animated.spring(matchScoreAnim, {
+        toValue: 1,
+        tension: 40,
+        friction: 7,
+        delay: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        if (Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      });
+    }
+  }, [personalizedMatch]);
+
+  useEffect(() => {
+    // Tab transition animation
+    Animated.spring(tabSlideAnim, {
+      toValue: activeTab === 'match' ? 1 : 0,
+      tension: 50,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab]);
+
+  // Find the product - either from recommendations or from user's shelf
   const product = useMemo(() => {
-    if (!id) return null;
-    return recommendations.find(rec => rec.id === id);
-  }, [id, recommendations]);
+    const searchId = id || productId;
+    if (!searchId) return null;
+    
+    // First check recommendations
+    const rec = recommendations.find(r => r.id === searchId);
+    if (rec) return rec;
+    
+    // Then check user's products
+    const userProduct = getProductById(searchId);
+    if (userProduct) {
+      // Convert Product to ProductRecommendation format for display
+      const analysis = userProduct.ingredients && userProduct.ingredients.length > 0
+        ? analyzeProductIngredients(userProduct.name, userProduct.ingredients)
+        : null;
+      
+      return {
+        id: userProduct.id,
+        category: userProduct.category,
+        stepName: userProduct.name,
+        description: `Your ${userProduct.name} from ${userProduct.brand}`,
+        imageUrl: userProduct.imageUrl,
+        brand: userProduct.brand,
+        price: userProduct.price?.toString(),
+        ingredients: userProduct.ingredients || [],
+        analysis: analysis?.analysis,
+        matchScore: analysis ? analysis.analysis.efficacy.score : 50,
+        source: 'shelf' as const,
+      };
+    }
+    
+    return null;
+  }, [id, productId, recommendations, products, getProductById]);
 
   if (!product) {
     return (
@@ -94,9 +180,30 @@ export default function ProductDetailsScreen() {
     });
   }, [ingredients]);
 
-  const beneficialIngredients = ingredientData.filter(ing => ing.rating === 'safe');
-  const concernIngredients = ingredientData.filter(ing => ing.rating === 'concern');
-  const cautionIngredients = ingredientData.filter(ing => ing.rating === 'caution');
+  const beneficialIngredients = useMemo(() => 
+    ingredientData.filter(ing => ing.rating === 'safe'), 
+    [ingredientData]
+  );
+  const concernIngredients = useMemo(() => 
+    ingredientData.filter(ing => ing.rating === 'concern'), 
+    [ingredientData]
+  );
+  const cautionIngredients = useMemo(() => 
+    ingredientData.filter(ing => ing.rating === 'caution'), 
+    [ingredientData]
+  );
+  
+  // Filter ingredients based on selected filter
+  const filteredIngredientData = useMemo(() => {
+    switch (ingredientFilter) {
+      case 'beneficial':
+        return beneficialIngredients;
+      case 'concerns':
+        return [...concernIngredients, ...cautionIngredients];
+      default:
+        return ingredientData;
+    }
+  }, [ingredientFilter, ingredientData, beneficialIngredients, concernIngredients, cautionIngredients]);
 
   // Get ingredient concerns
   const concerns = useMemo(() => {
@@ -146,6 +253,90 @@ export default function ProductDetailsScreen() {
     return Array.from(benefits);
   }, [analysis?.actives]);
 
+  // Calculate personalized skin match based on user's analysis
+  const personalizedMatch = useMemo(() => {
+    if (!currentResult || !analysis || !ingredients.length) {
+      return null;
+    }
+
+    const skinType = currentResult.skinType.toLowerCase();
+    const userConcerns = currentResult.dermatologyInsights?.skinConcerns || [];
+    const userSkinQuality = currentResult.skinQuality?.toLowerCase() || '';
+
+    let matchScore = analysis.efficacy.score || 50;
+    const benefits: string[] = [];
+    const warnings: string[] = [];
+    const worksForConcerns: string[] = [];
+
+    // Check if ingredients address user's concerns
+    if (analysis.actives && analysis.actives.length > 0) {
+      analysis.actives.forEach(active => {
+        // Check if this active addresses any of the user's concerns
+        const addressesConcern = active.efficacy.conditions.some(condition =>
+          userConcerns.some(concern =>
+            concern.toLowerCase().includes(condition.toLowerCase()) ||
+            condition.toLowerCase().includes(concern.toLowerCase())
+          )
+        );
+
+        if (addressesConcern) {
+          worksForConcerns.push(active.name);
+          benefits.push(`${active.name} addresses your ${active.efficacy.conditions.join(', ')} concerns`);
+          matchScore += 10; // Boost score for addressing concerns
+        }
+
+        // Skin type specific warnings
+        if (skinType === 'sensitive' && active.safety.irritation === 'high') {
+          warnings.push(`${active.name} may cause irritation for sensitive skin. Patch test first.`);
+          matchScore -= 15;
+        }
+        if (skinType === 'dry' && active.name.includes('Acid') && !active.name.includes('Hyaluronic')) {
+          warnings.push(`${active.name} may be drying. Use with a rich moisturizer.`);
+          matchScore -= 10;
+        }
+        if (skinType === 'oily' && active.safety.comedogenic >= 3) {
+          warnings.push(`${active.name} may clog pores for oily skin. Monitor for breakouts.`);
+          matchScore -= 10;
+        }
+      });
+    }
+
+    // Check compatibility issues
+    if (!analysis.compatibility.compatible && analysis.compatibility.issues.length > 0) {
+      analysis.compatibility.issues.forEach(issue => {
+        warnings.push(issue.description);
+        matchScore -= 5;
+      });
+    }
+
+    // Check ingredient safety for user's skin type
+    ingredientData.forEach(({ ingredient, rating }) => {
+      if (!ingredient) return;
+
+      if (skinType === 'sensitive' && ingredient.safety.irritation === 'high') {
+        warnings.push(`${ingredient.name} may irritate sensitive skin`);
+      }
+      if (skinType === 'oily' && ingredient.safety.comedogenic >= 4) {
+        warnings.push(`${ingredient.name} is highly comedogenic - may cause breakouts`);
+      }
+      if (skinType === 'dry' && ingredient.name.toLowerCase().includes('alcohol') && !ingredient.name.toLowerCase().includes('fatty')) {
+        warnings.push(`${ingredient.name} may be drying for dry skin`);
+      }
+    });
+
+    // Final score should be between 0-100
+    matchScore = Math.max(0, Math.min(100, matchScore));
+
+    return {
+      score: Math.round(matchScore),
+      benefits,
+      warnings: [...new Set(warnings)], // Remove duplicates
+      worksForConcerns,
+      skinTypeMatch: true, // We'll determine this based on warnings
+      recommendation: matchScore >= 80 ? 'excellent' : matchScore >= 60 ? 'good' : matchScore >= 40 ? 'moderate' : 'poor',
+    };
+  }, [currentResult, analysis, ingredients, ingredientData]);
+
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen
@@ -155,8 +346,14 @@ export default function ProductDetailsScreen() {
           headerRight: () => (
             <View style={styles.headerActions}>
               <TouchableOpacity
-                onPress={() => setFavorite(!favorite)}
+                onPress={() => {
+                  setFavorite(!favorite);
+                  if (Platform.OS !== 'web') {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                }}
                 style={styles.headerButton}
+                activeOpacity={0.7}
               >
                 <Heart
                   color={favorite ? palette.error : palette.textSecondary}
@@ -164,7 +361,15 @@ export default function ProductDetailsScreen() {
                   fill={favorite ? palette.error : 'none'}
                 />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.headerButton}>
+              <TouchableOpacity 
+                style={styles.headerButton}
+                onPress={() => {
+                  if (Platform.OS !== 'web') {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
                 <Share2 color={palette.textSecondary} size={24} />
               </TouchableOpacity>
             </View>
@@ -172,13 +377,29 @@ export default function ProductDetailsScreen() {
         }}
       />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      <Animated.View
+        style={[
+          styles.scrollContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
       >
-        {/* Product Image & Basic Info */}
-        <View style={styles.productHeader}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Product Image & Basic Info */}
+          <Animated.View 
+            style={[
+              styles.productHeader,
+              {
+                opacity: fadeAnim,
+              },
+            ]}
+          >
           {product.imageUrl && (
             <View style={styles.imageContainer}>
               <ExpoImage
@@ -197,13 +418,26 @@ export default function ProductDetailsScreen() {
             <Text style={styles.productName}>{product.stepName}</Text>
             <Text style={styles.description}>{product.description}</Text>
           </View>
-        </View>
+        </Animated.View>
 
         {/* Tab Selector */}
-        <View style={styles.tabContainer}>
+        <Animated.View 
+          style={[
+            styles.tabContainer,
+            {
+              opacity: fadeAnim,
+            },
+          ]}
+        >
           <TouchableOpacity
             style={[styles.tab, activeTab === 'safety' && styles.tabActive]}
-            onPress={() => setActiveTab('safety')}
+            onPress={() => {
+              setActiveTab('safety');
+              if (Platform.OS !== 'web') {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
+            }}
+            activeOpacity={0.7}
           >
             <Text style={[styles.tabText, activeTab === 'safety' && styles.tabTextActive]}>
               Safety Rating
@@ -211,13 +445,19 @@ export default function ProductDetailsScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tab, activeTab === 'match' && styles.tabActive]}
-            onPress={() => setActiveTab('match')}
+            onPress={() => {
+              setActiveTab('match');
+              if (Platform.OS !== 'web') {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
+            }}
+            activeOpacity={0.7}
           >
             <Text style={[styles.tabText, activeTab === 'match' && styles.tabTextActive]}>
               Skin Match
             </Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
         {/* Tab Content */}
         {activeTab === 'safety' ? (
@@ -316,18 +556,45 @@ export default function ProductDetailsScreen() {
 
               {/* Filter Tabs */}
               <View style={styles.filterTabs}>
-                <TouchableOpacity style={[styles.filterTab, styles.filterTabActive]}>
-                  <Text style={[styles.filterTabText, styles.filterTabTextActive]}>
+                <TouchableOpacity 
+                  style={[styles.filterTab, ingredientFilter === 'all' && styles.filterTabActive]}
+                  onPress={() => {
+                    setIngredientFilter('all');
+                    if (Platform.OS !== 'web') {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.filterTabText, ingredientFilter === 'all' && styles.filterTabTextActive]}>
                     All ({ingredients.length})
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.filterTab}>
-                  <Text style={styles.filterTabText}>
+                <TouchableOpacity 
+                  style={[styles.filterTab, ingredientFilter === 'beneficial' && styles.filterTabActive]}
+                  onPress={() => {
+                    setIngredientFilter('beneficial');
+                    if (Platform.OS !== 'web') {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.filterTabText, ingredientFilter === 'beneficial' && styles.filterTabTextActive]}>
                     Beneficial ({beneficialIngredients.length})
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.filterTab}>
-                  <Text style={styles.filterTabText}>
+                <TouchableOpacity 
+                  style={[styles.filterTab, ingredientFilter === 'concerns' && styles.filterTabActive]}
+                  onPress={() => {
+                    setIngredientFilter('concerns');
+                    if (Platform.OS !== 'web') {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.filterTabText, ingredientFilter === 'concerns' && styles.filterTabTextActive]}>
                     Concerns ({concernIngredients.length + cautionIngredients.length})
                   </Text>
                 </TouchableOpacity>
@@ -335,80 +602,306 @@ export default function ProductDetailsScreen() {
 
               {/* Ingredients List */}
               <View style={styles.ingredientsList}>
-                {ingredientData.map((ing, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.ingredientItem}
-                    activeOpacity={0.7}
-                  >
-                    <View
-                      style={[
-                        styles.ingredientDot,
-                        ing.rating === 'safe' && styles.ingredientDotSafe,
-                        ing.rating === 'caution' && styles.ingredientDotCaution,
-                        ing.rating === 'concern' && styles.ingredientDotConcern,
-                      ]}
-                    />
-                    <Text style={styles.ingredientName}>{ing.name}</Text>
-                    <ChevronRight color={palette.textMuted} size={16} />
-                  </TouchableOpacity>
-                ))}
+                {filteredIngredientData.length === 0 ? (
+                  <View style={styles.emptyFilterState}>
+                    <Text style={styles.emptyFilterText}>
+                      {ingredientFilter === 'beneficial' 
+                        ? 'No beneficial ingredients found'
+                        : 'No ingredients with concerns found'}
+                    </Text>
+                  </View>
+                ) : (
+                  filteredIngredientData.map((ing, index) => {
+                    const isSelected = selectedIngredient === ing.name;
+                    const education = getIngredientEducation(ing.name);
+                    
+                    return (
+                      <View key={index}>
+                        <TouchableOpacity
+                          style={styles.ingredientItem}
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            setSelectedIngredient(isSelected ? null : ing.name);
+                            if (Platform.OS !== 'web') {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            }
+                          }}
+                        >
+                          <View
+                            style={[
+                              styles.ingredientDot,
+                              ing.rating === 'safe' && styles.ingredientDotSafe,
+                              ing.rating === 'caution' && styles.ingredientDotCaution,
+                              ing.rating === 'concern' && styles.ingredientDotConcern,
+                            ]}
+                          />
+                          <Text style={styles.ingredientName}>{ing.name}</Text>
+                          <ChevronRight 
+                            color={palette.textMuted} 
+                            size={16}
+                            style={{
+                              transform: [{ rotate: isSelected ? '90deg' : '0deg' }],
+                            }}
+                          />
+                        </TouchableOpacity>
+                        
+                        {/* Expanded Ingredient Details */}
+                        {isSelected && education && (
+                          <Animated.View
+                            style={[
+                              styles.ingredientDetailCard,
+                              {
+                                opacity: fadeAnim,
+                              },
+                            ]}
+                          >
+                            <Text style={styles.ingredientDetailText}>
+                              {education.detailedExplanation}
+                            </Text>
+                            
+                            {education.benefits.length > 0 && (
+                              <View style={styles.ingredientDetailSection}>
+                                <View style={styles.ingredientDetailHeader}>
+                                  <Sparkles color={palette.success} size={16} />
+                                  <Text style={styles.ingredientDetailSectionTitle}>BENEFITS</Text>
+                                </View>
+                                <View style={styles.ingredientTags}>
+                                  {education.benefits.map((benefit, i) => (
+                                    <View key={i} style={styles.ingredientTag}>
+                                      <Text style={styles.ingredientTagText}>{benefit}</Text>
+                                    </View>
+                                  ))}
+                                </View>
+                              </View>
+                            )}
+                            
+                            {education.function.length > 0 && (
+                              <View style={styles.ingredientDetailSection}>
+                                <View style={styles.ingredientDetailHeader}>
+                                  <Info color={palette.textSecondary} size={16} />
+                                  <Text style={styles.ingredientDetailSectionTitle}>FUNCTION</Text>
+                                </View>
+                                <View style={styles.ingredientTags}>
+                                  {education.function.map((func, i) => (
+                                    <View key={i} style={[styles.ingredientTag, styles.ingredientTagNeutral]}>
+                                      <Text style={[styles.ingredientTagText, styles.ingredientTagTextNeutral]}>
+                                        {func}
+                                      </Text>
+                                    </View>
+                                  ))}
+                                </View>
+                              </View>
+                            )}
+                            
+                            {education.safetyNotes && (
+                              <View style={styles.ingredientSafetyNote}>
+                                <AlertCircle color={palette.warning || '#F59E0B'} size={16} />
+                                <Text style={styles.ingredientSafetyText}>{education.safetyNotes}</Text>
+                              </View>
+                            )}
+                          </Animated.View>
+                        )}
+                      </View>
+                    );
+                  })
+                )}
               </View>
             </View>
           </View>
         ) : (
           <View style={styles.tabContent}>
-            {/* Match Score */}
-            <View style={styles.matchScoreSection}>
-              <View style={styles.matchScoreCircle}>
-                <LinearGradient
-                  colors={product.matchScore >= 80 ? ['#10B981', '#059669'] : ['#F59E0B', '#D97706']}
-                  style={styles.matchScoreGradient}
+            {/* Personalized Match Score */}
+            {personalizedMatch ? (
+              <>
+                <Animated.View 
+                  style={[
+                    styles.matchScoreSection,
+                    {
+                      opacity: matchScoreAnim,
+                      transform: [
+                        {
+                          scale: matchScoreAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.8, 1],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
                 >
-                  <Text style={styles.matchScoreNumber}>{product.matchScore}%</Text>
-                </LinearGradient>
-              </View>
-              <Text style={styles.matchScoreLabel}>MATCH SCORE</Text>
-            </View>
+                  <View style={styles.matchScoreCircle}>
+                    <LinearGradient
+                      colors={
+                        personalizedMatch.score >= 80 ? ['#10B981', '#059669'] :
+                        personalizedMatch.score >= 60 ? ['#3B82F6', '#2563EB'] :
+                        personalizedMatch.score >= 40 ? ['#F59E0B', '#D97706'] :
+                        ['#EF4444', '#DC2626']
+                      }
+                      style={styles.matchScoreGradient}
+                    >
+                      <Animated.Text 
+                        style={[
+                          styles.matchScoreNumber,
+                          {
+                            transform: [
+                              {
+                                scale: matchScoreAnim.interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [0.5, 1],
+                                }),
+                              },
+                            ],
+                          },
+                        ]}
+                      >
+                        {personalizedMatch.score}%
+                      </Animated.Text>
+                    </LinearGradient>
+                  </View>
+                  <Text style={styles.matchScoreLabel}>YOUR SKIN MATCH</Text>
+                  <Text style={styles.matchScoreSubtext}>
+                    Based on your {currentResult?.skinType || 'skin'} analysis
+                  </Text>
+                </Animated.View>
 
-            {/* Match Summary */}
-            {analysis && (
-              <View style={styles.matchSummary}>
-                <View style={styles.matchSummaryCard}>
-                  <Info color={palette.success} size={20} />
-                  <View style={styles.matchSummaryText}>
-                    <Text style={styles.matchSummaryTitle}>
-                      {product.matchScore >= 80 ? "It's a good match!" : "Moderate match"}
-                    </Text>
-                    <Text style={styles.matchSummaryDescription}>
-                      {analysis.efficacy.reasoning || 'This product matches your skin type and concerns.'}
-                    </Text>
+                {/* Personalized Match Summary */}
+                <View style={styles.matchSummary}>
+                  <View style={[
+                    styles.matchSummaryCard,
+                    personalizedMatch.score >= 80 && styles.matchSummaryCardExcellent,
+                    personalizedMatch.score >= 60 && personalizedMatch.score < 80 && styles.matchSummaryCardGood,
+                    personalizedMatch.score >= 40 && personalizedMatch.score < 60 && styles.matchSummaryCardModerate,
+                    personalizedMatch.score < 40 && styles.matchSummaryCardPoor,
+                  ]}>
+                    <Info 
+                      color={
+                        personalizedMatch.score >= 80 ? palette.success :
+                        personalizedMatch.score >= 60 ? palette.primary :
+                        personalizedMatch.score >= 40 ? palette.warning || '#F59E0B' :
+                        palette.error || '#EF4444'
+                      } 
+                      size={20} 
+                    />
+                    <View style={styles.matchSummaryText}>
+                      <Text style={styles.matchSummaryTitle}>
+                        {personalizedMatch.score >= 80 ? "Excellent match for your skin! ✨" :
+                         personalizedMatch.score >= 60 ? "Good match for your skin" :
+                         personalizedMatch.score >= 40 ? "Moderate match - use with caution" :
+                         "Not ideal for your skin type"}
+                      </Text>
+                      <Text style={styles.matchSummaryDescription}>
+                        {personalizedMatch.worksForConcerns.length > 0
+                          ? `Contains ${personalizedMatch.worksForConcerns.join(', ')} which address your skin concerns.`
+                          : analysis?.efficacy.reasoning || 'Review ingredients and warnings below.'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
+
+                {/* Works for Your Concerns */}
+                {personalizedMatch.benefits.length > 0 && (
+                  <View style={styles.benefitsSection}>
+                    <Text style={styles.sectionTitle}>✅ Works for Your Skin</Text>
+                    {personalizedMatch.benefits.map((benefit, index) => (
+                      <View key={index} style={styles.benefitCard}>
+                        <CheckCircle color={palette.success} size={18} />
+                        <Text style={styles.benefitCardText}>{benefit}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Personalized Warnings */}
+                {personalizedMatch.warnings.length > 0 && (
+                  <View style={styles.warningsSection}>
+                    <Text style={styles.warningsTitle}>⚠️ Important for Your Skin Type</Text>
+                    {personalizedMatch.warnings.map((warning, index) => (
+                      <View key={index} style={styles.warningCard}>
+                        <AlertCircle color={palette.warning || '#F59E0B'} size={18} />
+                        <View style={styles.warningContent}>
+                          <Text style={styles.warningTitle}>{warning}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Fallback to generic match if no user analysis */}
+                <View style={styles.matchScoreSection}>
+                  <View style={styles.matchScoreCircle}>
+                    <LinearGradient
+                      colors={product.matchScore >= 80 ? ['#10B981', '#059669'] : ['#F59E0B', '#D97706']}
+                      style={styles.matchScoreGradient}
+                    >
+                      <Text style={styles.matchScoreNumber}>{product.matchScore}%</Text>
+                    </LinearGradient>
+                  </View>
+                  <Text style={styles.matchScoreLabel}>MATCH SCORE</Text>
+                  {!currentResult && (
+                    <Text style={styles.matchScoreSubtext}>
+                      Complete a skin analysis for personalized match
+                    </Text>
+                  )}
+                </View>
+
+                {analysis && (
+                  <View style={styles.matchSummary}>
+                    <View style={styles.matchSummaryCard}>
+                      <Info color={palette.success} size={20} />
+                      <View style={styles.matchSummaryText}>
+                        <Text style={styles.matchSummaryTitle}>
+                          {product.matchScore >= 80 ? "It's a good match!" : "Moderate match"}
+                        </Text>
+                        <Text style={styles.matchSummaryDescription}>
+                          {analysis.efficacy.reasoning || 'This product matches your skin type and concerns.'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </>
             )}
 
             {/* How It Affects Your Skin */}
             {analysis?.actives && analysis.actives.length > 0 && (
               <View style={styles.effectsSection}>
-                <Text style={styles.effectsTitle}>How it affects your skin</Text>
-                {analysis.actives.map((active, index) => (
-                  <View key={index} style={styles.effectCard}>
-                    <CheckCircle color={palette.success} size={20} />
-                    <View style={styles.effectContent}>
-                      <Text style={styles.effectTitle}>
-                        Addresses {active.conditions.join(' & ')}
-                      </Text>
-                      <Text style={styles.effectDescription}>
-                        Benefits: {active.conditions.map(c => c.toLowerCase()).join(', ')}
-                      </Text>
-                      <Text style={styles.effectIngredients}>
-                        Active ingredient: {active.name} ({active.effectiveness} efficacy)
-                      </Text>
+                <Text style={styles.effectsTitle}>
+                  {personalizedMatch ? 'Active Ingredients & Your Skin' : 'How it affects your skin'}
+                </Text>
+                {analysis.actives.map((active, index) => {
+                  // Check if this active addresses user's concerns
+                  const addressesUserConcern = personalizedMatch?.worksForConcerns.includes(active.name) || false;
+                  
+                  return (
+                    <View key={index} style={[
+                      styles.effectCard,
+                      addressesUserConcern && styles.effectCardHighlighted
+                    ]}>
+                      {addressesUserConcern ? (
+                        <CheckCircle color={palette.success} size={20} fill={palette.success} />
+                      ) : (
+                        <CheckCircle color={palette.textMuted} size={20} />
+                      )}
+                      <View style={styles.effectContent}>
+                        <Text style={styles.effectTitle}>
+                          {active.name}
+                          {addressesUserConcern && (
+                            <Text style={styles.effectBadge}> • Works for you</Text>
+                          )}
+                        </Text>
+                        <Text style={styles.effectDescription}>
+                          Addresses: {active.conditions.map(c => c.toLowerCase()).join(', ')}
+                        </Text>
+                        <Text style={styles.effectIngredients}>
+                          Efficacy: {active.effectiveness} • {active.efficacy.proven ? 'Proven ingredient' : 'Limited evidence'}
+                        </Text>
+                      </View>
+                      <ChevronRight color={palette.textMuted} size={18} />
                     </View>
-                    <ChevronRight color={palette.textMuted} size={18} />
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             )}
 
@@ -431,29 +924,57 @@ export default function ProductDetailsScreen() {
         )}
 
         {/* Buy Online Button */}
-        <TouchableOpacity
-          style={styles.buyButton}
-          onPress={() => {
-            // Open Amazon affiliate link directly - no prompts, no delays
-            const affiliateUrl = product.tiers.medium.affiliateUrl; // Use medium tier (best value)
-            
-            if (affiliateUrl) {
-              // Track the affiliate tap (fire and forget - don't wait)
-              trackAffiliateTap(product.id, affiliateUrl).catch(console.error);
-              
-              // Open immediately without checking
-              Linking.openURL(affiliateUrl).catch((error) => {
-                console.error('Error opening affiliate link:', error);
-              });
-              
-              // Haptic feedback
-              if (Platform.OS !== 'web') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              }
-            }
-          }}
-          activeOpacity={0.9}
+        <Animated.View
+          style={[
+            styles.buyButtonContainer,
+            {
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
         >
+          <TouchableOpacity
+            style={styles.buyButton}
+            onPress={() => {
+              // Animate button press
+              Animated.sequence([
+                Animated.timing(scaleAnim, {
+                  toValue: 0.95,
+                  duration: 100,
+                  useNativeDriver: true,
+                }),
+                Animated.spring(scaleAnim, {
+                  toValue: 1,
+                  tension: 300,
+                  friction: 10,
+                  useNativeDriver: true,
+                }),
+              ]).start();
+
+              // Open Amazon affiliate link directly - no prompts, no delays
+              const affiliateUrl = product.tiers?.medium?.affiliateUrl || product.affiliateUrl;
+              
+              if (affiliateUrl) {
+                // Track the affiliate tap (fire and forget - don't wait)
+                trackAffiliateTap(product.id, affiliateUrl).catch(console.error);
+                
+                // Open immediately without checking
+                Linking.openURL(affiliateUrl).catch((error) => {
+                  console.error('Error opening affiliate link:', error);
+                });
+                
+                // Haptic feedback
+                if (Platform.OS !== 'web') {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }
+              } else {
+                // Fallback if no affiliate URL
+                if (Platform.OS !== 'web') {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                }
+              }
+            }}
+            activeOpacity={0.9}
+          >
           <LinearGradient
             colors={['#1A1A1A', '#000000']}
             style={styles.buyButtonGradient}
@@ -463,7 +984,9 @@ export default function ProductDetailsScreen() {
             <ExternalLink color="#FFFFFF" size={18} />
           </LinearGradient>
         </TouchableOpacity>
+        </Animated.View>
       </ScrollView>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -501,6 +1024,9 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   headerButton: {
     padding: 4,
+  },
+  scrollContainer: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
@@ -563,9 +1089,13 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     borderRadius: 20,
     backgroundColor: palette.surfaceAlt,
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
   tabActive: {
     backgroundColor: palette.success,
+    borderColor: palette.success,
+    ...shadow.soft,
   },
   tabText: {
     fontSize: 14,
@@ -766,12 +1296,14 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     paddingVertical: 20,
   },
   matchScoreCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     overflow: 'hidden',
     marginBottom: 12,
-    ...shadow.medium,
+    ...shadow.elevated,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   matchScoreGradient: {
     width: '100%',
@@ -780,10 +1312,13 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     alignItems: 'center',
   },
   matchScoreNumber: {
-    fontSize: 36,
+    fontSize: 42,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: -2,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   matchScoreLabel: {
     fontSize: 12,
@@ -791,6 +1326,12 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     color: palette.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  matchScoreSubtext: {
+    fontSize: 11,
+    color: palette.textMuted,
+    marginTop: 4,
+    textAlign: 'center',
   },
   matchSummary: {
     marginBottom: 24,
@@ -803,6 +1344,22 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(16, 185, 129, 0.2)',
+  },
+  matchSummaryCardExcellent: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  matchSummaryCardGood: {
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  matchSummaryCardModerate: {
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  matchSummaryCardPoor: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   matchSummaryText: {
     flex: 1,
@@ -838,6 +1395,11 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     borderWidth: 1,
     borderColor: 'rgba(16, 185, 129, 0.2)',
   },
+  effectCardHighlighted: {
+    backgroundColor: 'rgba(16, 185, 129, 0.05)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    borderWidth: 2,
+  },
   effectContent: {
     flex: 1,
   },
@@ -846,6 +1408,11 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontWeight: '700',
     color: palette.textPrimary,
     marginBottom: 4,
+  },
+  effectBadge: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.success,
   },
   effectDescription: {
     fontSize: 13,
@@ -856,6 +1423,144 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontSize: 12,
     color: palette.textMuted,
     fontStyle: 'italic',
+  },
+  effectBadge: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.success,
+  },
+  productImpactCard: {
+    backgroundColor: 'rgba(16, 185, 129, 0.05)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
+  },
+  productImpactText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: palette.textPrimary,
+    fontWeight: '500',
+  },
+  ingredientDetailCard: {
+    backgroundColor: palette.surfaceAlt,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  ingredientDetailText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: palette.textPrimary,
+    marginBottom: 16,
+  },
+  ingredientDetailSection: {
+    marginTop: 16,
+  },
+  ingredientDetailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  ingredientDetailSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  ingredientTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  ingredientTag: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
+  },
+  ingredientTagNeutral: {
+    backgroundColor: palette.surfaceAlt,
+    borderColor: palette.border,
+  },
+  ingredientTagText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: palette.success,
+  },
+  ingredientTagTextNeutral: {
+    color: palette.textPrimary,
+  },
+  ingredientSafetyNote: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.2)',
+  },
+  ingredientSafetyText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: palette.textPrimary,
+    fontWeight: '500',
+  },
+  activeDetailCard: {
+    backgroundColor: palette.surfaceAlt,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  activeDetailText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: palette.textPrimary,
+    marginBottom: 12,
+  },
+  activeDetailSection: {
+    marginTop: 12,
+  },
+  activeDetailSectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: palette.textPrimary,
+    marginBottom: 6,
+  },
+  activeDetailSectionText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: palette.textSecondary,
+  },
+  activeSafetyNote: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.2)',
+  },
+  activeSafetyText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: palette.textPrimary,
+    fontWeight: '500',
   },
   warningsSection: {
     marginBottom: 24,
@@ -871,8 +1576,11 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     gap: 12,
     backgroundColor: palette.overlayError,
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+    ...shadow.soft,
   },
   warningContent: {
     flex: 1,
@@ -887,9 +1595,11 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
     fontSize: 12,
     color: palette.textSecondary,
   },
-  buyButton: {
+  buyButtonContainer: {
     marginHorizontal: 20,
     marginTop: 20,
+  },
+  buyButton: {
     borderRadius: 16,
     overflow: 'hidden',
     ...shadow.medium,
