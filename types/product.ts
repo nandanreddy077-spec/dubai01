@@ -56,6 +56,7 @@ export interface ProductRecommendation {
   imageUrl?: string;
   brand?: string;
   affiliateUrl?: string;
+  amazonAsin?: string; // ASIN for direct product deep linking
   price?: string;
   personalReason?: string;
   whyForYou?: string[];

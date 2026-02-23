@@ -70,6 +70,17 @@ export async function analyzeImageWithVision(
     if (error) {
       console.error('❌ Vision Edge Function error:', error);
       console.error('Error details:', JSON.stringify(error, null, 2));
+      
+      // Check if it's a network/connection error
+      if (error.message?.includes('Failed to send a request') || 
+          error.name === 'FunctionsFetchError') {
+        console.warn('⚠️ Edge Function appears to be unavailable. This could mean:');
+        console.warn('  1. The Edge Function is not deployed');
+        console.warn('  2. Network connectivity issues');
+        console.warn('  3. Supabase project configuration issue');
+        throw new Error('Vision service is currently unavailable. Please check your network connection and try again.');
+      }
+      
       throw new Error(error.message || 'Failed to analyze image');
     }
 

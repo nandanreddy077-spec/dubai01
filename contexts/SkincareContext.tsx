@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
-import { SkincarePlan, PlanTemplate } from '@/types/skincare';
+import { SkincarePlan, PlanTemplate, SkincareStep } from '@/types/skincare';
 import { AnalysisResult } from './AnalysisContext';
 import { Platform } from 'react-native';
 
@@ -44,6 +44,7 @@ interface SkincareContextType {
   deletePlan: (planId: string) => Promise<void>;
   activatePlan: (planId: string) => Promise<void>;
   deactivatePlan: (planId: string) => Promise<void>;
+  addCustomStep: (planId: string, step: Omit<SkincareStep, 'id' | 'order'> & { timeOfDay: 'morning' | 'evening' | 'both' }) => Promise<void>;
   canAddMorePlans: boolean;
   isGenerating: boolean;
 }
@@ -932,6 +933,81 @@ export const [SkincareProvider, useSkincare] = createContextHook((): SkincareCon
     }
   }, [planHistory, activePlans, currentPlan]);
 
+  const addCustomStep = useCallback(async (
+    planId: string,
+    stepData: Omit<SkincareStep, 'id' | 'order'> & { timeOfDay: 'morning' | 'evening' | 'both' }
+  ) => {
+    try {
+      const plan = planHistory.find(p => p.id === planId);
+      if (!plan) {
+        throw new Error('Plan not found');
+      }
+
+      const currentWeek = Math.ceil((plan.progress.currentDay || 1) / 7);
+      const currentWeekPlan = plan.weeklyPlans.find(w => w.week === currentWeek);
+      
+      if (!currentWeekPlan) {
+        throw new Error('Current week plan not found');
+      }
+
+      // Find the highest order number for the time of day
+      const existingSteps = currentWeekPlan.steps.filter(s => {
+        if (stepData.timeOfDay === 'morning') {
+          return s.timeOfDay === 'morning' || s.timeOfDay === 'both';
+        } else if (stepData.timeOfDay === 'evening') {
+          return s.timeOfDay === 'evening' || s.timeOfDay === 'both';
+        }
+        return true;
+      });
+      
+      const maxOrder = existingSteps.length > 0 
+        ? Math.max(...existingSteps.map(s => s.order))
+        : 0;
+
+      const newStep: SkincareStep = {
+        ...stepData,
+        id: `custom_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+        order: maxOrder + 1,
+        frequency: stepData.frequency || 'daily',
+        instructions: stepData.instructions || [],
+        benefits: stepData.benefits || [],
+      };
+
+      const updatedWeekPlan = {
+        ...currentWeekPlan,
+        steps: [...currentWeekPlan.steps, newStep].sort((a, b) => a.order - b.order)
+      };
+
+      const updatedPlan = {
+        ...plan,
+        weeklyPlans: plan.weeklyPlans.map(w => 
+          w.week === currentWeek ? updatedWeekPlan : w
+        ),
+        lastAccessedAt: Date.now()
+      };
+
+      const updatedHistory = planHistory.map(p => 
+        p.id === planId ? updatedPlan : p
+      );
+      
+      const updatedActivePlans = activePlans.map(p => 
+        p.id === planId ? updatedPlan : p
+      );
+
+      setPlanHistory(updatedHistory);
+      setActivePlans(updatedActivePlans);
+      
+      if (currentPlan?.id === planId) {
+        setCurrentPlan(updatedPlan);
+      }
+
+      await storage.setItem(STORAGE_KEY, JSON.stringify(updatedHistory));
+    } catch (error) {
+      console.error('Error adding custom step:', error);
+      throw error;
+    }
+  }, [planHistory, activePlans, currentPlan]);
+
   return useMemo(() => ({
     currentPlan,
     setCurrentPlan,
@@ -945,7 +1021,8 @@ export const [SkincareProvider, useSkincare] = createContextHook((): SkincareCon
     deletePlan,
     activatePlan,
     deactivatePlan,
+    addCustomStep,
     canAddMorePlans,
     isGenerating
-  }), [currentPlan, activePlans, planHistory, savePlan, updatePlanProgress, generateCustomPlan, getPresetPlans, createPlanFromTemplate, deletePlan, activatePlan, deactivatePlan, canAddMorePlans, isGenerating]);
+  }), [currentPlan, activePlans, planHistory, savePlan, updatePlanProgress, generateCustomPlan, getPresetPlans, createPlanFromTemplate, deletePlan, activatePlan, deactivatePlan, addCustomStep, canAddMorePlans, isGenerating]);
 });

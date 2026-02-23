@@ -2,7 +2,7 @@
   "expo": {
     "name": "Glow Check",
     "slug": "glowcheck01-app",
-    "version": "1.0.2",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "glowcheck",
@@ -16,10 +16,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.glowcheck01.app",
-      "buildNumber": "7",
+      "buildNumber": "10",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos",
-        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera",
+        "NSCameraUsageDescription": "Glow Check uses your camera to capture facial photos for AI-powered skincare analysis. We analyze your photos to assess skin quality, detect concerns like acne or fine lines, calculate beauty scores, and provide personalized skincare product recommendations. For example, when you take a photo, we use it to evaluate your skin's hydration level, texture, and overall glow, then recommend products that match your specific skin needs. Photos are processed securely and used solely for analysis within the app.",
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone",
         "CFBundleAllowMixedLocalizations": true,
         "CFBundleLocalizations": [
@@ -85,12 +85,8 @@
       [
         "expo-notifications",
         {
-          "icon": "./local/assets/notification_icon.png",
           "color": "#ffffff",
           "defaultChannel": "default",
-          "sounds": [
-            "./local/assets/notification_sound.wav"
-          ],
           "enableBackgroundRemoteNotifications": false
         }
       ],

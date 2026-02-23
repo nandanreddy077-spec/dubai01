@@ -8,6 +8,7 @@ import {
   StatusBar,
   Dimensions,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,6 +27,7 @@ import {
   Calendar,
   ShoppingBag,
   Flame,
+  Package,
 } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useUser } from "@/contexts/UserContext";
@@ -41,6 +43,7 @@ import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { Lock } from "lucide-react-native";
 import Logo from "@/components/Logo";
+import BlurredProductCard from "@/components/BlurredProductCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_PADDING = 20;
@@ -59,9 +62,11 @@ export default function SimpleHomeScreen() {
   const { currentPlan, activePlans } = useSkincare();
   const { hasCompletedToday, hasCompletedForPlanDay, dailyCompletions } = useGamification();
   const { analysisHistory, loadHistory, currentResult } = useAnalysis();
-  const { recommendations, products } = useProducts();
-  const { state: subscriptionState } = useSubscription();
-  const isPremium = subscriptionState.isPremium;
+  const { recommendations, products, isLoadingRecommendations, generateRecommendations } = useProducts();
+  const subscription = useSubscription();
+  const { state: subscriptionState } = subscription || {};
+  const isPremium = subscriptionState?.isPremium || false;
+  const isFreeUser = !isPremium && (subscriptionState?.scanCount || 0) >= 1;
   
   const currentStreak = user?.stats.dayStreak || 0;
   const totalScans = user?.stats.analyses || 0;
@@ -559,27 +564,33 @@ export default function SimpleHomeScreen() {
           )}
 
           {/* Product Recommendations - Moved to Bottom */}
-          {recommendations && recommendations.length > 0 && (
-            <View style={styles.recommendationsSection}>
-              <View style={styles.recommendationsHeader}>
+          <View style={styles.recommendationsSection}>
+            <View style={styles.recommendationsHeader}>
+              <View style={styles.recommendationsTitleContainer}>
+                <Sparkles size={20} color={palette.primary} style={styles.titleIcon} />
                 <Text style={styles.recommendationsTitle}>Your Top Matches</Text>
-                {recommendations.length > 5 && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      // Navigate to analysis results to see all products
-                      if (analysisHistory && analysisHistory.length > 0) {
-                        router.push('/analysis-results');
-                      } else {
-                        router.push('/(tabs)/glow-analysis');
-                      }
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.seeAllButton}>See All</Text>
-                  </TouchableOpacity>
-                )}
               </View>
-          
+              {recommendations && recommendations.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => {
+                    // Navigate to dedicated all recommendations screen
+                    router.push('/all-recommendations');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.seeAllButton}>
+                    {recommendations.length > 5 ? 'See All' : `View All ${recommendations.length}`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {isLoadingRecommendations ? (
+              <View style={styles.recommendationsLoading}>
+                <ActivityIndicator size="small" color={palette.primary} />
+                <Text style={styles.loadingText}>Finding your perfect matches...</Text>
+              </View>
+            ) : recommendations && recommendations.length > 0 ? (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -588,72 +599,108 @@ export default function SimpleHomeScreen() {
                 decelerationRate="fast"
               >
                 {recommendations.slice(0, 5).map((rec, index) => {
-                  const isLocked = !isPremium && index >= 1;
+                  // Free users: only first product visible, rest blurred
+                  const isLocked = isFreeUser && index >= 1;
                   const matchScore = rec.matchScore || 0;
+                  
+                  if (isLocked) {
+                    // Show blurred card for free users
+                    return (
+                      <BlurredProductCard
+                        key={rec.id}
+                        onUnlock={() => {
+                          // Show paywall
+                          router.push('/subscribe');
+                        }}
+                        matchScore={matchScore}
+                        brand={rec.brand}
+                        name={rec.stepName || rec.description || 'Product Recommendation'}
+                        imageUrl={rec.imageUrl}
+                      />
+                    );
+                  }
                   
                   return (
                     <TouchableOpacity
                       key={rec.id}
-                      style={[
-                        styles.productCard,
-                        isLocked && styles.productCardLocked,
-                      ]}
+                      style={styles.productCard}
                       onPress={() => {
-                        if (isLocked) {
-                          router.push('/beauty-membership');
-                        } else {
-                          router.push({
-                            pathname: '/product-details',
-                            params: { id: rec.id },
-                          });
-                        }
+                        router.push({
+                          pathname: '/product-details',
+                          params: { id: rec.id },
+                        });
                       }}
                       activeOpacity={0.9}
                     >
-                      {isLocked ? (
-                        <View style={styles.lockedCardContent}>
-                          <View style={styles.lockIconWrapper}>
-                            <Lock color={palette.textSecondary} size={32} />
-                  </View>
-                          <Text style={styles.lockedCardTitle}>UNLOCK PRODUCT</Text>
-                          <Text style={styles.lockedCardSubtitle}>with Premium</Text>
-              </View>
-                      ) : (
-                        <>
-                          {/* Match Badge */}
-                          <View style={styles.matchBadge}>
-                            <Text style={styles.matchBadgeText}>{matchScore}%</Text>
-                </View>
-                          
-                          {/* Product Image */}
-                          <View style={styles.productImageContainer}>
-                            <Image
-                              source={{ uri: rec.imageUrl || 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80' }}
-                              style={styles.productImage}
-                              contentFit="cover"
-                              transition={200}
-                            />
-              </View>
-                          
-                          {/* Product Info */}
-                          <View style={styles.productInfo}>
-                            {rec.brand && (
-                              <Text style={styles.productBrand} numberOfLines={1}>
-                                {rec.brand.toUpperCase()}
-                              </Text>
-                            )}
-                            <Text style={styles.productName} numberOfLines={2}>
-                              {rec.stepName || rec.description || 'Product Recommendation'}
-                            </Text>
+                      {/* Match Badge */}
+                      <View style={styles.matchBadge}>
+                        <Text style={styles.matchBadgeText}>{matchScore}%</Text>
+                      </View>
+                      
+                      {/* Product Image */}
+                      <View style={styles.productImageContainer}>
+                        {rec.imageUrl ? (
+                          <Image
+                            source={{ uri: rec.imageUrl }}
+                            style={styles.productImage}
+                            contentFit="cover"
+                            transition={200}
+                          />
+                        ) : (
+                          <View style={styles.productImagePlaceholder}>
+                            <Package color={palette.textSecondary} size={32} />
+                            <Text style={styles.productImagePlaceholderText}>No Image</Text>
                           </View>
-                        </>
-                      )}
+                        )}
+                      </View>
+                      
+                      {/* Product Info */}
+                      <View style={styles.productInfo}>
+                        {rec.brand && (
+                          <Text style={styles.productBrand} numberOfLines={1}>
+                            {rec.brand.toUpperCase()}
+                          </Text>
+                        )}
+                        <Text style={styles.productName} numberOfLines={2}>
+                          {rec.stepName || rec.description || 'Product Recommendation'}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
               </ScrollView>
-            </View>
-          )}
+            ) : currentResult ? (
+              <View style={styles.recommendationsEmpty}>
+                <ShoppingBag size={32} color={palette.textSecondary} />
+                <Text style={styles.emptyTitle}>No recommendations yet</Text>
+                <Text style={styles.emptySubtitle}>We're analyzing your skin to find perfect matches</Text>
+                <TouchableOpacity
+                  style={styles.generateButton}
+                  onPress={async () => {
+                    if (generateRecommendations && currentResult) {
+                      await generateRecommendations(currentResult);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.generateButtonText}>Generate Recommendations</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.recommendationsEmpty}>
+                <Camera size={32} color={palette.textSecondary} />
+                <Text style={styles.emptyTitle}>Get personalized recommendations</Text>
+                <Text style={styles.emptySubtitle}>Scan your skin to see products matched to your unique needs</Text>
+                <TouchableOpacity
+                  style={styles.generateButton}
+                  onPress={() => router.push('/(tabs)/glow-analysis')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.generateButtonText}>Scan Your Skin</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </Animated.View>
       </ScrollView>
     </SafeAreaView>
@@ -1042,18 +1089,75 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   },
   recommendationsSection: {
     marginBottom: 20,
+    marginTop: 8,
   },
   recommendationsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingHorizontal: CARD_PADDING,
+  },
+  recommendationsTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  titleIcon: {
+    marginRight: 4,
   },
   recommendationsTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800' as const,
     color: palette.textPrimary,
     letterSpacing: -0.5,
+  },
+  recommendationsLoading: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: palette.textSecondary,
+    fontWeight: '500' as const,
+  },
+  recommendationsEmpty: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    backgroundColor: palette.surface,
+    borderRadius: 20,
+    marginHorizontal: CARD_PADDING,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: palette.textPrimary,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: palette.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  generateButton: {
+    marginTop: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: palette.primary,
+    borderRadius: 12,
+    ...shadow.soft,
+  },
+  generateButtonText: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
   },
   seeAllButton: {
     fontSize: 15,
@@ -1135,6 +1239,19 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   productImage: {
     width: '100%',
     height: '100%',
+  },
+  productImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: palette.surfaceAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  productImagePlaceholderText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: palette.textMuted,
+    marginTop: 8,
   },
   productInfo: {
     padding: 16,

@@ -49,6 +49,9 @@ interface TipItem {
 export default function GlowAnalysisScreen() {
   const { theme } = useTheme();
   const params = useLocalSearchParams<{ error?: string }>();
+  // IMPORTANT: NO SUBSCRIPTION CHECKS HERE - Camera is ALWAYS available
+  // Users can always take photos regardless of subscription status
+  // Paywall appears on results screen after they see blurred results
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [faceDetected, setFaceDetected] = useState<boolean>(false);
   const [isValidating, setIsValidating] = useState<boolean>(false);
@@ -747,90 +750,174 @@ export default function GlowAnalysisScreen() {
   };
 
   const handleTakePicture = async () => {
+    console.log('📸 handleTakePicture called');
+    console.log('📸 Platform:', Platform.OS);
+    console.log('📸 Permission granted:', permission?.granted);
+    console.log('📸 isLoading:', isLoading);
+    console.log('📸 isValidating:', isValidating);
+    console.log('📸 isCapturingRef:', isCapturingRef.current);
+    console.log('📸 cameraRef exists:', !!cameraRef.current);
+    
     if (Platform.OS === "web") {
       Alert.alert("Camera not available", "Please use upload photo on web.");
       return;
     }
+    
     if (!permission?.granted) {
+      console.log('📸 Requesting camera permission...');
       const result = await requestPermission();
       if (!result.granted) {
         Alert.alert("Permission Required", "Camera permission is required to take photos.");
         return;
       }
+      console.log('📸 Permission granted after request');
     }
 
+    // Prevent concurrent captures
+    if (isCapturingRef.current) {
+      console.log('⏸️ Capture already in progress, skipping...');
+      return;
+    }
+
+    console.log('📸 Starting capture process...');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
     stopFaceDetection();
 
     try {
-      if (cameraRef.current) {
-        const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.9,
-          base64: true,
-        });
-
-        if (photo?.uri) {
-          // Store both URI and base64 for proper processing
-          // Base64 will be used for validation during processing
-          const updatedPhotos = { ...capturedPhotos };
-          if (captureStep === "front") {
-            updatedPhotos.front = photo.uri;
-            // Store base64 if available for later validation
-            if (photo.base64) {
-              // Store base64 in a way that can be passed to analysis
-              // We'll pass it as a data URL
-              const base64DataUrl = `data:image/jpeg;base64,${photo.base64}`;
-              // Store in a ref or pass directly - for now, we'll pass URI and convert during processing
-            }
-          } else if (captureStep === "left") {
-            updatedPhotos.left = photo.uri;
-          } else if (captureStep === "right") {
-            updatedPhotos.right = photo.uri;
-          }
-          setCapturedPhotos(updatedPhotos);
-
-          // Move to next step or complete
-          if (captureStep === "front") {
-            // Move to left profile
-            setCaptureStep("left");
-            setIsLoading(false);
-            setFaceStatus("none");
-            setFaceDetected(false);
-            startFaceDetection();
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          } else if (captureStep === "left") {
-            // Move to right profile
-            setCaptureStep("right");
-            setIsLoading(false);
-            setFaceStatus("none");
-            setFaceDetected(false);
-            startFaceDetection();
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          } else {
-            // All photos captured, proceed to analysis
-            const params: any = {
-              frontImage: updatedPhotos.front,
-              multiAngle: "true",
-            };
-            if (updatedPhotos.left) params.leftImage = updatedPhotos.left;
-            if (updatedPhotos.right) params.rightImage = updatedPhotos.right;
-
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            router.push({
-              pathname: "/analysis-loading",
-              params,
-            });
-          }
-        } else {
-          setIsLoading(false);
-          startFaceDetection();
-        }
+      if (!cameraRef.current) {
+        console.error('❌ Camera ref is null!');
+        throw new Error('Camera not available. Please try again.');
       }
-    } catch (err) {
-      console.error("Error taking photo:", err);
+
+      // Check if camera is still mounted
+      if (!isMountedRef.current) {
+        console.log('⏸️ Component unmounted, aborting capture');
+        setIsLoading(false);
+        return;
+      }
+
+      isCapturingRef.current = true;
+      console.log('📸 Calling takePictureAsync...');
+
+      // Try capture with error handling
+      let photo;
+      try {
+        photo = await cameraRef.current.takePictureAsync({
+          quality: 0.9,
+          base64: true,
+          skipProcessing: false, // Enable processing for better compatibility
+        });
+        console.log('📸 Photo captured successfully:', !!photo, 'URI:', photo?.uri);
+      } catch (captureError: any) {
+        console.error('❌ Camera capture error:', captureError);
+        throw new Error(`Camera capture failed: ${captureError?.message || 'Unknown error'}. Please ensure no other app is using the camera and try again.`);
+      }
+
+      isCapturingRef.current = false;
+
+      // Check if still mounted after async operation
+      if (!isMountedRef.current) {
+        console.log('⏸️ Component unmounted after capture');
+        return;
+      }
+
+      if (!photo?.uri) {
+        throw new Error('Photo capture failed - no image URI returned');
+      }
+
+      // Store both URI and base64 for proper processing
+      // Base64 will be used for validation during processing
+      const updatedPhotos = { ...capturedPhotos };
+      if (captureStep === "front") {
+        updatedPhotos.front = photo.uri;
+        // Store base64 if available for later validation
+        if (photo.base64) {
+          // Store base64 in a way that can be passed to analysis
+          // We'll pass it as a data URL
+          const base64DataUrl = `data:image/jpeg;base64,${photo.base64}`;
+          // Store in a ref or pass directly - for now, we'll pass URI and convert during processing
+        }
+      } else if (captureStep === "left") {
+        updatedPhotos.left = photo.uri;
+      } else if (captureStep === "right") {
+        updatedPhotos.right = photo.uri;
+      }
+      setCapturedPhotos(updatedPhotos);
+
+      // Move to next step or complete
+      if (captureStep === "front") {
+        // Move to left profile
+        setCaptureStep("left");
+        setIsLoading(false);
+        setFaceStatus("none");
+        setFaceDetected(false);
+        startFaceDetection();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else if (captureStep === "left") {
+        // Move to right profile
+        setCaptureStep("right");
+        setIsLoading(false);
+        setFaceStatus("none");
+        setFaceDetected(false);
+        startFaceDetection();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        // All photos captured, proceed to analysis
+        const params: any = {
+          frontImage: updatedPhotos.front,
+          multiAngle: "true",
+        };
+        if (updatedPhotos.left) params.leftImage = updatedPhotos.left;
+        if (updatedPhotos.right) params.rightImage = updatedPhotos.right;
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        router.push({
+          pathname: "/analysis-loading",
+          params,
+        });
+      }
+    } catch (err: any) {
+      isCapturingRef.current = false;
+      console.error("❌ Error taking photo:", err);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Error", "Failed to take photo. Please try again.");
+      
+      const errorMessage = err?.message || 'Unknown error occurred';
+      const isPermissionError = errorMessage.includes('permission') || errorMessage.includes('Permission');
+      const isCameraBusyError = errorMessage.includes('busy') || errorMessage.includes('in use') || errorMessage.includes('Image could not be captured');
+      
+      if (isPermissionError) {
+        Alert.alert(
+          'Camera Permission Required',
+          'Please enable camera permissions in your device settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => requestPermission() }
+          ]
+        );
+      } else if (isCameraBusyError) {
+        Alert.alert(
+          'Camera Error',
+          'The camera is currently unavailable. Please:\n\n• Close other apps using the camera\n• Restart the app\n• Try using upload photo instead',
+          [
+            { text: 'OK' },
+            { 
+              text: 'Upload Photo', 
+              onPress: () => {
+                // User can use upload option
+                setCurrentStep('instructions');
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Camera Error',
+          `Unable to capture photo: ${errorMessage}\n\nPlease try:\n• Closing other camera apps\n• Restarting the app\n• Using upload photo instead`,
+          [{ text: 'OK' }]
+        );
+      }
+      
       setIsLoading(false);
       startFaceDetection();
     }
@@ -1170,14 +1257,18 @@ export default function GlowAnalysisScreen() {
 
               <Animated.View style={{ transform: [{ scale: buttonScaleAnim }] }}>
                 <TouchableOpacity
-                  onPress={handleTakePicture}
+                  onPress={() => {
+                    console.log('📸 Capture button pressed!');
+                    console.log('📸 Button state - isLoading:', isLoading, 'isValidating:', isValidating, 'permission:', permission?.granted);
+                    handleTakePicture();
+                  }}
                   disabled={isLoading || !permission?.granted || isValidating}
                   activeOpacity={0.85}
                   style={[
                     styles.captureOuter,
                     // Always show as enabled (unless actually loading/validating)
-                    !isLoading && !isValidating && styles.captureOuterReady,
-                    (isLoading || isValidating) && styles.captureOuterDisabled,
+                    !isLoading && !isValidating && permission?.granted && styles.captureOuterReady,
+                    (isLoading || isValidating || !permission?.granted) && styles.captureOuterDisabled,
                   ]}
                   testID="capture-button"
                 >

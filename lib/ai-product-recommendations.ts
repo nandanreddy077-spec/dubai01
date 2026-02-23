@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { generateObject } from '@rork-ai/toolkit-sdk';
 import { AnalysisResult } from '@/contexts/AnalysisContext';
 import { ALL_PRODUCTS, findProductsWithIngredients, getProductsByCategory } from '@/lib/products';
 import { type GlobalProduct } from '@/lib/product-database-structure';
 import { type LocationInfo } from '@/lib/location';
+import { parseAIJSON } from './openai-service';
 
 const AIRecommendationSchema = z.object({
   recommendations: z.array(z.object({
@@ -110,12 +110,16 @@ export async function generatePersonalizedRecommendations(
   const skinProfile = buildSkinProfilePrompt(analysisResult);
   const availableProducts = getAvailableProductNames(location);
 
+  const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+
+  // If OpenAI API key is not configured, return empty array to trigger fallback
+  if (!OPENAI_API_KEY || OPENAI_API_KEY === 'your-openai-api-key-here') {
+    console.warn('⚠️ OpenAI API key not configured, skipping AI recommendations (will use rule-based fallback)');
+    return [];
+  }
+
   try {
-    const result = await generateObject({
-      messages: [
-        {
-          role: 'user',
-          content: `You are a board-certified dermatologist with 20 years of experience. Based on this patient's EXACT skin analysis data, recommend the most specific and personalized skincare products from the available database.
+    const prompt = `You are a board-certified dermatologist with 20 years of experience. Based on this patient's EXACT skin analysis data, recommend the most specific and personalized skincare products from the available database.
 
 ${skinProfile}
 
@@ -134,11 +138,87 @@ RULES:
 9. Add a treatment if they have specific concerns like acne, aging signs, or hyperpigmentation
 10. The usageTip should be specific to their skin - e.g. "With your oily T-zone, apply only to dry areas"
 
-Remember: Be specific. Not "great for dry skin" but "your hydration score of 45% with ${analysisResult.skinType} skin means you need multi-weight hyaluronic acid to pull moisture into your dehydrated barrier"`,
-        },
-      ],
-      schema: AIRecommendationSchema,
+Remember: Be specific. Not "great for dry skin" but "your hydration score of 45% with ${analysisResult.skinType} skin means you need multi-weight hyaluronic acid to pull moisture into your dehydrated barrier"
+
+IMPORTANT: Return your response as a valid JSON object matching this exact schema:
+{
+  "recommendations": [
+    {
+      "category": "cleansers",
+      "productName": "Product Name",
+      "brandName": "Brand Name",
+      "personalReason": "Specific reason for this user",
+      "whyForYou": ["Reason 1", "Reason 2", "Reason 3"],
+      "skinTypeMatch": "How it matches their skin type",
+      "concernsAddressed": ["concern1", "concern2"],
+      "priorityOrder": 1,
+      "usageTip": "Specific usage tip"
+    }
+  ]
+}`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 2000,
+        response_format: { type: 'json_object' },
+      }),
     });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error(`❌ OpenAI API error: ${response.status} - ${errorText}`);
+      
+      // Parse error for better messaging
+      let errorMessage = `OpenAI API error: ${response.status}`;
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData?.error?.message) {
+          errorMessage = errorData.error.message;
+        }
+      } catch {
+        // Use default error message
+      }
+      
+      // For 401 errors, provide helpful guidance
+      if (response.status === 401) {
+        console.warn('⚠️ OpenAI API key is invalid or expired');
+        console.warn('   Please check your EXPO_PUBLIC_OPENAI_API_KEY environment variable');
+        throw new Error('AI service configuration error. Please contact support.');
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+
+    if (!content) {
+      throw new Error('No response from OpenAI');
+    }
+
+    // Parse the JSON response
+    const parsed = parseAIJSON<{ recommendations: z.infer<typeof AIRecommendationSchema>['recommendations'] }>(content);
+    
+    if (!parsed || !parsed.recommendations || !Array.isArray(parsed.recommendations)) {
+      console.error('❌ Invalid response format from OpenAI');
+      throw new Error('Invalid response format');
+    }
+
+    // Validate against schema
+    const result = AIRecommendationSchema.parse({ recommendations: parsed.recommendations });
 
     console.log(`✅ AI generated ${result.recommendations.length} personalized recommendations`);
 

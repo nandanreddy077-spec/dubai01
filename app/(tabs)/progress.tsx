@@ -105,7 +105,11 @@ export default function ProgressTrackerScreen() {
   const { user } = useUser();
   const { dailyCompletions } = useGamification();
   const { products, usageHistory, routines } = useProducts();
-  // All features free - no subscription checks needed
+  const subscription = useSubscription();
+  const { state: subscriptionState } = subscription || {};
+  const isPremium = subscriptionState?.isPremium || false;
+  const isFreeUser = !isPremium && (subscriptionState?.scanCount || 0) >= 1;
+  const [showPaywall, setShowPaywall] = useState(false);
   const params = useLocalSearchParams<{ tab?: string }>();
   
   const [activeTab, setActiveTab] = useState<Tab>((params.tab as Tab) || 'photos');
@@ -1255,6 +1259,22 @@ export default function ProgressTrackerScreen() {
 
     return (
       <View style={styles.tabContent}>
+        {/* Blurred overlay for free users */}
+        {isFreeUser && (
+          <BlurredContentOverlay
+            visible={true}
+            onUnlock={() => setShowPaywall(true)}
+            title="Unlock AI Insights"
+            message="Get personalized insights about your skin progress, product performance, and habit patterns"
+            features={[
+              'AI-powered progress analysis',
+              'Product performance tracking',
+              'Habit pattern discovery',
+              '30-day transformation reports',
+            ]}
+          />
+        )}
+        
         {/* Consistency Tracker */}
         <View style={styles.consistencyCard}>
           <LinearGradient colors={gradient.glow} style={styles.consistencyCardInner}>
@@ -1733,8 +1753,22 @@ export default function ProgressTrackerScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Upgrade Prompt for Progress Photos */}
-      {/* All features free - UpgradePrompt removed */}
+      {/* Paywall Modal */}
+      {showPaywall && (
+        <HardPaywall
+          visible={true}
+          feature="AI-Powered Insights"
+          message="Unlock personalized insights about your skin progress and product performance"
+          showCloseButton={true}
+          onClose={() => setShowPaywall(false)}
+          onSubscribe={async (type) => {
+            const result = await subscription?.processInAppPurchase(type);
+            if (result?.success) {
+              setShowPaywall(false);
+            }
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

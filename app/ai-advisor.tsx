@@ -30,6 +30,7 @@ import {
 import { router } from 'expo-router';
 import { makeOpenAIRequestWithTools, type ChatMessage as OpenAIChatMessage, type ToolDefinition } from '@/lib/openai-service';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import SubscriptionGuard from '@/components/SubscriptionGuard';
 import { useUser } from '@/contexts/UserContext';
 import { getPalette, getGradient, shadow, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -68,7 +69,6 @@ const QUICK_QUESTIONS = [
 export default function AIAdvisorScreen() {
   const { theme } = useTheme();
   const { user } = useUser();
-  // All features free - no subscription checks needed
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -463,8 +463,13 @@ export default function AIAdvisorScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
+    <SubscriptionGuard
+      requiresPremium={true}
+      feature="AI Beauty Advisor"
+      message="Subscribe to unlock AI-powered beauty advice and personalized recommendations"
+    >
+      <SafeAreaView style={styles.container}>
+        <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
       
       {/* Header */}
       <View style={styles.header}>
@@ -589,7 +594,8 @@ export default function AIAdvisorScreen() {
           {/* All features free - limit info removed */}
         </LinearGradient>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </SubscriptionGuard>
   );
 }
 

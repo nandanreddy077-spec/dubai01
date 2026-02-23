@@ -3,7 +3,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import { Product, ProductUsageEntry, ProductRoutine, ProductRecommendation, ProductTier } from '@/types/product';
 import { useUser } from './UserContext';
-import { getUserLocation, formatAmazonAffiliateLink, type LocationInfo } from '@/lib/location';
+import { getUserLocation, formatAmazonAffiliateLink, formatAmazonProductLink, formatAmazonDeepLink, type LocationInfo } from '@/lib/location';
+import { buildOptimizedAmazonQuery, formatOptimizedAmazonSearch } from '@/lib/amazon-product-search';
+import { getProductASIN } from '@/lib/products/asin-mapping';
 import { useAnalysis, AnalysisResult } from './AnalysisContext';
 import { useSkincare } from './SkincareContext';
 import { analyzeProductIngredients } from '@/lib/ingredient-intelligence';
@@ -25,12 +27,14 @@ const STORAGE_KEYS = {
   AFFILIATE_TAPS: 'product_affiliate_taps',
 };
 
-const createProductTier = (title: string, description: string, guidance: string, priceRange: string, searchQuery: string, location: LocationInfo): ProductTier => ({
+const createProductTier = (title: string, description: string, guidance: string, priceRange: string, searchQuery: string, location: LocationInfo, product?: GlobalProduct): ProductTier => ({
   title,
   description,
   guidance,
   priceRange,
-  affiliateUrl: formatAmazonAffiliateLink(searchQuery, location),
+  affiliateUrl: product 
+    ? formatOptimizedAmazonSearch(product, location)
+    : formatAmazonAffiliateLink(searchQuery, location),
   keywords: searchQuery.split(' '),
 });
 
@@ -392,10 +396,14 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
       avail => avail.countryCode === location.countryCode && avail.available
     ) || globalProduct.regionalAvailability[0];
 
-    const baseSearchQuery = `${globalProduct.brand} ${globalProduct.name}`;
+    // Use optimized search query (includes brand, name, size for better matching)
+    const baseSearchQuery = buildOptimizedAmazonQuery(globalProduct);
     const primaryImage = globalProduct.images.find(img => img.type === 'primary')?.url || globalProduct.images[0]?.url || '';
     const skinType = analysisResult?.skinType || 'combination';
     const concerns = analysisResult?.dermatologyInsights?.skinConcerns || [];
+    
+    // Get ASIN from mapping file or product data
+    const productASIN = getProductASIN(globalProduct.id, globalProduct);
 
     return {
       id: globalProduct.id,
@@ -434,7 +442,8 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
           'Top-tier products with clinically-proven results.',
           regionalAvailability?.price || (globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : '$60-150+'),
           `${globalProduct.brand} ${globalProduct.name} premium`,
-          location
+          location,
+          globalProduct
         ),
         medium: createProductTier(
           'Best Value',
@@ -442,7 +451,8 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
           'Excellent quality without the premium price tag.',
           regionalAvailability?.price || (globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : '$20-60'),
           `${globalProduct.brand} ${globalProduct.name}`,
-          location
+          location,
+          globalProduct
         ),
         budget: createProductTier(
           'Budget-Friendly',
@@ -450,10 +460,14 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
           'Effective products at wallet-friendly prices.',
           regionalAvailability?.price || (globalProduct.priceRange ? `${globalProduct.priceRange.currency} ${globalProduct.priceRange.min}-${globalProduct.priceRange.max}` : '$5-20'),
           `${globalProduct.brand} ${globalProduct.name} affordable`,
-          location
+          location,
+          globalProduct
         ),
       },
-      affiliateUrl: regionalAvailability?.affiliateUrl || formatAmazonAffiliateLink(baseSearchQuery, location),
+      amazonAsin: productASIN,
+      affiliateUrl: productASIN
+        ? formatAmazonProductLink(productASIN, location)
+        : (regionalAvailability?.affiliateUrl || formatOptimizedAmazonSearch(globalProduct, location)),
     };
   }, []);
 
@@ -578,6 +592,7 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
           });
         }
 
+        // Fallback category images (only used if no actual product found)
         const categoryImages: Record<string, string> = {
           'cleansers': 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80',
           'toners': 'https://images.unsplash.com/photo-1611930022073-b7a4ba5fcccd?w=800&h=600&fit=crop&q=80',
@@ -590,29 +605,64 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
 
         uniqueSteps.forEach((stepData, stepName) => {
           const baseSearchQuery = `${stepName.toLowerCase().replace(/[^a-z ]/g, '')} ${skinType.toLowerCase()} skin`;
-          const imageUrl = categoryImages[stepData.category] || 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80';
-          
           const concerns = currentPlan.skinConcerns || [];
-          const ingredients = getRecommendedIngredients(stepData.category, skinType, concerns);
+          
+          // Try to find an actual product from the database for this category
+          let actualProduct: GlobalProduct | null = null;
+          let productImageUrl = categoryImages[stepData.category] || 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80';
+          
+          try {
+            // Only try to find actual product if category is supported by findBestProductForCategory
+            const supportedCategories = ['cleansers', 'toners', 'serums', 'moisturizers', 'sunscreens', 'treatments'];
+            if (supportedCategories.includes(stepData.category)) {
+              const productResult = findBestProductForCategory(
+                stepData.category as 'cleansers' | 'toners' | 'serums' | 'moisturizers' | 'sunscreens' | 'treatments',
+                skinType,
+                concerns,
+                location
+              );
+              
+              if (productResult && productResult.product) {
+                actualProduct = productResult.product;
+                // Get the primary image from the actual product
+                const primaryImage = actualProduct.images.find(img => img.type === 'primary')?.url || actualProduct.images[0]?.url;
+                if (primaryImage) {
+                  productImageUrl = primaryImage;
+                }
+              }
+            }
+          } catch (error) {
+            console.warn(`[Products] Could not find product for ${stepData.category}, using fallback image:`, error);
+          }
+          
+          const ingredients = actualProduct?.ingredients || getRecommendedIngredients(stepData.category, skinType, concerns);
           const productAnalysis = analyzeProductIngredients(stepName, ingredients);
           const efficacyScore = productAnalysis.analysis.efficacy.score;
           const safetyScore = productAnalysis.analysis.safety.score;
           const compatibilityScore = productAnalysis.analysis.compatibility.compatible ? 100 : 70;
           
-          const calculatedMatchScore = Math.round(
-            (efficacyScore * 0.6) +
-            (safetyScore * 0.3) +
-            (compatibilityScore * 0.1)
-          );
+          const calculatedMatchScore = actualProduct 
+            ? Math.round(
+                (efficacyScore * 0.4) +
+                (safetyScore * 0.3) +
+                (compatibilityScore * 0.2) +
+                (actualProduct.targetSkinTypes.includes(skinType) ? 10 : 0)
+              )
+            : Math.round(
+                (efficacyScore * 0.6) +
+                (safetyScore * 0.3) +
+                (compatibilityScore * 0.1)
+              );
           
           const recommendation: ProductRecommendation = {
-            id: `coach_${stepName.toLowerCase().replace(/\s+/g, '_')}`,
+            id: actualProduct?.id || `coach_${stepName.toLowerCase().replace(/\s+/g, '_')}`,
             category: stepData.category,
-            stepName: stepName,
-            description: stepData.description,
+            stepName: actualProduct?.name || stepName,
+            description: actualProduct?.description || stepData.description,
             source: 'glow-coach',
             matchScore: calculatedMatchScore,
-            imageUrl: imageUrl,
+            imageUrl: productImageUrl,
+            brand: actualProduct?.brand,
             ingredients: ingredients,
             analysis: {
               efficacy: productAnalysis.analysis.efficacy,

@@ -47,10 +47,10 @@ export interface SubscriptionContextType {
 const STORAGE_KEY = 'glowcheck_subscription_state';
 
 const DEFAULT_STATE: SubscriptionState = {
-  isPremium: false, // Monetization enabled - require trial/subscription
+  isPremium: false, // Monetization enabled - require subscription (no free trial)
   scanCount: 0,
-  maxScansInTrial: 1, // 1 free scan to hook users, then require trial
-  hasStartedTrial: false,
+  maxScansInTrial: 1, // 1 free scan after onboarding to hook users, then require subscription
+  hasStartedTrial: false, // No free trial - only 1 free scan
 };
 
 export const [SubscriptionProvider, useSubscription] = createContextHook<SubscriptionContextType>(() => {
@@ -179,20 +179,20 @@ export const [SubscriptionProvider, useSubscription] = createContextHook<Subscri
   }, [inTrial, state.hasStartedTrial]);
 
   const canScan = useMemo(() => {
-    // Premium users or active trial: unlimited scans
-    if (state.isPremium || inTrial) return true;
+    // Premium users: unlimited scans
+    if (state.isPremium) return true;
     
-    // Free users: 1 free scan to experience the product
+    // Free users: 1 free scan after onboarding to experience the product
     return state.scanCount < state.maxScansInTrial;
-  }, [state.isPremium, state.scanCount, state.maxScansInTrial, inTrial]);
+  }, [state.isPremium, state.scanCount, state.maxScansInTrial]);
 
   const scansLeft = useMemo(() => {
-    // Premium users or active trial: unlimited
-    if (state.isPremium || inTrial) return Infinity;
+    // Premium users: unlimited
+    if (state.isPremium) return Infinity;
     
-    // Free users: show remaining free scans
+    // Free users: show remaining free scans (1 total)
     return Math.max(0, state.maxScansInTrial - state.scanCount);
-  }, [state.isPremium, state.scanCount, state.maxScansInTrial, inTrial]);
+  }, [state.isPremium, state.scanCount, state.maxScansInTrial]);
 
   const incrementScanCount = useCallback(async () => {
     // Increment scan count (applies to trial and premium users)

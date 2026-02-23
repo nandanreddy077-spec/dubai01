@@ -19,6 +19,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getPalette, getGradient, shadow } from '@/constants/theme';
 import BlurredContent from '@/components/BlurredContent';
+import BlurredResultsOverlay from '@/components/BlurredResultsOverlay';
+import HardPaywall from '@/components/HardPaywall';
 import { useProducts } from '@/contexts/ProductContext';
 import MedicalDisclaimer from '@/components/MedicalDisclaimer';
 
@@ -27,13 +29,18 @@ const CARD_WIDTH = SCREEN_WIDTH * 0.75;
 
 export default function AnalysisResultsScreen() {
   const { currentResult, analysisHistory, setCurrentResult, loadHistory } = useAnalysis();
-  const { incrementScanCount } = useSubscription();
+  const subscription = useSubscription();
+  const { incrementScanCount, state, canScan } = subscription || {};
   const { theme } = useTheme();
   const { generateRecommendations, recommendations, isLoadingRecommendations } = useProducts();
   const [glowLevel, setGlowLevel] = useState<string>('');
   const [topStrength, setTopStrength] = useState<string>('');
   const [streak, setStreak] = useState<number>(0);
   const [streakProtected, setStreakProtected] = useState<boolean>(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  
+  // Check if user is free (used their 1 free scan)
+  const isFreeUser = !state?.isPremium && (state?.scanCount || 0) >= 1;
   
   const palette = getPalette(theme);
   const gradient = getGradient(theme);
@@ -61,9 +68,20 @@ export default function AnalysisResultsScreen() {
   useEffect(() => {
     if (!currentResult) return;
 
+    // Increment scan count AFTER user sees results (even if blurred)
+    // This allows them to complete the scan and see what they're missing
     if (hasCountedRef.current !== String(currentResult.timestamp)) {
       hasCountedRef.current = String(currentResult.timestamp);
-      incrementScanCount();
+      
+      // Only increment if this is a new scan (not viewing old results)
+      // Check if this result is from the current session
+      const isNewScan = !analysisHistory || 
+        analysisHistory.length === 0 || 
+        analysisHistory[0]?.timestamp === currentResult.timestamp;
+      
+      if (isNewScan) {
+        incrementScanCount();
+      }
       
       generateRecommendations(currentResult);
     }
@@ -73,7 +91,7 @@ export default function AnalysisResultsScreen() {
     setGlowLevel(level);
     setTopStrength(strength);
     updateStreak();
-  }, [currentResult, incrementScanCount, generateRecommendations]);
+  }, [currentResult, incrementScanCount, generateRecommendations, analysisHistory]);
 
 
   const progressMessage = useMemo(() => {
@@ -257,6 +275,8 @@ export default function AnalysisResultsScreen() {
           </LinearGradient>
         </View>
 
+        {/* Professional Skin Profile - Hide for free users */}
+        {!isFreeUser && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Sparkles color={palette.primary} size={20} fill={palette.primary} strokeWidth={2.5} />
@@ -327,7 +347,10 @@ export default function AnalysisResultsScreen() {
             </View>
           </View>
         </View>
+        )}
 
+        {/* Detailed Beauty Scores - Hide for free users */}
+        {!isFreeUser && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>📊 Detailed Beauty Scores</Text>
@@ -354,7 +377,10 @@ export default function AnalysisResultsScreen() {
             })}
           </View>
         </View>
+        )}
 
+        {/* Expert Recommendations - Hide for free users */}
+        {!isFreeUser && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>💎 Expert Recommendations</Text>
@@ -378,7 +404,10 @@ export default function AnalysisResultsScreen() {
             ))}
           </View>
         </View>
+        )}
 
+        {/* Product Recommendations - Hide for free users */}
+        {!isFreeUser && (
         <View style={styles.productsSection}>
           <View style={styles.sectionHeader}>
             <Sparkles color={palette.gold} size={20} fill={palette.gold} strokeWidth={2.5} />
@@ -425,11 +454,17 @@ export default function AnalysisResultsScreen() {
                   </View>
 
                   <View style={styles.productImageContainer}>
-                    <Image
-                      source={{ uri: rec.imageUrl || 'https://images.unsplash.com/photo-1556229010-aa9e36e4e0f9?w=800&h=600&fit=crop&q=80' }}
-                      style={styles.productCardImage}
-                      resizeMode="cover"
-                    />
+                    {rec.imageUrl ? (
+                      <Image
+                        source={{ uri: rec.imageUrl }}
+                        style={styles.productCardImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.productImagePlaceholder}>
+                        <Text style={styles.productImagePlaceholderText}>No Image</Text>
+                      </View>
+                    )}
                   </View>
 
                   <View style={styles.productCardInfo}>
@@ -503,7 +538,10 @@ export default function AnalysisResultsScreen() {
             </View>
           )}
         </View>
+        )}
 
+        {/* CTA Section - Hide for free users */}
+        {!isFreeUser && (
         <View style={styles.ctaSection}>
           <TouchableOpacity style={styles.ctaButtonPrimary} onPress={() => router.push('/(tabs)/progress')} testID="start-tracking">
             <TrendingUp color={palette.textLight} size={20} strokeWidth={2.5} />
@@ -523,6 +561,7 @@ export default function AnalysisResultsScreen() {
           </TouchableOpacity>
           <MedicalDisclaimer />
         </View>
+        )}
       </ScrollView>
   );
 
@@ -531,20 +570,32 @@ export default function AnalysisResultsScreen() {
       <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
       <Stack.Screen options={{ title: 'Analysis Results', headerBackTitle: 'Back' }} />
       
-      <BlurredContent 
-        message="Upgrade to Premium to view your detailed analysis results"
-        testID="blurred-results"
-        score={currentResult?.overallScore}
-        rating={currentResult?.rating}
-        skinType={currentResult?.skinType}
-        topConcern={currentResult?.dermatologyInsights?.skinConcerns?.[0]}
-        featureType="analysis"
-        showPaywall={true}
-        showDismiss={true}
-        showReferralOption={true}
-      >
-        {resultsContent}
-      </BlurredContent>
+      {resultsContent}
+      
+      {/* Show blurred overlay for free users (after 1 free scan) */}
+      {isFreeUser && currentResult && (
+        <BlurredResultsOverlay
+          visible={true}
+          onUnlock={() => setShowPaywall(true)}
+          glowLevel={glowLevel}
+          topStrength={topStrength}
+          matchScore={currentResult.overallScore}
+        />
+      )}
+
+      {/* Hard Paywall Modal */}
+      <HardPaywall
+        visible={showPaywall}
+        feature="Full Analysis Results"
+        message="Unlock your complete skin analysis, personalized recommendations, and AI-powered routine"
+        showCloseButton={false}
+        onSubscribe={async (type) => {
+          const result = await subscription?.processInAppPurchase(type);
+          if (result?.success) {
+            setShowPaywall(false);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -1089,6 +1140,18 @@ const createStyles = (palette: ReturnType<typeof getPalette>) => StyleSheet.crea
   productCardImage: {
     width: '100%',
     height: '100%',
+  },
+  productImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: palette.surfaceAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  productImagePlaceholderText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: palette.textMuted,
   },
   productCardInfo: {
     padding: 16,

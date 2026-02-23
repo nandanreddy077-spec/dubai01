@@ -2,6 +2,7 @@
  * Supabase Edge Function for Google Vision API
  * Handles image analysis with Google Vision API
  * SECURE: API key is stored server-side only
+ * SUPPORTS: Both authenticated and guest users
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -46,60 +47,100 @@ function checkRateLimit(userId: string): boolean {
 }
 
 serve(async (req) => {
-  console.log('🚀 vision-analyze function invoked', {
-    method: req.method,
-    url: req.url,
-    hasAuth: !!req.headers.get('Authorization'),
-  });
+  // Health check endpoint
+  if (req.method === 'GET' && req.url.includes('/health')) {
+    return new Response(
+      JSON.stringify({ 
+        status: 'ok', 
+        function: 'vision-analyze',
+        timestamp: new Date().toISOString(),
+        hasApiKey: !!GOOGLE_VISION_API_KEY
+      }),
+      { 
+        status: 200, 
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        } 
+      }
+    );
+  }
 
   // Handle CORS
   if (req.method === 'OPTIONS') {
-    console.log('✅ CORS preflight request');
     return new Response(null, {
       status: 204,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
       },
     });
   }
 
   try {
-    // Get authorization header
+    // Get authorization header (optional - supports guest access)
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.error('❌ Missing authorization header');
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('✅ Authorization header present');
+    let user: any = null;
+    let userId: string = 'guest';
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Verify user token
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Missing Supabase environment variables');
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          error: 'Server configuration error',
+          hint: 'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set'
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // Parse request body
-    const body: VisionRequest = await req.json();
-    const { imageData, features, userId } = body;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verify userId matches authenticated user
-    if (userId !== user.id) {
+    // Try to verify user if auth header exists (optional authentication)
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+        
+        if (!authError && authUser) {
+          user = authUser;
+          userId = authUser.id;
+          console.log('✅ User authenticated:', userId);
+        } else {
+          console.warn('⚠️ Auth token invalid, continuing as guest:', authError?.message);
+        }
+      } catch (authErr) {
+        console.warn('⚠️ Auth verification failed, continuing as guest:', authErr);
+      }
+    } else {
+      console.log('ℹ️ No auth header, processing as guest');
+    }
+
+    // Parse request body
+    let body: VisionRequest;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { imageData, features, userId: requestUserId } = body;
+
+    // Use request userId if provided and valid, otherwise use authenticated user id or 'guest'
+    const finalUserId = (requestUserId && requestUserId !== 'guest' && user && requestUserId === user.id) 
+      ? requestUserId 
+      : (user ? userId : (requestUserId || 'guest'));
+
+    // If user is authenticated and requestUserId is provided, verify it matches
+    if (user && requestUserId && requestUserId !== 'guest' && requestUserId !== user.id) {
       return new Response(
         JSON.stringify({ error: 'User ID mismatch' }),
         { status: 403, headers: { 'Content-Type': 'application/json' } }
@@ -115,7 +156,7 @@ serve(async (req) => {
     }
 
     // Check rate limit
-    if (!checkRateLimit(userId)) {
+    if (!checkRateLimit(finalUserId)) {
       return new Response(
         JSON.stringify({ error: 'Rate limit exceeded. Please wait before trying again.' }),
         { status: 429, headers: { 'Content-Type': 'application/json' } }
@@ -126,12 +167,13 @@ serve(async (req) => {
     if (!GOOGLE_VISION_API_KEY) {
       console.error('❌ Google Vision API key not configured');
       return new Response(
-        JSON.stringify({ error: 'Google Vision API key not configured' }),
+        JSON.stringify({ 
+          error: 'Google Vision API key not configured',
+          hint: 'Set GOOGLE_VISION_API_KEY in Supabase Edge Function secrets'
+        }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
-
-    console.log('✅ Google Vision API key configured');
 
     // Prepare image data (remove data URL prefix if present)
     let base64Image = imageData;
@@ -147,8 +189,13 @@ serve(async (req) => {
       { type: 'SAFE_SEARCH_DETECTION' },
     ];
 
+    console.log('📤 Calling Google Vision API:', {
+      userId: finalUserId,
+      featuresCount: defaultFeatures.length,
+      imageSize: base64Image.length,
+    });
+
     // Call Google Vision API
-    console.log('👁️ Calling Google Vision API...');
     const visionResponse = await fetch(
       `${GOOGLE_VISION_API_URL}?key=${GOOGLE_VISION_API_KEY}`,
       {
@@ -171,13 +218,28 @@ serve(async (req) => {
 
     if (!visionResponse.ok) {
       const errorText = await visionResponse.text();
-      console.error('Google Vision API error:', errorText);
+      console.error('❌ Google Vision API error:', visionResponse.status, errorText);
+      
+      let errorMessage = `Google Vision API error: ${visionResponse.status}`;
+      let errorDetails = 'API request failed';
+      
+      if (visionResponse.status === 400) {
+        errorDetails = 'Invalid image format or size';
+      } else if (visionResponse.status === 403) {
+        errorDetails = 'API key invalid or quota exceeded';
+      } else if (visionResponse.status === 429) {
+        errorDetails = 'API quota exceeded, please try again later';
+      }
+      
       return new Response(
         JSON.stringify({ 
-          error: `Google Vision API error: ${visionResponse.status}`,
-          details: visionResponse.status === 400 ? 'Invalid image format or size' : 'API request failed'
+          error: errorMessage,
+          details: errorDetails
         }),
-        { status: visionResponse.status >= 500 ? 500 : 400, headers: { 'Content-Type': 'application/json' } }
+        { 
+          status: visionResponse.status >= 500 ? 500 : 400, 
+          headers: { 'Content-Type': 'application/json' } 
+        }
       );
     }
 
@@ -202,7 +264,12 @@ serve(async (req) => {
       );
     }
 
-    console.log('✅ Vision analysis complete, returning result');
+    console.log('✅ Vision analysis successful:', {
+      userId: finalUserId,
+      hasFaceAnnotations: !!responses.faceAnnotations,
+      faceCount: responses.faceAnnotations?.length || 0,
+    });
+
     return new Response(
       JSON.stringify(responses),
       {
@@ -216,30 +283,20 @@ serve(async (req) => {
   } catch (error) {
     console.error('❌ Error in Vision analysis:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
     return new Response(
       JSON.stringify({ 
         error: error instanceof Error ? error.message : 'Internal server error',
-        details: error instanceof Error ? error.stack : undefined,
+        code: error instanceof Error ? error.name : 'UNKNOWN_ERROR',
+        hint: 'Please check Edge Function logs for more details'
       }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { 
+        status: 500, 
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        } 
+      }
     );
   }
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -17,7 +17,6 @@ import {
   Camera, 
   Heart, 
   TrendingUp, 
-  Users, 
   CheckCircle2,
   Crown,
   Zap,
@@ -44,19 +43,9 @@ const PREMIUM_FEATURES: Feature[] = [
     value: '$29/month value',
   },
   {
-    icon: <Sparkles size={20} color="#FFFFFF" strokeWidth={2.5} />,
-    title: '24/7 AI Beauty Coach',
-    value: '$49/month value',
-  },
-  {
     icon: <TrendingUp size={20} color="#FFFFFF" strokeWidth={2.5} />,
     title: 'Progress Tracking',
     value: '$19/month value',
-  },
-  {
-    icon: <Users size={20} color="#FFFFFF" strokeWidth={2.5} />,
-    title: 'Community Access',
-    value: '$14/month value',
   },
   {
     icon: <Heart size={20} color="#FFFFFF" strokeWidth={2.5} />,
@@ -110,22 +99,22 @@ export default function StartTrialScreen() {
       if (Platform.OS === 'web') {
         Alert.alert(
           '💳 Mobile App Required',
-          'To start your 7-day free trial with card verification, please use our mobile app from the App Store or Google Play.',
+          'To subscribe, please use our mobile app from the App Store or Google Play.',
           [{ text: 'OK', style: 'default' }]
         );
         setIsProcessing(false);
         return;
       }
 
-      console.log(`Starting ${selectedPlan} subscription with 7-day trial (card required)...`);
+      console.log(`Starting ${selectedPlan} subscription (card required)...`);
       const result = await processInAppPurchase(selectedPlan);
 
       if (result.success) {
         Alert.alert(
-          '🎉 Trial Started!',
-          `Your 7-day free trial is active! You'll be charged ${
+          '🎉 Subscribed!',
+          `You're now subscribed! You'll be charged ${
             selectedPlan === 'yearly' ? '$99/year' : '$8.99/month'
-          } on ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString()}.\n\nCancel anytime in your device settings before then to avoid charges.`,
+          }.\n\nCancel anytime in your device settings.`,
           [
             {
               text: 'Start Glowing ✨',
@@ -137,15 +126,15 @@ export default function StartTrialScreen() {
         console.log('User redirected to store');
       } else {
         const errorMessage = result.cancelled 
-          ? '💳 Card Required to Start Trial\n\nAdd your payment method to begin your 7-day free trial. You won\'t be charged until after the trial ends.\n\nCancel anytime before Day 8 to avoid charges.'
-          : result.error || 'Please add a payment method to start your trial.';
+          ? "💳 Card Required to Subscribe\n\nAdd your payment method to subscribe. You'll be charged immediately.\n\nCancel anytime in your device settings."
+          : result.error || 'Please add a payment method to subscribe.';
         
         Alert.alert(
-          result.cancelled ? '💳 Payment Method Required' : 'Unable to Start Trial',
+          result.cancelled ? '💳 Payment Method Required' : 'Unable to Subscribe',
           errorMessage,
           [
             { text: 'Not Now', style: 'cancel', onPress: () => router.back() },
-            { text: 'Add Card & Try Free', style: 'default', onPress: () => handleStartTrial() },
+            { text: 'Add Card & Subscribe', style: 'default', onPress: () => handleStartTrial() },
           ]
         );
       }
@@ -167,9 +156,9 @@ export default function StartTrialScreen() {
   const handleClose = useCallback(() => {
     Alert.alert(
       '⚠️ Missing Out?',
-      'Without a trial, you\'ll only get 1 free scan. Start your 7-day free trial to unlock everything!',
+      'Without a subscription, you\'ll only get 1 free scan. Subscribe to unlock everything!',
       [
-        { text: 'Start Free Trial', onPress: handleStartTrial, style: 'default' },
+        { text: 'Subscribe Now', onPress: handleStartTrial, style: 'default' },
         { text: 'Maybe Later', onPress: () => router.back(), style: 'cancel' },
       ]
     );
@@ -253,9 +242,9 @@ export default function StartTrialScreen() {
         {/* Value Stack */}
         <View style={styles.valueSection}>
           <View style={styles.valueBadge}>
-            <Text style={styles.valueBadgeText}>$150/MONTH VALUE</Text>
+            <Text style={styles.valueBadgeText}>$87/MONTH VALUE</Text>
           </View>
-          <Text style={styles.valueTitle}>Everything Included Free for 7 Days</Text>
+          <Text style={styles.valueTitle}>Everything Included</Text>
           
           <View style={styles.featuresList}>
             {PREMIUM_FEATURES.map((feature, index) => (
@@ -315,7 +304,7 @@ export default function StartTrialScreen() {
                   </View>
                 </View>
                 <Text style={[styles.planEquivalent, { color: selectedPlan === 'yearly' ? 'rgba(26,26,26,0.8)' : 'rgba(255,255,255,0.6)' }]}>
-                  Just $8.25/month • 7 days free
+                  Just $8.25/month
                 </Text>
               </View>
             </LinearGradient>
@@ -342,7 +331,7 @@ export default function StartTrialScreen() {
                   </View>
                 </View>
                 <Text style={styles.planEquivalent}>
-                  7 days free • Then $8.99/mo
+                  $8.99/month
                 </Text>
               </View>
             </View>
@@ -353,7 +342,7 @@ export default function StartTrialScreen() {
         <View style={styles.trustSection}>
           <View style={styles.trustItem}>
             <CreditCard size={16} color="#4CAF50" strokeWidth={2.5} />
-            <Text style={styles.trustText}>Card required • Free for 7 days</Text>
+            <Text style={styles.trustText}>Secure payment • Instant access</Text>
           </View>
           <View style={styles.trustItem}>
             <Shield size={16} color="#2196F3" strokeWidth={2.5} />
@@ -382,7 +371,7 @@ export default function StartTrialScreen() {
               end={{ x: 1, y: 1 }}
             >
               <Text style={styles.startButtonText}>
-                {isProcessing ? 'Processing...' : 'Try It Free - $0 Today'}
+                {isProcessing ? 'Processing...' : 'Subscribe Now'}
               </Text>
               <View style={styles.subscribeArrow}>
                 <ArrowRight size={20} color="#000000" strokeWidth={3} />
@@ -392,8 +381,8 @@ export default function StartTrialScreen() {
         </Animated.View>
 
         <Text style={styles.trialInfo}>
-          💳 Card required to start. <Text style={styles.boldText}>Free for 7 days</Text>, then {selectedPlan === 'yearly' ? '$99/year' : '$8.99/month'}.{'\n'}
-          <Text style={styles.boldText}>Cancel anytime</Text> in device settings before Day 8 to avoid charges.
+          💳 Card required to subscribe. You'll be charged {selectedPlan === 'yearly' ? '$99/year' : '$8.99/month'} immediately.{'\n'}
+          <Text style={styles.boldText}>Cancel anytime</Text> in device settings.
         </Text>
 
         <Text style={styles.legalText}>

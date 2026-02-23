@@ -214,6 +214,26 @@ export function formatAmazonAffiliateLink(
   return `https://www.${amazonDomain}/s?k=${searchEncoded}&tag=${affiliateTag}&linkCode=ll2&ref=as_li_ss_tl`;
 }
 
+/**
+ * Enhanced Amazon search with brand filter for better product matching
+ * Use this when you have product object with brand information
+ */
+export function formatAmazonAffiliateLinkWithBrand(
+  product: { brand: string; name: string; size?: string },
+  country?: LocationInfo | null
+): string {
+  const query = `${product.brand} ${product.name}${product.size ? ` ${product.size}` : ''}`;
+  const searchEncoded = encodeURIComponent(query);
+  const amazonDomain = country?.amazonDomain || 'amazon.com';
+  const affiliateTag = REGIONAL_AFFILIATE_TAGS[amazonDomain] || 
+                       process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 
+                       'glowcheck-20';
+  
+  // Use brand filter for better matching: rh=p_89:BRAND_NAME
+  const brandFilter = encodeURIComponent(product.brand);
+  return `https://www.${amazonDomain}/s?k=${searchEncoded}&rh=p_89:${brandFilter}&tag=${affiliateTag}&linkCode=ll2&ref=as_li_ss_tl`;
+}
+
 export function formatAmazonProductLink(
   asin: string,
   country?: LocationInfo | null
@@ -224,6 +244,35 @@ export function formatAmazonProductLink(
                        'glowcheck-20';
   
   return `https://www.${amazonDomain}/dp/${asin}?tag=${affiliateTag}&linkCode=ll2&ref=as_li_ss_tl`;
+}
+
+/**
+ * Generate Amazon deep link for mobile apps
+ * Uses app-specific URI schemes for direct product access
+ */
+export function formatAmazonDeepLink(
+  asin: string,
+  country?: LocationInfo | null
+): string {
+  const amazonDomain = country?.amazonDomain || 'amazon.com';
+  const affiliateTag = REGIONAL_AFFILIATE_TAGS[amazonDomain] || 
+                       process.env.EXPO_PUBLIC_AMAZON_AFFILIATE_TAG || 
+                       'glowcheck-20';
+  
+  // Mobile app deep link format: amazon://dp/ASIN?tag=AFFILIATE_TAG
+  // Falls back to web URL if app not installed
+  const webUrl = `https://www.${amazonDomain}/dp/${asin}?tag=${affiliateTag}&linkCode=ll2&ref=as_li_ss_tl`;
+  
+  // iOS: com.amazon.mobile.shopping://www.amazon.com/dp/ASIN
+  // Android: amazon://dp/ASIN
+  if (Platform.OS === 'ios') {
+    return `com.amazon.mobile.shopping://www.${amazonDomain}/dp/${asin}?tag=${affiliateTag}`;
+  } else if (Platform.OS === 'android') {
+    return `amazon://dp/${asin}?tag=${affiliateTag}`;
+  }
+  
+  // Web fallback
+  return webUrl;
 }
 
 export function formatAmazonCartLink(

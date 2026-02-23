@@ -34,13 +34,13 @@ export const PRICING = {
     price: 8.99,
     currency: 'USD',
     period: 'P1M', // ISO 8601 duration format
-    trialPeriod: 'P7D', // 7 days free trial
+    trialPeriod: undefined, // No free trial - only 1 free scan
   },
   YEARLY: {
     price: 99.00,
     currency: 'USD',
     period: 'P1Y', // ISO 8601 duration format
-    trialPeriod: 'P7D', // 7 days free trial
+    trialPeriod: undefined, // No free trial - only 1 free scan
   },
 } as const;
 

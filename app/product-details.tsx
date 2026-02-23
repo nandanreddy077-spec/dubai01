@@ -39,6 +39,7 @@ import { findIngredient, analyzeProductIngredients, type Ingredient } from '@/li
 import { getIngredientEducation, generateProductSkinImpact } from '@/lib/ingredient-education';
 import { Image as ExpoImage } from 'expo-image';
 import * as Haptics from 'expo-haptics';
+import { formatAmazonDeepLink } from '@/lib/location';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -47,7 +48,7 @@ type Tab = 'safety' | 'match';
 export default function ProductDetailsScreen() {
   const { id, productId } = useLocalSearchParams<{ id?: string; productId?: string }>();
   const { theme } = useTheme();
-  const { recommendations, products, trackAffiliateTap, getProductById } = useProducts();
+  const { recommendations, products, trackAffiliateTap, getProductById, userLocation } = useProducts();
   const { currentResult } = useAnalysis();
   const [activeTab, setActiveTab] = useState<Tab>('safety');
   const [favorite, setFavorite] = useState(false);
@@ -220,7 +221,8 @@ export default function ProductDetailsScreen() {
     const skinType = currentResult.skinType.toLowerCase();
     const userConcerns = currentResult.dermatologyInsights?.skinConcerns || [];
 
-    let matchScore = analysis.efficacy.score || 50;
+    // Use the product's matchScore as the base (e.g., 86%) instead of recalculating from scratch
+    let matchScore = product.matchScore || analysis.efficacy.score || 50;
     const benefits: string[] = [];
     const warnings: string[] = [];
     const worksForConcerns: string[] = [];
@@ -989,16 +991,46 @@ export default function ProductDetailsScreen() {
                 }),
               ]).start();
 
-              // Open Amazon affiliate link directly - no prompts, no delays
-              const affiliateUrl = product.tiers?.medium?.affiliateUrl || product.affiliateUrl;
+              // Use ASIN-based deep linking for direct product access
+              let affiliateUrl: string | null = null;
+              
+              if (product.amazonAsin) {
+                // Use ASIN for direct product deep linking (app-to-app)
+                affiliateUrl = formatAmazonDeepLink(product.amazonAsin, userLocation);
+                console.log('📱 Using ASIN deep link:', product.amazonAsin);
+              } else {
+                // Fallback to search-based affiliate link
+                affiliateUrl = product.tiers?.medium?.affiliateUrl || product.affiliateUrl || null;
+                console.log('🔍 Using search-based affiliate link (no ASIN)');
+              }
               
               if (affiliateUrl) {
                 // Track the affiliate tap (fire and forget - don't wait)
                 trackAffiliateTap(product.id, affiliateUrl).catch(console.error);
                 
-                // Open immediately without checking
-                Linking.openURL(affiliateUrl).catch((error) => {
-                  console.error('Error opening affiliate link:', error);
+                // Try deep link first, fallback to web URL if app not installed
+                Linking.canOpenURL(affiliateUrl).then((canOpen) => {
+                  if (canOpen) {
+                    Linking.openURL(affiliateUrl!).catch((error) => {
+                      console.error('Error opening deep link:', error);
+                      // Fallback to web URL
+                      const webUrl = product.affiliateUrl || product.tiers?.medium?.affiliateUrl;
+                      if (webUrl) {
+                        Linking.openURL(webUrl).catch(console.error);
+                      }
+                    });
+                  } else {
+                    // App not installed, use web URL
+                    const webUrl = product.affiliateUrl || product.tiers?.medium?.affiliateUrl;
+                    if (webUrl) {
+                      Linking.openURL(webUrl).catch(console.error);
+                    }
+                  }
+                }).catch(() => {
+                  // If canOpenURL fails, try opening directly
+                  Linking.openURL(affiliateUrl!).catch((error) => {
+                    console.error('Error opening affiliate link:', error);
+                  });
                 });
                 
                 // Haptic feedback

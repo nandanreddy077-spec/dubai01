@@ -274,7 +274,7 @@ export default function AnalysisLoadingScreen() {
           // Use FileSystem for React Native (most reliable)
           const FileSystem = await import('expo-file-system');
           const base64 = await FileSystem.readAsStringAsync(imageUri, {
-            encoding: FileSystem.EncodingType.Base64,
+            encoding: 'base64' as any,
           });
           const dataUrl = `data:image/jpeg;base64,${base64}`;
           console.log('✅ FileSystem conversion successful, length:', dataUrl.length);
@@ -451,6 +451,14 @@ export default function AnalysisLoadingScreen() {
       console.error('❌ Google Vision API error:', error);
       console.error('Error message:', error?.message);
       console.error('Error stack:', error?.stack);
+      
+      // Provide more helpful error messages
+      if (error?.message?.includes('Edge Function') || 
+          error?.message?.includes('unavailable') ||
+          error?.name === 'FunctionsFetchError') {
+        throw new Error('Vision service is currently unavailable. Please check your internet connection and try again later.');
+      }
+      
       throw error;
     }
   };

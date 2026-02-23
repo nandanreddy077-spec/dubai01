@@ -32,8 +32,9 @@ interface CapturedPhoto {
 export default function GlowAnalysisScreen() {
   const { error } = useLocalSearchParams<{ error?: string }>();
   const { theme } = useTheme();
-  // Note: Scan count is incremented in analysis-results.tsx AFTER results are shown
-  // This ensures users can complete their scan and see results before paywall appears
+  // IMPORTANT: Camera is ALWAYS available - no subscription check here
+  // Users can always take photos. The paywall appears on results screen after they see blurred results
+  // Scan count is incremented in analysis-results.tsx AFTER results are shown
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [showError, setShowError] = useState<boolean>(false);
   const [capturedPhotos, setCapturedPhotos] = useState<CapturedPhoto[]>([]);
@@ -123,49 +124,95 @@ export default function GlowAnalysisScreen() {
 
     setIsLoading(true);
     try {
+      // Double-check permissions
+      const permissionResult = await ImagePicker.getCameraPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert(
+          'Camera Permission Required',
+          'Please enable camera permissions in your device settings to take photos.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => ImagePicker.requestCameraPermissionsAsync() }
+          ]
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Launch camera with better error handling
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         quality: 0.9,
         cameraType: ImagePicker.CameraType.front,
+        base64: false,
+        exif: false,
       });
 
-      if (!result.canceled) {
-        // If in quick analysis mode (single photo), navigate directly
-        if (!showInstructions) {
-          // Don't increment scan count here - it will be incremented in analysis-results.tsx
-          // after results are shown, so users can see their results before paywall appears
-          router.push({
-            pathname: '/analysis-loading',
-            params: { 
-              frontImage: result.assets[0].uri,
-              multiAngle: 'false'
-            }
-          });
-          setIsLoading(false);
-          return;
-        }
-
-        // Multi-angle mode flow
-        const newPhoto: CapturedPhoto = {
-          uri: result.assets[0].uri,
-          angle: currentAngle,
-          timestamp: Date.now()
-        };
-        
-        const updatedPhotos = [...capturedPhotos.filter(p => p.angle !== currentAngle), newPhoto];
-        setCapturedPhotos(updatedPhotos);
-        
-        if (currentAngle === 'front') {
-          setCurrentAngle('left');
-        } else if (currentAngle === 'left') {
-          setCurrentAngle('right');
-        } else {
-          startMultiAngleAnalysis(updatedPhotos);
-        }
+      if (result.canceled) {
+        setIsLoading(false);
+        return;
       }
-    } catch (err) {
+
+      if (!result.assets || result.assets.length === 0 || !result.assets[0]?.uri) {
+        Alert.alert(
+          'Photo Capture Failed',
+          'Unable to capture photo. Please try again or use upload photo instead.',
+          [{ text: 'OK' }]
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      const imageUri = result.assets[0].uri;
+      
+      // If in quick analysis mode (single photo), navigate directly
+      if (!showInstructions) {
+        // Don't increment scan count here - it will be incremented in analysis-results.tsx
+        // after results are shown, so users can see their results before paywall appears
+        router.push({
+          pathname: '/analysis-loading',
+          params: { 
+            frontImage: imageUri,
+            multiAngle: 'false'
+          }
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Multi-angle mode flow
+      const newPhoto: CapturedPhoto = {
+        uri: imageUri,
+        angle: currentAngle,
+        timestamp: Date.now()
+      };
+      
+      const updatedPhotos = [...capturedPhotos.filter(p => p.angle !== currentAngle), newPhoto];
+      setCapturedPhotos(updatedPhotos);
+      
+      if (currentAngle === 'front') {
+        setCurrentAngle('left');
+      } else if (currentAngle === 'left') {
+        setCurrentAngle('right');
+      } else {
+        startMultiAngleAnalysis(updatedPhotos);
+      }
+    } catch (err: any) {
       console.error('Error taking photo:', err);
+      const errorMessage = err?.message || 'Unknown error occurred';
+      
+      Alert.alert(
+        'Camera Error',
+        `Unable to capture photo: ${errorMessage}\n\nPlease try:\n• Checking camera permissions\n• Closing other apps using the camera\n• Using upload photo instead`,
+        [
+          { text: 'OK' },
+          { 
+            text: 'Upload Photo', 
+            onPress: () => handleUploadPhoto() 
+          }
+        ]
+      );
     } finally {
       setIsLoading(false);
     }

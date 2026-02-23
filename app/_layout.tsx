@@ -141,9 +141,10 @@ export default function RootLayout() {
       console.log('🔗 Deep link received:', url);
       
       // Check if this is an OAuth callback from Supabase
-      // Supabase redirects to: https://your-project.supabase.co/auth/v1/callback?code=...
-      // We need to extract the code and exchange it
-      if (url.includes('/auth/v1/callback') || url.includes('auth/callback') || url.includes('code=') || url.includes('access_token=')) {
+      // Only handle OAuth callbacks that come through deep links (not from WebBrowser.openAuthSessionAsync)
+      // WebBrowser.openAuthSessionAsync handles its own callbacks, so we skip those here
+      // This deep link handler is mainly for when the app is opened from a closed state
+      if ((url.includes('/auth/v1/callback') || url.includes('auth/callback')) && (url.includes('code=') || url.includes('access_token='))) {
         try {
           const parsedUrl = Linking.parse(url);
           

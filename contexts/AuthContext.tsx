@@ -642,29 +642,30 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
 
       const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 
-      const nativeRedirectTo = 'glowcheck://auth/callback';
-      const expoRedirectTo = makeRedirectUri({
+      // Use the app's deep link scheme for redirect - must match Supabase Redirect URLs exactly
+      const redirectTo = isStandalone ? 'glowcheck://auth/callback' : makeRedirectUri({
         scheme: 'glowcheck',
         path: 'auth/callback',
       });
-
-      const redirectTo = isStandalone ? nativeRedirectTo : expoRedirectTo;
 
       console.log('[Auth] Starting Google OAuth');
       console.log('[Auth] Platform:', Platform.OS);
       console.log('[Auth] ExecutionEnvironment:', executionEnv);
       console.log('[Auth] Supabase URL:', supabaseUrl);
       console.log('[Auth] redirectTo:', redirectTo);
-      console.log('[Auth] IMPORTANT: Supabase Auth → URL Configuration → Redirect URLs must include redirectTo above');
+      console.log('[Auth] IMPORTANT: Supabase Auth → URL Configuration → Redirect URLs must include:', redirectTo);
       console.log('[Auth] Google Cloud Console (Web client) Authorized redirect URI must be:', `${supabaseUrl.replace(/\/$/, '')}/auth/v1/callback`);
 
-      const skipBrowserRedirect = Platform.OS !== 'web';
+      // Complete any pending auth session first
+      WebBrowser.maybeCompleteAuthSession();
 
+      // Don't use skipBrowserRedirect - let Supabase handle OAuth flow completely
+      // OAuth provider redirects to Supabase callback URL, Supabase processes it,
+      // then Supabase redirects to our app with tokens
       const { data, error: urlError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo,
-          skipBrowserRedirect,
           queryParams: {
             prompt: 'select_account',
           },
@@ -683,22 +684,27 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
 
       if (Platform.OS === 'web') {
         console.log('[Auth] Web: letting browser redirect to complete OAuth');
+        if (typeof window !== 'undefined') {
+          window.location.href = oAuthUrl;
+        }
         return { error: null };
       }
 
       console.log('[Auth] Opening OAuth URL...');
       console.log('[Auth] OAuth URL preview:', oAuthUrl.substring(0, 120) + '...');
 
+      // Expect the app deep link as the final redirect (after Supabase processes OAuth)
       const result = await WebBrowser.openAuthSessionAsync(oAuthUrl, redirectTo);
 
       if (result.type === 'success') {
         const callbackUrl = (result as { type: 'success'; url: string }).url;
         console.log('[Auth] OAuth callback received:', callbackUrl);
 
+        // Parse the callback URL
         const parsedUrl = Linking.parse(callbackUrl);
-
         const queryParams = (parsedUrl.queryParams ?? {}) as Record<string, string | string[] | undefined>;
 
+        // Check for hash parameters (some OAuth flows use hash fragments)
         const hashIndex = callbackUrl.indexOf('#');
         const hashParams: Record<string, string> = {};
         if (hashIndex >= 0) {
@@ -710,10 +716,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
           }
         }
 
+        // Check for errors first
         const errorParam = (queryParams.error as string | undefined) ?? hashParams.error;
         const errorDescription =
           (queryParams.error_description as string | undefined) ??
-          hashParams.error_description ??
           hashParams.error_description;
 
         if (errorParam) {
@@ -721,10 +727,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
           return { error: { message: errorDescription || errorParam } };
         }
 
+        // Extract code or tokens
         const code = (queryParams.code as string | undefined) ?? hashParams.code;
         const accessToken = (queryParams.access_token as string | undefined) ?? hashParams.access_token;
         const refreshToken = (queryParams.refresh_token as string | undefined) ?? hashParams.refresh_token;
 
+        // If we have an access token directly (implicit flow), set session
         if (accessToken) {
           console.log('[Auth] Setting session from access_token (implicit grant)...');
           const { error: sessionError } = await supabase.auth.setSession({
@@ -740,25 +748,51 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
           return { error: null };
         }
 
-        if (!code) {
-          console.error('[Auth] No code or access_token found in callback URL');
-          return {
-            error: {
-              message:
-                'Google sign-in completed, but no authorization code was returned. Please verify your Supabase Redirect URLs and Google authorized redirect URIs.',
-            },
-          };
+        // If we have a code, Supabase should have processed it at its callback URL
+        // Wait a moment and check if session was auto-created
+        if (code) {
+          console.log('[Auth] Code found - Supabase should have processed it, checking session...');
+          // Wait for Supabase to process the session
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (session) {
+            console.log('[Auth] ✅ Google sign-in successful (session auto-created)');
+            return { error: null };
+          }
+          
+          if (sessionError) {
+            console.error('[Auth] getSession error:', sessionError);
+            return { error: sessionError };
+          }
+          
+          // If no session found, return error
+          return { error: { message: 'OAuth callback received but session not established. Please try again.' } };
         }
 
-        console.log('[Auth] Exchanging code for Supabase session...');
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-        if (exchangeError) {
-          console.error('[Auth] exchangeCodeForSession error:', exchangeError);
-          return { error: exchangeError };
+        // If no code or token, wait a bit for Supabase to auto-detect the session
+        console.log('[Auth] No code or token found, waiting for auto-detection...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('[Auth] getSession error:', sessionError);
+          return { error: sessionError };
         }
 
-        console.log('[Auth] ✅ Google sign-in successful');
-        return { error: null };
+        if (session) {
+          console.log('[Auth] ✅ Google sign-in successful (auto-detected session)');
+          return { error: null };
+        }
+
+        console.error('[Auth] No code, token, or session found in callback URL');
+        return {
+          error: {
+            message:
+              'Google sign-in completed, but no authorization code was returned. Please verify your Supabase Redirect URLs and Google authorized redirect URIs.',
+          },
+        };
       }
 
       if (result.type === 'cancel') {
@@ -794,87 +828,163 @@ export const [AuthProvider, useAuth] = createContextHook<AuthContextType>(() => 
         return { error: { message: 'Apple Sign In is only available on iOS devices.' } };
       }
 
-      // Use Supabase callback URL - Supabase handles the OAuth flow
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-      const redirectUrl = `${supabaseUrl}/auth/v1/callback`;
+      const executionEnv = Constants.executionEnvironment;
+      const isStandalone = executionEnv === ExecutionEnvironment.Standalone;
 
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      // Use the app's deep link scheme for redirect - must match Supabase Redirect URLs exactly
+      const redirectTo = isStandalone ? 'glowcheck://auth/callback' : makeRedirectUri({
+        scheme: 'glowcheck',
+        path: 'auth/callback',
+      });
+
+      console.log('[Auth] Starting Apple OAuth');
+      console.log('[Auth] Platform:', Platform.OS);
+      console.log('[Auth] ExecutionEnvironment:', executionEnv);
+      console.log('[Auth] redirectTo:', redirectTo);
+      console.log('[Auth] IMPORTANT: Supabase Auth → URL Configuration → Redirect URLs must include redirectTo above');
+
+      // Complete any pending auth session first
+      WebBrowser.maybeCompleteAuthSession();
+
+      // Don't use skipBrowserRedirect - let Supabase handle OAuth flow completely
+      // OAuth provider redirects to Supabase callback URL, Supabase processes it,
+      // then Supabase redirects to our app with tokens
+      const { data, error: urlError } = await supabase.auth.signInWithOAuth({
         provider: 'apple',
         options: {
-          redirectTo: redirectUrl,
+          redirectTo,
         },
       });
 
-      if (error) {
-        console.error('Apple sign in error:', error);
-        return { error };
+      if (urlError) {
+        console.error('[Auth] Error getting Apple OAuth URL:', urlError);
+        return { error: urlError };
       }
 
-      if (data?.url) {
-        // Complete any pending auth session first
-        WebBrowser.maybeCompleteAuthSession();
-        
-        // Open the OAuth URL - Supabase will redirect back to redirectUrl with session
-        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+      const oAuthUrl = data?.url;
+      if (!oAuthUrl) {
+        return { error: { message: 'Failed to start Apple sign-in (missing OAuth URL).' } };
+      }
 
-        if (result.type === 'success') {
-          // Extract the URL from the result
-          const url = result.url;
-          if (url) {
-            // Parse the URL to get the code or access_token
-            const parsedUrl = Linking.parse(url);
-            const code = parsedUrl.queryParams?.code as string;
-            const accessToken = parsedUrl.queryParams?.access_token as string;
-            const errorParam = parsedUrl.queryParams?.error as string;
-            
-            if (errorParam) {
-              return { error: { message: `Authentication error: ${errorParam}` } };
-            }
-            
-            if (code) {
-              const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-              if (exchangeError) {
-                console.error('Error exchanging code for session:', exchangeError);
-                return { error: exchangeError };
-              }
-            } else if (accessToken) {
-              // If we have an access token directly, set the session
-              const { error: sessionError } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: parsedUrl.queryParams?.refresh_token as string || '',
-              });
-              if (sessionError) {
-                console.error('Error setting session:', sessionError);
-                return { error: sessionError };
-              }
-            } else {
-              // Wait for auth state change to pick up the session
-              // The redirect URL should contain the session info
-              await new Promise(resolve => setTimeout(resolve, 2000));
-              // Check if we have a session now
-              const { data: { session } } = await supabase.auth.getSession();
-              if (!session) {
-                return { error: { message: 'Failed to establish session. Please try again.' } };
-              }
-            }
-          } else {
-            // Wait for auth state change
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-              return { error: { message: 'Failed to establish session. Please try again.' } };
-            }
+      console.log('[Auth] Opening OAuth URL...');
+      console.log('[Auth] OAuth URL preview:', oAuthUrl.substring(0, 120) + '...');
+
+      // Expect the app deep link as the final redirect (after Supabase processes OAuth)
+      const result = await WebBrowser.openAuthSessionAsync(oAuthUrl, redirectTo);
+
+      if (result.type === 'success') {
+        const callbackUrl = (result as { type: 'success'; url: string }).url;
+        console.log('[Auth] OAuth callback received:', callbackUrl);
+
+        // Parse the callback URL
+        const parsedUrl = Linking.parse(callbackUrl);
+        const queryParams = (parsedUrl.queryParams ?? {}) as Record<string, string | string[] | undefined>;
+
+        // Check for hash parameters (some OAuth flows use hash fragments)
+        const hashIndex = callbackUrl.indexOf('#');
+        const hashParams: Record<string, string> = {};
+        if (hashIndex >= 0) {
+          const hash = callbackUrl.slice(hashIndex + 1);
+          const pairs = hash.split('&').map((p) => p.trim()).filter(Boolean);
+          for (const pair of pairs) {
+            const [k, v] = pair.split('=');
+            if (k) hashParams[decodeURIComponent(k)] = decodeURIComponent(v ?? '');
           }
-        } else if (result.type === 'cancel') {
-          return { error: { message: 'Authentication cancelled' } };
-        } else {
-          return { error: { message: 'Authentication failed. Please try again.' } };
         }
+
+        // Check for errors first
+        const errorParam = (queryParams.error as string | undefined) ?? hashParams.error;
+        const errorDescription =
+          (queryParams.error_description as string | undefined) ??
+          hashParams.error_description;
+
+        if (errorParam) {
+          console.error('[Auth] OAuth error:', errorParam, errorDescription);
+          return { error: { message: errorDescription || errorParam } };
+        }
+
+        // Extract code or tokens
+        const code = (queryParams.code as string | undefined) ?? hashParams.code;
+        const accessToken = (queryParams.access_token as string | undefined) ?? hashParams.access_token;
+        const refreshToken = (queryParams.refresh_token as string | undefined) ?? hashParams.refresh_token;
+
+        // If we have an access token directly (implicit flow), set session
+        if (accessToken) {
+          console.log('[Auth] Setting session from access_token (implicit grant)...');
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken ?? '',
+          });
+          if (sessionError) {
+            console.error('[Auth] setSession error:', sessionError);
+            return { error: sessionError };
+          }
+
+          console.log('[Auth] ✅ Apple sign-in successful');
+          return { error: null };
+        }
+
+        // If we have a code, Supabase should have processed it at its callback URL
+        // Wait a moment and check if session was auto-created
+        if (code) {
+          console.log('[Auth] Code found - Supabase should have processed it, checking session...');
+          // Wait for Supabase to process the session
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (session) {
+            console.log('[Auth] ✅ Apple sign-in successful (session auto-created)');
+            return { error: null };
+          }
+          
+          if (sessionError) {
+            console.error('[Auth] getSession error:', sessionError);
+            return { error: sessionError };
+          }
+          
+          // If no session found, return error
+          return { error: { message: 'OAuth callback received but session not established. Please try again.' } };
+        }
+
+        // If no code or token, wait a bit for Supabase to auto-detect the session
+        console.log('[Auth] No code or token found, waiting for auto-detection...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('[Auth] getSession error:', sessionError);
+          return { error: sessionError };
+        }
+
+        if (session) {
+          console.log('[Auth] ✅ Apple sign-in successful (auto-detected session)');
+          return { error: null };
+        }
+
+        console.error('[Auth] No code, token, or session found in callback URL');
+        return {
+          error: {
+            message:
+              'Apple sign-in completed, but no authorization code was returned. Please verify your Supabase Redirect URLs and Apple return URLs.',
+          },
+        };
       }
 
-      return { error: null };
+      if (result.type === 'cancel') {
+        console.log('[Auth] User cancelled Apple sign-in');
+        return { error: { message: 'Sign-in cancelled' } };
+      }
+
+      if (result.type === 'dismiss') {
+        console.log('[Auth] Apple sign-in dismissed');
+        return { error: { message: 'Sign-in dismissed' } };
+      }
+
+      console.error('[Auth] Unknown OAuth result type:', result.type);
+      return { error: { message: 'Authentication failed. Please try again.' } };
     } catch (error: any) {
-      console.error('Apple sign in exception:', error);
+      console.error('[Auth] Apple sign-in exception:', error);
       return { error: { message: error.message || 'Failed to sign in with Apple' } };
     } finally {
       setLoading(false);

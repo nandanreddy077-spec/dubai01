@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Animated,
   Alert,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,10 +21,16 @@ import {
   ChevronRight,
   Circle,
   PartyPopper,
+  Plus,
+  X,
 } from 'lucide-react-native';
 import { useSkincare } from '@/contexts/SkincareContext';
 import { useGamification } from '@/contexts/GamificationContext';
 import { useAnalysis } from '@/contexts/AnalysisContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import SubscriptionGuard from '@/components/SubscriptionGuard';
+import HardPaywall from '@/components/HardPaywall';
+import BlurredContentOverlay from '@/components/BlurredContentOverlay';
 import { SkincareStep, WeeklyPlan } from '@/types/skincare';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -38,13 +46,21 @@ const COMPLETION_MESSAGES = [
 ];
 
 export default function SimpleGlowCoachScreen() {
-  const { currentPlan, activePlans, updatePlanProgress, setCurrentPlan } = useSkincare();
+  const { currentPlan, activePlans, updatePlanProgress, setCurrentPlan, addCustomStep } = useSkincare();
   const { completeDailyRoutine, hasCompletedForPlanDay } = useGamification();
   const { currentResult } = useAnalysis();
   
   const [showCelebration, setShowCelebration] = useState(false);
+  const [showAddStepModal, setShowAddStepModal] = useState(false);
+  const [newStep, setNewStep] = useState({
+    name: '',
+    description: '',
+    timeOfDay: 'morning' as 'morning' | 'evening' | 'both',
+    products: '',
+  });
   const celebrationAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const celebrationMessage = useRef<string>('');
 
   useEffect(() => {
     if (!currentPlan && activePlans.length > 0) {
@@ -121,7 +137,13 @@ export default function SimpleGlowCoachScreen() {
     
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
+    // Store the celebration message so it doesn't change during animation
+    celebrationMessage.current = COMPLETION_MESSAGES[Math.floor(Math.random() * COMPLETION_MESSAGES.length)];
+    
+    // Reset animation value and show celebration
+    celebrationAnim.setValue(0);
     setShowCelebration(true);
+    
     Animated.sequence([
       Animated.spring(celebrationAnim, {
         toValue: 1,
@@ -135,7 +157,11 @@ export default function SimpleGlowCoachScreen() {
         duration: 300,
         useNativeDriver: true,
       }),
-    ]).start(() => setShowCelebration(false));
+    ]).start(() => {
+      setShowCelebration(false);
+      celebrationAnim.setValue(0);
+      celebrationMessage.current = '';
+    });
 
     await completeDailyRoutine(currentPlan.id, currentPlan.progress.currentDay);
     
@@ -148,7 +174,76 @@ export default function SimpleGlowCoachScreen() {
     }
   };
 
-  
+  const handleAddStep = async () => {
+    if (!currentPlan || !newStep.name.trim()) {
+      Alert.alert('Error', 'Please enter a step name');
+      return;
+    }
+
+    try {
+      await addCustomStep(currentPlan.id, {
+        name: newStep.name.trim(),
+        description: newStep.description.trim() || newStep.name.trim(),
+        timeOfDay: newStep.timeOfDay,
+        products: newStep.products.trim() ? newStep.products.split(',').map(p => p.trim()) : [],
+        frequency: 'daily',
+        instructions: [],
+        benefits: [],
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowAddStepModal(false);
+      setNewStep({
+        name: '',
+        description: '',
+        timeOfDay: 'morning',
+        products: '',
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add step. Please try again.');
+      console.error('Error adding step:', error);
+    }
+  };
+
+  const renderStepItem = (step: SkincareStep, index: number) => {
+    if (!currentPlan) return null;
+    
+    const isCompleted = currentPlan.progress.completedSteps.includes(step.id);
+    const isAlreadyDone = hasCompletedForPlanDay(currentPlan.id, currentPlan.progress.currentDay);
+    
+    return (
+      <TouchableOpacity
+        key={step.id}
+        onPress={() => handleStepToggle(step.id)}
+        activeOpacity={0.8}
+        disabled={isAlreadyDone}
+        style={[
+          styles.stepCard,
+          isCompleted && styles.stepCardCompleted,
+          isAlreadyDone && styles.stepCardDone,
+        ]}
+      >
+        <View style={[styles.stepCheckbox, isCompleted && styles.stepCheckboxCompleted]}>
+          {isCompleted ? (
+            <Check color="#FFFFFF" size={16} strokeWidth={3} />
+          ) : (
+            <Circle color={palette.textMuted} size={16} />
+          )}
+        </View>
+        
+        <View style={styles.stepContent}>
+          <Text style={[styles.stepName, isCompleted && styles.stepNameCompleted]}>
+            {step.name}
+          </Text>
+          {!isCompleted && (
+            <Text style={styles.stepHint}>Tap to complete</Text>
+          )}
+        </View>
+        
+        <Text style={styles.stepNumber}>{index + 1}</Text>
+      </TouchableOpacity>
+    );
+  };
 
   // Check if user has analysis but no plan - redirect to goal setup
   React.useEffect(() => {
@@ -158,85 +253,161 @@ export default function SimpleGlowCoachScreen() {
     }
   }, [activePlans.length, currentResult]);
 
-  if (activePlans.length === 0) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIcon}>
-            <Sparkles color={palette.gold} size={48} />
-          </View>
-          <Text style={styles.emptyTitle}>No Routine Yet</Text>
-          <Text style={styles.emptySubtitle}>
-            {currentResult 
-              ? 'Set your goals to create a personalized routine'
-              : 'Scan your skin to get a personalized daily routine'}
-          </Text>
-          <TouchableOpacity 
-            style={styles.emptyButton}
-            onPress={() => {
-              if (currentResult) {
-                router.push('/routine-goal-setup');
-      } else {
-                router.push('/(tabs)/glow-analysis');
-              }
-            }}
-            activeOpacity={0.9}
-          >
-            <LinearGradient colors={['#1A1A1A', '#000000']} style={styles.emptyButtonGradient}>
-              <Text style={styles.emptyButtonText}>
-                {currentResult ? 'Set My Goals' : 'Get My Routine'}
-              </Text>
-              <ChevronRight color="#FFFFFF" size={20} />
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const subscription = useSubscription();
+  const { state: subscriptionState } = subscription || {};
+  const isPremium = subscriptionState?.isPremium || false;
+  const isFreeUser = !isPremium && (subscriptionState?.scanCount || 0) >= 1;
+  const [showPaywall, setShowPaywall] = useState(false);
 
+  // For free users, show limited content with blur overlay
+  // For premium users, show full content
+  return (
+    <>
+      {activePlans.length === 0 ? (
+        <SafeAreaView style={styles.container}>
+          <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIcon}>
+              <Sparkles color={palette.gold} size={48} />
+            </View>
+            <Text style={styles.emptyTitle}>No Routine Yet</Text>
+            <Text style={styles.emptySubtitle}>
+              {currentResult 
+                ? 'Set your goals to create a personalized routine'
+                : 'Scan your skin to get a personalized daily routine'}
+            </Text>
+            <TouchableOpacity 
+              style={styles.emptyButton}
+              onPress={() => {
+                if (currentResult) {
+                  router.push('/routine-goal-setup');
+                } else {
+                  router.push('/(tabs)/glow-analysis');
+                }
+              }}
+              activeOpacity={0.9}
+            >
+              <LinearGradient colors={['#1A1A1A', '#000000']} style={styles.emptyButtonGradient}>
+                <Text style={styles.emptyButtonText}>
+                  {currentResult ? 'Set My Goals' : 'Get My Routine'}
+                </Text>
+                <ChevronRight color="#FFFFFF" size={20} />
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      ) : !currentPlan ? null : (
+        <RoutineContent 
+          currentPlan={currentPlan}
+          updatePlanProgress={updatePlanProgress}
+          completeDailyRoutine={completeDailyRoutine}
+          hasCompletedForPlanDay={hasCompletedForPlanDay}
+          currentResult={currentResult}
+          styles={styles}
+          palette={palette}
+          gradient={gradient}
+          celebrationAnim={celebrationAnim}
+          showCelebration={showCelebration}
+          setShowCelebration={setShowCelebration}
+          celebrationMessage={celebrationMessage}
+          todaySteps={todaySteps}
+          allSteps={allSteps}
+          completedCount={completedCount}
+          totalSteps={totalSteps}
+          allCompleted={allCompleted}
+          isAlreadyDone={isAlreadyDone}
+          handleStepToggle={handleStepToggle}
+          handleCompleteDay={handleCompleteDay}
+          renderStepItem={renderStepItem}
+          showAddStepModal={showAddStepModal}
+          setShowAddStepModal={setShowAddStepModal}
+          newStep={newStep}
+          setNewStep={setNewStep}
+          handleAddStep={handleAddStep}
+        />
+      )}
+      
+      {/* Blurred overlay for free users */}
+      {isFreeUser && activePlans.length > 0 && currentPlan && (
+        // #region agent log
+        (() => {
+          fetch('http://127.0.0.1:7242/ingest/fd66806e-0754-4560-90ad-e93bfb4e5cc9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'glow-coach.tsx:331',message:'Rendering BlurredContentOverlay',data:{isFreeUser,activePlansLength:activePlans.length,hasCurrentPlan:!!currentPlan},timestamp:Date.now(),runId:'debug-1',hypothesisId:'D'})}).catch(()=>{});
+          return null;
+        })(),
+        // #endregion
+        <BlurredContentOverlay
+          visible={true}
+          onUnlock={() => {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/fd66806e-0754-4560-90ad-e93bfb4e5cc9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'glow-coach.tsx:336',message:'onUnlock called',data:{},timestamp:Date.now(),runId:'debug-1',hypothesisId:'E'})}).catch(()=>{});
+            // #endregion
+            setShowPaywall(true);
+          }}
+          title="Unlock Your Routine"
+          message="Get personalized daily skincare routines tailored to your skin goals"
+          features={[
+            'Complete daily routine steps',
+            'Track your progress over time',
+            'AI-powered personalized coaching',
+            'Add custom steps to your routine',
+          ]}
+        />
+      )}
+
+      {/* Paywall Modal */}
+      {showPaywall && (
+        <HardPaywall
+          visible={true}
+          feature="Personalized Routines"
+          message="Unlock personalized skincare routines and daily coaching"
+          showCloseButton={true}
+          onClose={() => setShowPaywall(false)}
+          onSubscribe={async (type) => {
+            const result = await subscription?.processInAppPurchase(type);
+            if (result?.success) {
+              setShowPaywall(false);
+            }
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// Extract routine content to separate component for cleaner code
+function RoutineContent({
+  currentPlan,
+  updatePlanProgress,
+  completeDailyRoutine,
+  hasCompletedForPlanDay,
+  currentResult,
+  styles,
+  palette,
+  gradient,
+  celebrationAnim,
+  showCelebration,
+  setShowCelebration,
+  celebrationMessage,
+  todaySteps,
+  allSteps,
+  completedCount,
+  totalSteps,
+  allCompleted,
+  isAlreadyDone,
+  handleStepToggle,
+  handleCompleteDay,
+  renderStepItem,
+  showAddStepModal,
+  setShowAddStepModal,
+  newStep,
+  setNewStep,
+  handleAddStep,
+}: any) {
   if (!currentPlan) return null;
 
-  const renderStepItem = (step: SkincareStep, index: number) => {
-    const isCompleted = currentPlan.progress.completedSteps.includes(step.id);
-    
-    return (
-    <TouchableOpacity
-      key={step.id}
-        onPress={() => handleStepToggle(step.id)}
-      activeOpacity={0.8}
-        disabled={isAlreadyDone}
-        style={[
-          styles.stepCard,
-          isCompleted && styles.stepCardCompleted,
-          isAlreadyDone && styles.stepCardDone,
-        ]}
-      >
-        <View style={[styles.stepCheckbox, isCompleted && styles.stepCheckboxCompleted]}>
-        {isCompleted ? (
-            <Check color="#FFFFFF" size={16} strokeWidth={3} />
-        ) : (
-            <Circle color={palette.textMuted} size={16} />
-        )}
-      </View>
-      
-      <View style={styles.stepContent}>
-          <Text style={[styles.stepName, isCompleted && styles.stepNameCompleted]}>
-          {step.name}
-        </Text>
-          {!isCompleted && (
-            <Text style={styles.stepHint}>Tap to complete</Text>
-        )}
-      </View>
-        
-        <Text style={styles.stepNumber}>{index + 1}</Text>
-    </TouchableOpacity>
-  );
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
-      <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
+      <SafeAreaView style={styles.container}>
+        <LinearGradient colors={gradient.hero} style={StyleSheet.absoluteFillObject} />
       
       <ScrollView 
         showsVerticalScrollIndicator={false}
@@ -302,7 +473,12 @@ export default function SimpleGlowCoachScreen() {
                 </View>
               <Text style={styles.routineTitle}>Morning</Text>
             </View>
-            {todaySteps.morning.map((step, index) => renderStepItem(step, index))}
+            {todaySteps.morning.map((step: SkincareStep, index: number) => {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/fd66806e-0754-4560-90ad-e93bfb4e5cc9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'glow-coach.tsx:465',message:'Rendering morning step',data:{stepId:step.id,index},timestamp:Date.now(),runId:'debug-1',hypothesisId:'F'})}).catch(()=>{});
+              // #endregion
+              return renderStepItem(step, index);
+            })}
             </View>
           )}
 
@@ -315,8 +491,22 @@ export default function SimpleGlowCoachScreen() {
                 </View>
               <Text style={styles.routineTitle}>Evening</Text>
             </View>
-            {todaySteps.evening.map((step, index) => renderStepItem(step, todaySteps.morning.length + index))}
+            {todaySteps.evening.map((step: SkincareStep, index: number) => renderStepItem(step, todaySteps.morning.length + index))}
         </View>
+        )}
+
+        {/* Add Custom Step Button */}
+        {!isAlreadyDone && (
+          <View style={styles.addStepSection}>
+            <TouchableOpacity
+              style={styles.addStepButton}
+              onPress={() => setShowAddStepModal(true)}
+              activeOpacity={0.8}
+            >
+              <Plus color={palette.gold} size={20} />
+              <Text style={styles.addStepButtonText}>Add Custom Step</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {/* Complete Button */}
@@ -350,41 +540,148 @@ export default function SimpleGlowCoachScreen() {
                     )}
                   </View>
 
-        {/* Reassurance Message */}
-        <View style={styles.reassuranceSection}>
-          <Text style={styles.reassuranceText}>
-            {isAlreadyDone 
-              ? "You're building great habits! 🌟"
-              : completedCount === 0 
-                ? "Small steps lead to big glow ✨"
-                : completedCount < totalSteps / 2
-                  ? "You're doing great, keep going! 💪"
-                  : "Almost there, you got this! 🔥"
-            }
-              </Text>
-        </View>
+        {/* Reassurance Message - Hide when celebration is showing */}
+        {!showCelebration && (
+          <View style={styles.reassuranceSection}>
+            <Text style={styles.reassuranceText}>
+              {isAlreadyDone 
+                ? "You're building great habits! 🌟"
+                : completedCount === 0 
+                  ? "Small steps lead to big glow ✨"
+                  : completedCount < totalSteps / 2
+                    ? "You're doing great, keep going! 💪"
+                    : "Almost there, you got this! 🔥"
+              }
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
-      {/* Celebration Overlay */}
-      {showCelebration && (
+      {/* Celebration Overlay - Only show when celebration is active */}
+      {showCelebration && celebrationMessage.current && (
         <Animated.View 
-                        style={[
+          style={[
             styles.celebrationOverlay,
             { 
               opacity: celebrationAnim,
               transform: [{ scale: celebrationAnim }]
             }
           ]}
+          pointerEvents="none"
         >
           <View style={styles.celebrationContent}>
             <Text style={styles.celebrationEmoji}>🎉</Text>
             <Text style={styles.celebrationTitle}>
-              {COMPLETION_MESSAGES[Math.floor(Math.random() * COMPLETION_MESSAGES.length)]}
-                </Text>
+              {celebrationMessage.current}
+            </Text>
             <Text style={styles.celebrationSubtitle}>Day {currentPlan.progress.currentDay} complete</Text>
-              </View>
+          </View>
         </Animated.View>
       )}
+
+      {/* Add Step Modal */}
+      <Modal
+        visible={showAddStepModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAddStepModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Custom Step</Text>
+              <TouchableOpacity
+                onPress={() => setShowAddStepModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <X color={palette.textPrimary} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Step Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., Face Mask"
+                  placeholderTextColor={palette.textMuted}
+                  value={newStep.name}
+                  onChangeText={(text) => setNewStep({ ...newStep, name: text })}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Description</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Optional description"
+                  placeholderTextColor={palette.textMuted}
+                  value={newStep.description}
+                  onChangeText={(text) => setNewStep({ ...newStep, description: text })}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Time of Day</Text>
+                <View style={styles.timeOfDayButtons}>
+                  {(['morning', 'evening', 'both'] as const).map((time) => (
+                    <TouchableOpacity
+                      key={time}
+                      style={[
+                        styles.timeOfDayButton,
+                        newStep.timeOfDay === time && styles.timeOfDayButtonActive
+                      ]}
+                      onPress={() => setNewStep({ ...newStep, timeOfDay: time })}
+                    >
+                      <Text style={[
+                        styles.timeOfDayButtonText,
+                        newStep.timeOfDay === time && styles.timeOfDayButtonTextActive
+                      ]}>
+                        {time.charAt(0).toUpperCase() + time.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Products (comma-separated)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., Product 1, Product 2"
+                  placeholderTextColor={palette.textMuted}
+                  value={newStep.products}
+                  onChangeText={(text) => setNewStep({ ...newStep, products: text })}
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowAddStepModal(false)}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalAddButton, !newStep.name.trim() && styles.modalAddButtonDisabled]}
+                onPress={handleAddStep}
+                disabled={!newStep.name.trim()}
+              >
+                <LinearGradient
+                  colors={newStep.name.trim() ? ['#C9A961', '#A68B4F'] : ['#666666', '#555555']}
+                  style={styles.modalAddButtonGradient}
+                >
+                  <Plus color="#FFFFFF" size={18} />
+                  <Text style={styles.modalAddButtonText}>Add Step</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -660,7 +957,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 100,
+    zIndex: 1000,
+    elevation: 1000,
   },
   celebrationContent: {
     alignItems: 'center',
@@ -679,5 +977,147 @@ const styles = StyleSheet.create({
   celebrationSubtitle: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.8)',
+  },
+  addStepSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  addStepButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    backgroundColor: 'rgba(201, 169, 97, 0.1)',
+    borderWidth: 1.5,
+    borderColor: palette.gold,
+    borderStyle: 'dashed',
+  },
+  addStepButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: palette.gold,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: palette.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '90%',
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.border,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: palette.textPrimary,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalBody: {
+    padding: 20,
+    maxHeight: 400,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: palette.textPrimary,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: palette.surfaceAlt,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: palette.textPrimary,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  timeOfDayButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  timeOfDayButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: palette.surfaceAlt,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    alignItems: 'center',
+  },
+  timeOfDayButtonActive: {
+    backgroundColor: 'rgba(201, 169, 97, 0.1)',
+    borderColor: palette.gold,
+  },
+  timeOfDayButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: palette.textSecondary,
+  },
+  timeOfDayButtonTextActive: {
+    color: palette.gold,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 20,
+    paddingTop: 0,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: palette.surfaceAlt,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  modalCancelButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: palette.textPrimary,
+  },
+  modalAddButton: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  modalAddButtonDisabled: {
+    opacity: 0.5,
+  },
+  modalAddButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+  },
+  modalAddButtonText: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
   },
 });
